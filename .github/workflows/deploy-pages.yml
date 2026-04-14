@@ -2,7 +2,7 @@ name: Deploy to GitHub Pages
 
 on:
   push:
-    branches: [main, dev/round-simulator]
+    branches: [dev/round-simulator]
   workflow_dispatch:
 
 permissions:

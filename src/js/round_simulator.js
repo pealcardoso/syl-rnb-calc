@@ -191,6 +191,8 @@
 
         if (p1ActionType === 'switch') {
             p1Action = { type: 'switch', label: 'Switch' };
+        } else if (p1MoveIdx === 'none') {
+            p1Action = { type: 'none', label: 'No Move' };
         } else {
             var dmg = getDamageInfo(0, p1MoveIdx);
             var critDmg = getCritDamageInfo(0, p1MoveIdx);
@@ -203,16 +205,20 @@
             };
         }
 
-        var dmg2 = getDamageInfo(1, p2MoveIdx);
-        var critDmg2 = getCritDamageInfo(1, p2MoveIdx);
-        p2Action = {
-            type: 'attack',
-            move: p2Moves[p2MoveIdx],
-            moveIdx: p2MoveIdx,
-            damage: dmg2,
-            critDamage: critDmg2,
-            aiPcts: getAIPercentages()
-        };
+        if (p2MoveIdx === 'none') {
+            p2Action = { type: 'none', label: 'No Move', aiPcts: getAIPercentages() };
+        } else {
+            var dmg2 = getDamageInfo(1, p2MoveIdx);
+            var critDmg2 = getCritDamageInfo(1, p2MoveIdx);
+            p2Action = {
+                type: 'attack',
+                move: p2Moves[p2MoveIdx],
+                moveIdx: p2MoveIdx,
+                damage: dmg2,
+                critDamage: critDmg2,
+                aiPcts: getAIPercentages()
+            };
+        }
 
         // Simulate HP after round using average damage
         var firstSide = (speed.faster === 'p2') ? 'p2' : 'p1';
@@ -346,6 +352,8 @@
         var actionHtml;
         if (actor.action.type === 'switch') {
             actionHtml = '<div class="rs-move-name rs-switch">↔ Switch</div>';
+        } else if (actor.action.type === 'none') {
+            actionHtml = '<div class="rs-move-name rs-no-move">— No Move</div>';
         } else {
             var moveName = actor.action.move;
             var dmg = actor.action.damage;
@@ -454,6 +462,9 @@
         $p1.empty();
         $p2.empty();
 
+        $p1.append('<option value="none">(No Move)</option>');
+        $p2.append('<option value="none">(No Move)</option>');
+
         for (var i = 0; i < p1Moves.length; i++) {
             if (p1Moves[i] && p1Moves[i] !== '(No Move)') {
                 $p1.append('<option value="' + i + '">' + escapeHtml(p1Moves[i]) + '</option>');
@@ -548,8 +559,10 @@
         // Log round
         $('#rs-log-round').on('click', function () {
             var p1ActionType = $('#rs-p1-action-type').val();
-            var p1MoveIdx = ~~$('#rs-p1-move').val();
-            var p2MoveIdx = ~~$('#rs-p2-move').val();
+            var p1MoveRaw = $('#rs-p1-move').val();
+            var p1MoveIdx = p1MoveRaw === 'none' ? 'none' : ~~p1MoveRaw;
+            var p2MoveRaw = $('#rs-p2-move').val();
+            var p2MoveIdx = p2MoveRaw === 'none' ? 'none' : ~~p2MoveRaw;
             var comment = $('#rs-comment').val().trim();
 
             var rd = captureRoundData(p1ActionType, p1MoveIdx, p2MoveIdx, comment);
