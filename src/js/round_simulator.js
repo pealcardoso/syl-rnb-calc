@@ -101,8 +101,7 @@
             fullDesc: r.fullDesc(notation, false),
             range: rng,
             minDmg: rng[0],
-            maxDmg: rng[1],
-            kochance: (function(){ var k = r.kochance(); return k && k.text ? k.text : ''; })()
+            maxDmg: rng[1]
         };
     }
 
@@ -173,6 +172,30 @@
     function getRosterStatus(teamObj, name) {
         if (teamObj.roster[name]) return teamObj.roster[name].status || '';
         return '';
+    }
+
+    // Map RS status names → main calc form status names
+    var RS_TO_CALC_STATUS = {
+        'Burn': 'Burned',
+        'Paralysis': 'Paralyzed',
+        'Poison': 'Poisoned',
+        'Badly Poisoned': 'Badly Poisoned',
+        'Sleep': 'Asleep',
+        'Freeze': 'Frozen'
+    };
+
+    // Sync roster status to the main calc form so damage calcs reflect burn/para/etc.
+    function syncStatusToCalcForm() {
+        var line = curLine();
+        var p1Name = getP1Name(), p2Name = getP2Name();
+        var p1St = getRosterStatus(line.teams.p1, p1Name);
+        var p2St = getRosterStatus(line.teams.p2, p2Name);
+
+        var calcP1 = RS_TO_CALC_STATUS[p1St] || 'Healthy';
+        var calcP2 = RS_TO_CALC_STATUS[p2St] || 'Healthy';
+
+        $('#statusL1').val(calcP1).trigger('change');
+        $('#statusR1').val(calcP2).trigger('change');
     }
 
     // ────────────────────────────────────────────────────────────
@@ -391,10 +414,9 @@
             var d = actor.action.damage, cd = actor.action.critDamage;
             var rng = d ? '<span class="rs-damage-range"><span class="rs-range-label">Dmg:</span> ' + d.minDmg + '-' + d.maxDmg + '</span>' : '';
             var crit = cd ? '<span class="rs-crit-info">⚔ Crit: ' + cd.minDmg + '-' + cd.maxDmg + '</span>' : '';
-            var ko = d && d.kochance ? '<span class="rs-ko-chance">' + esc(d.kochance) + '</span>' : '';
             actHtml = '<div class="rs-move-name">' + esc(actor.action.move) + '</div>' +
                 '<div class="rs-damage-text">' + esc(d ? d.desc : '—') + '</div>' +
-                '<div class="rs-damage-inline">' + rng + crit + ko + '</div>';
+                '<div class="rs-damage-inline">' + rng + crit + '</div>';
         }
 
         var aiHtml = '';
@@ -470,15 +492,6 @@
         if (v1 !== null) $p1.val(v1);
         if (v2 !== null) $p2.val(v2);
 
-        // Auto-set status dropdowns from roster
-        var line = curLine();
-        var p1Name = getP1Name(), p2Name = getP2Name();
-        var p1St = getRosterStatus(line.teams.p1, p1Name);
-        var p2St = getRosterStatus(line.teams.p2, p2Name);
-        if (p1St) $('#rs-p1-status').val(p1St);
-        else $('#rs-p1-status').val('');
-        if (p2St) $('#rs-p2-status').val(p2St);
-        else $('#rs-p2-status').val('');
     }
 
     // ── Rebuild roster HP after deleting a round ────
@@ -624,8 +637,11 @@
 
             var rd = captureRoundData(p1ActionType, p1MoveIdx, p2MoveIdx, p2Crit, p1StatusInflict, p2StatusInflict, comment);
             curLine().rounds.push(rd);
+            syncStatusToCalcForm();
             renderAllRounds();
             $('#rs-comment').val('');
+            $('#rs-p1-status').val('');
+            $('#rs-p2-status').val('');
         });
 
         // Delete round
