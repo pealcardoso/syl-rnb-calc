@@ -102,7 +102,7 @@
             range: rng,
             minDmg: rng[0],
             maxDmg: rng[1],
-            kochance: r.kochance()
+            kochance: (function(){ var k = r.kochance(); return k && k.text ? k.text : ''; })()
         };
     }
 
@@ -149,7 +149,8 @@
                 item: item,
                 ability: ability,
                 maxHP: formHP.max,
-                currentHP: formHP.current
+                currentHP: formHP.current,
+                status: ''
             };
         }
         teamObj.activeSlot = name;
@@ -165,10 +166,19 @@
         if (teamObj.roster[name]) teamObj.roster[name].currentHP = Math.max(0, hp);
     }
 
+    function setRosterStatus(teamObj, name, status) {
+        if (teamObj.roster[name]) teamObj.roster[name].status = status || '';
+    }
+
+    function getRosterStatus(teamObj, name) {
+        if (teamObj.roster[name]) return teamObj.roster[name].status || '';
+        return '';
+    }
+
     // ────────────────────────────────────────────────────────────
     // CAPTURE ROUND
     // ────────────────────────────────────────────────────────────
-    function captureRoundData(p1ActionType, p1MoveIdx, p2MoveIdx, p2Crit, comment) {
+    function captureRoundData(p1ActionType, p1MoveIdx, p2MoveIdx, p2Crit, p1StatusInflict, p2StatusInflict, comment) {
         var line = curLine();
         var speed = getSpeedInfo();
         var p1Moves = getMoveNames('L');
@@ -182,6 +192,13 @@
         // Ensure pokemon in roster
         var p1Entry = ensureInRoster(line.teams.p1, p1Name, getP1Sprite(), getP1Item(), getP1Ability(), formHP1);
         var p2Entry = ensureInRoster(line.teams.p2, p2Name, getP2Sprite(), getP2Item(), getP2Ability(), formHP2);
+
+        // Apply any new status inflicted this round
+        if (p1StatusInflict) setRosterStatus(line.teams.p1, p1Name, p1StatusInflict);
+        if (p2StatusInflict) setRosterStatus(line.teams.p2, p2Name, p2StatusInflict);
+
+        var p1Status = getRosterStatus(line.teams.p1, p1Name);
+        var p2Status = getRosterStatus(line.teams.p2, p2Name);
 
         // HP before = tracked HP from roster
         var p1HPBefore = { current: p1Entry.currentHP, max: p1Entry.maxHP };
@@ -242,11 +259,11 @@
         return {
             roundNum: ++line.roundCounter,
             p1: {
-                name: p1Name, sprite: getP1Sprite(), item: getP1Item(), ability: getP1Ability(), status: getP1Status(),
+                name: p1Name, sprite: getP1Sprite(), item: getP1Item(), ability: getP1Ability(), status: p1Status,
                 hpBefore: p1HPBefore, hpAfter: { current: p1HPAfter, max: p1HPBefore.max }, action: p1Action
             },
             p2: {
-                name: p2Name, sprite: getP2Sprite(), item: getP2Item(), ability: getP2Ability(), status: getP2Status(),
+                name: p2Name, sprite: getP2Sprite(), item: getP2Item(), ability: getP2Ability(), status: p2Status,
                 hpBefore: p2HPBefore, hpAfter: { current: p2HPAfter, max: p2HPBefore.max }, action: p2Action
             },
             speed: speed,
@@ -306,12 +323,14 @@
             var col = hpColor(pct);
             var isActive = teamObj.activeSlot === pk.name ? ' rs-roster-active' : '';
             var fainted = pk.currentHP <= 0 ? ' rs-roster-fainted' : '';
+            var statusHtml = pk.status && pk.status !== 'Healthy' ? '<div class="rs-roster-status rs-status-' + pk.status.toLowerCase().replace(/\s+/g,'-') + '">' + esc(pk.status) + '</div>' : '';
             html += '<div class="rs-roster-mon' + isActive + fainted + '" title="' + esc(pk.name) + ' ' + pk.currentHP + '/' + pk.maxHP + '">' +
                         (pk.sprite ? '<img class="rs-roster-sprite" src="' + esc(pk.sprite) + '" alt="">' : '') +
                         '<div class="rs-roster-info">' +
                             '<div class="rs-roster-name">' + esc(pk.name) + '</div>' +
                             '<div class="rs-roster-hp-bar"><div class="rs-roster-hp-fill" style="width:' + Math.max(0,Math.min(100,pct)) + '%;background:' + col + '"></div></div>' +
                             '<div class="rs-roster-hp-text">' + pk.currentHP + '/' + pk.maxHP + '</div>' +
+                            statusHtml +
                         '</div>' +
                     '</div>';
         }
@@ -370,11 +389,12 @@
             actHtml = '<div class="rs-move-name rs-no-move">— No Move</div>';
         } else {
             var d = actor.action.damage, cd = actor.action.critDamage;
-            var rng = d ? '<div class="rs-damage-range"><span class="rs-range-label">Dmg:</span> ' + d.minDmg + ' - ' + d.maxDmg + '</div>' : '';
-            var crit = cd ? '<div class="rs-crit-info">⚔ Crit: ' + cd.minDmg + ' - ' + cd.maxDmg + '</div>' : '';
-            var ko = d && d.kochance ? '<div class="rs-ko-chance">' + esc(d.kochance) + '</div>' : '';
+            var rng = d ? '<span class="rs-damage-range"><span class="rs-range-label">Dmg:</span> ' + d.minDmg + '-' + d.maxDmg + '</span>' : '';
+            var crit = cd ? '<span class="rs-crit-info">⚔ Crit: ' + cd.minDmg + '-' + cd.maxDmg + '</span>' : '';
+            var ko = d && d.kochance ? '<span class="rs-ko-chance">' + esc(d.kochance) + '</span>' : '';
             actHtml = '<div class="rs-move-name">' + esc(actor.action.move) + '</div>' +
-                '<div class="rs-damage-text">' + esc(d ? d.desc : '—') + '</div>' + rng + crit + ko;
+                '<div class="rs-damage-text">' + esc(d ? d.desc : '—') + '</div>' +
+                '<div class="rs-damage-inline">' + rng + crit + ko + '</div>';
         }
 
         var aiHtml = '';
@@ -406,7 +426,7 @@
             '<div class="rs-details">' +
                 '<span class="rs-tag rs-item">🎒 ' + esc(actor.item) + '</span>' +
                 '<span class="rs-tag rs-ability">' + esc(actor.ability) + '</span>' +
-                (actor.status !== 'Healthy' ? '<span class="rs-tag rs-status">' + esc(actor.status) + '</span>' : '') +
+                (actor.status && actor.status !== 'Healthy' ? '<span class="rs-tag rs-status rs-status-' + actor.status.toLowerCase().replace(/\s+/g,'-') + '">' + esc(actor.status) + '</span>' : '') +
             '</div>' +
             actHtml + aiHtml + hpSim +
         '</div>';
@@ -449,6 +469,16 @@
         }
         if (v1 !== null) $p1.val(v1);
         if (v2 !== null) $p2.val(v2);
+
+        // Auto-set status dropdowns from roster
+        var line = curLine();
+        var p1Name = getP1Name(), p2Name = getP2Name();
+        var p1St = getRosterStatus(line.teams.p1, p1Name);
+        var p2St = getRosterStatus(line.teams.p2, p2Name);
+        if (p1St) $('#rs-p1-status').val(p1St);
+        else $('#rs-p1-status').val('');
+        if (p2St) $('#rs-p2-status').val(p2St);
+        else $('#rs-p2-status').val('');
     }
 
     // ── Rebuild roster HP after deleting a round ────
@@ -460,13 +490,15 @@
             var rd = line.rounds[i];
             // Re-register pokemon
             if (!line.teams.p1.roster[rd.p1.name]) {
-                line.teams.p1.roster[rd.p1.name] = { name: rd.p1.name, sprite: rd.p1.sprite, item: rd.p1.item, ability: rd.p1.ability, maxHP: rd.p1.hpBefore.max, currentHP: rd.p1.hpBefore.max };
+                line.teams.p1.roster[rd.p1.name] = { name: rd.p1.name, sprite: rd.p1.sprite, item: rd.p1.item, ability: rd.p1.ability, maxHP: rd.p1.hpBefore.max, currentHP: rd.p1.hpBefore.max, status: '' };
             }
             if (!line.teams.p2.roster[rd.p2.name]) {
-                line.teams.p2.roster[rd.p2.name] = { name: rd.p2.name, sprite: rd.p2.sprite, item: rd.p2.item, ability: rd.p2.ability, maxHP: rd.p2.hpBefore.max, currentHP: rd.p2.hpBefore.max };
+                line.teams.p2.roster[rd.p2.name] = { name: rd.p2.name, sprite: rd.p2.sprite, item: rd.p2.item, ability: rd.p2.ability, maxHP: rd.p2.hpBefore.max, currentHP: rd.p2.hpBefore.max, status: '' };
             }
             line.teams.p1.roster[rd.p1.name].currentHP = rd.p1.hpAfter.current;
             line.teams.p2.roster[rd.p2.name].currentHP = rd.p2.hpAfter.current;
+            if (rd.p1.status) line.teams.p1.roster[rd.p1.name].status = rd.p1.status;
+            if (rd.p2.status) line.teams.p2.roster[rd.p2.name].status = rd.p2.status;
             line.teams.p1.activeSlot = rd.p1.name;
             line.teams.p2.activeSlot = rd.p2.name;
         }
@@ -489,7 +521,7 @@
                 if (rd.terrain !== 'None') out.push('Terrain: ' + rd.terrain);
                 if (rd.p2Crit) out.push('** P2 CRIT **');
                 out.push('');
-                out.push(rd.p1.name + ' [' + rd.p1.item + ' / ' + rd.p1.ability + ']');
+                out.push(rd.p1.name + ' [' + rd.p1.item + ' / ' + rd.p1.ability + ']' + (rd.p1.status ? ' {' + rd.p1.status + '}' : ''));
                 out.push('  HP: ' + rd.p1.hpBefore.current + '/' + rd.p1.hpBefore.max + ' → ' + rd.p1.hpAfter.current + '/' + rd.p1.hpAfter.max);
                 if (rd.p1.action.type === 'switch') out.push('  Action: Switch');
                 else if (rd.p1.action.type === 'none') out.push('  Action: No Move');
@@ -499,7 +531,7 @@
                     if (rd.p1.action.critDamage) out.push('  Crit Damage: ' + rd.p1.action.critDamage.minDmg + ' - ' + rd.p1.action.critDamage.maxDmg);
                 }
                 out.push('');
-                out.push(rd.p2.name + ' [' + rd.p2.item + ' / ' + rd.p2.ability + ']');
+                out.push(rd.p2.name + ' [' + rd.p2.item + ' / ' + rd.p2.ability + ']' + (rd.p2.status ? ' {' + rd.p2.status + '}' : ''));
                 out.push('  HP: ' + rd.p2.hpBefore.current + '/' + rd.p2.hpBefore.max + ' → ' + rd.p2.hpAfter.current + '/' + rd.p2.hpAfter.max);
                 if (rd.p2.action.type === 'none') out.push('  Action: No Move');
                 else {
@@ -517,12 +549,12 @@
             var rosterP1 = Object.keys(line.teams.p1.roster);
             for (var k = 0; k < rosterP1.length; k++) {
                 var pk = line.teams.p1.roster[rosterP1[k]];
-                out.push('  P1 ' + pk.name + ': ' + pk.currentHP + '/' + pk.maxHP);
+                out.push('  P1 ' + pk.name + ': ' + pk.currentHP + '/' + pk.maxHP + (pk.status ? ' [' + pk.status + ']' : ''));
             }
             var rosterP2 = Object.keys(line.teams.p2.roster);
             for (var k = 0; k < rosterP2.length; k++) {
                 var pk = line.teams.p2.roster[rosterP2[k]];
-                out.push('  P2 ' + pk.name + ': ' + pk.currentHP + '/' + pk.maxHP);
+                out.push('  P2 ' + pk.name + ': ' + pk.currentHP + '/' + pk.maxHP + (pk.status ? ' [' + pk.status + ']' : ''));
             }
             out.push('');
         }
@@ -586,9 +618,11 @@
             var p2Raw = $('#rs-p2-move').val();
             var p2MoveIdx = p2Raw === 'none' ? 'none' : ~~p2Raw;
             var p2Crit = $('#rs-p2-crit').is(':checked');
+            var p1StatusInflict = $('#rs-p1-status').val();
+            var p2StatusInflict = $('#rs-p2-status').val();
             var comment = $('#rs-comment').val().trim();
 
-            var rd = captureRoundData(p1ActionType, p1MoveIdx, p2MoveIdx, p2Crit, comment);
+            var rd = captureRoundData(p1ActionType, p1MoveIdx, p2MoveIdx, p2Crit, p1StatusInflict, p2StatusInflict, comment);
             curLine().rounds.push(rd);
             renderAllRounds();
             $('#rs-comment').val('');
