@@ -383,15 +383,6 @@
     display: none !important;
 }
 
-/* Hide the parent .panel wrapping #trainer-mons (all its children are hidden) */
-.panel:has(#trainer-mons) {
-    display: none !important;
-}
-/* Hide the range-compare panel (already has .range-compare class) */
-.panel.range-compare {
-    display: none !important;
-}
-
 /* Also hide the "Range Compare" buttons inside move results */
 .btn-range-add { display: none !important; }
 
@@ -460,10 +451,9 @@
     margin: 0 !important;
 }
 
-/* Kill all fieldset floats and extra margins */
+/* Kill fieldset floats (keep default margins for internal spacing) */
 fieldset {
     float: none !important;
-    margin: 0 !important;
 }
 
 /* Fix move result group: remove huge margin, fix widths */
