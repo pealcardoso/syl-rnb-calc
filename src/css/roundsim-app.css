@@ -379,7 +379,9 @@
 .left-side-pannel,
 .right-side-pannel,
 .range-compare,
-#aiOptionsAndDisclaims {
+#aiOptionsAndDisclaims,
+#opp-trainer-mons,
+.poke-import {
     display: none !important;
 }
 
@@ -388,44 +390,6 @@
 
 /* Hide the original move-result-group in the calc flow (we moved it into controls) */
 .move-result-group { display: none !important; }
-
-/* Show import inline in the P2 team panel */
-.poke-import {
-    float: none !important;
-    border: 1px solid #4a5568 !important;
-    background: #1a202c !important;
-    color: #e2e8f0 !important;
-    width: auto !important;
-}
-.poke-import legend { color: #e2e8f0; }
-.poke-import .import-name-text,
-.poke-import .import-team-text {
-    background: #2d3748;
-    border: 1px solid #4a5568;
-    color: #e2e8f0;
-    width: 100%;
-    box-sizing: border-box;
-    margin: 4px 0;
-    padding: 4px 6px;
-    font-size: 0.85em;
-}
-.poke-import .import-team-text { min-height: 60px; resize: vertical; }
-
-/* Style the opposing team panel when visible */
-#opp-trainer-mons {
-    float: none !important;
-    border: 1px solid #4a5568 !important;
-    background: #1a202c !important;
-    color: #e2e8f0 !important;
-    width: auto !important;
-}
-#opp-trainer-mons legend { color: #e2e8f0; }
-#opp-trainer-mons button {
-    background: #2d3748; border: 1px solid #4a5568; color: #cbd5e0;
-    padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 0.85em;
-    margin: 2px;
-}
-#opp-trainer-mons button:hover { background: #4a5568; }
 
 /* ── Override float-based calc layout for Round Sim ───────── */
 .wrapper {
