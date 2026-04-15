@@ -38,8 +38,10 @@ jobs:
 
       - name: Copy round simulator files to dist
         run: |
-          cp -f src/js/round_simulator.js dist/js/ 2>/dev/null || true
-          cp -f src/css/round-simulator.css dist/css/ 2>/dev/null || true
+          cp -f src/js/round_simulator.js dist/js/
+          cp -f src/js/roundsim_app.js dist/js/
+          cp -f src/css/round-simulator.css dist/css/
+          cp -f src/css/roundsim-app.css dist/css/
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3

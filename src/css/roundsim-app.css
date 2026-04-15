@@ -1,0 +1,677 @@
+/* ============================================================
+   Round Simulator App — Full Layout Styles
+   ============================================================ */
+
+/* ── Nav ──────────────────────────────────────────────────── */
+.rsa-nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 16px;
+    background: #1a202c;
+    border-bottom: 1px solid #4a5568;
+}
+.rsa-nav-title { font-weight: 700; font-size: 1.1em; color: #e2e8f0; }
+.rsa-nav a { color: #63b3ed; text-decoration: none; font-size: 0.9em; }
+.rsa-nav a:hover { text-decoration: underline; }
+
+/* ── Teams Row — horizontal flex ──────────────────────────── */
+.rsa-teams-row {
+    display: flex;
+    gap: 12px;
+    padding: 8px;
+}
+@media (max-width: 900px) {
+    .rsa-teams-row { flex-direction: column; }
+}
+
+/* ── Pokemon Box ──────────────────────────────────────────── */
+.rsa-box-area {
+    display: flex;
+    gap: 12px;
+    padding: 8px;
+}
+@media (max-width: 900px) {
+    .rsa-box-area { flex-direction: column; }
+}
+.rsa-box-panel {
+    flex: 1;
+    border: 1px solid #4a5568;
+    border-radius: 8px;
+    background: #1a202c;
+    padding: 8px;
+    min-width: 0;
+}
+.rsa-box-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 6px; padding-bottom: 4px; border-bottom: 1px solid #2d3748;
+}
+.rsa-box-title { font-weight: 700; color: #e2e8f0; font-size: 0.9em; }
+.rsa-box-title-p1 { color: #63b3ed; }
+.rsa-box-title-p2 { color: #fc8181; }
+.rsa-box-count {
+    background: #4a5568; color: #e2e8f0; border-radius: 10px;
+    padding: 1px 8px; font-size: 0.7em; font-weight: 700;
+}
+.rsa-box-grid {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+}
+.rsa-box-slot {
+    display: flex; flex-direction: column; align-items: center;
+    padding: 3px 4px; border-radius: 6px; cursor: grab;
+    border: 2px solid transparent;
+    transition: all 0.15s; position: relative;
+    width: 56px; text-align: center;
+}
+.rsa-box-slot:hover { background: #2d3748; border-color: #4a5568; }
+.rsa-box-slot.rsa-in-team { opacity: 0.35; cursor: default; }
+.rsa-box-sprite { width: 40px; height: 40px; image-rendering: pixelated; pointer-events: none; }
+.rsa-box-name { font-size: 0.6em; color: #a0aec0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 56px; }
+.rsa-box-slot.dragging { opacity: 0.4; }
+
+/* Box color coding — speed borders */
+.rsa-box-slot.rsa-speed-F { border-color: #7ee1ff; }
+.rsa-box-slot.rsa-speed-T { border-color: #894197; }
+.rsa-box-slot.rsa-speed-S { border-color: #1c1414; }
+
+/* Box color coding — damage backgrounds */
+.rsa-box-slot.rsa-dmg-W { background: linear-gradient(to bottom, #0f0bf3 50%, #1a202c 50%); }
+.rsa-box-slot.rsa-dmg-WMO { background: linear-gradient(to bottom, #1295ec 50%, #1a202c 50%); }
+.rsa-box-slot.rsa-dmg-4 { background: linear-gradient(to bottom, #1a202c 50%, #dd0b0b 50%); }
+.rsa-box-slot.rsa-dmg-3 { background: linear-gradient(to bottom, #1a202c 50%, #ff7f16 50%); }
+.rsa-box-slot.rsa-dmg-1 { background: linear-gradient(to bottom, #20d408 50%, #1a202c 50%); }
+.rsa-box-slot.rsa-dmg-2 { background: linear-gradient(to bottom, #daff08 50%, #1a202c 50%); }
+.rsa-box-slot.rsa-dmg-14 { background: linear-gradient(to bottom, #20d408 50%, #dd0b0b 50%); }
+.rsa-box-slot.rsa-dmg-23 { background: linear-gradient(to bottom, #daff08 50%, #ff7f16 50%); }
+.rsa-box-slot.rsa-dmg-13 { background: linear-gradient(to bottom, #20d408 50%, #ff7f16 50%); }
+.rsa-box-slot.rsa-dmg-24 { background: linear-gradient(to bottom, #daff08 50%, #dd0b0b 50%); }
+
+/* Drop target highlight */
+.rsa-team-drop.rsa-drag-over {
+    background: #2d3748;
+    border: 2px dashed #63b3ed;
+    border-radius: 6px;
+    min-height: 50px;
+}
+
+/* ── Lines Bar ────────────────────────────────────────────── */
+.rsa-lines-bar {
+    background: #1a202c;
+    border: 1px solid #4a5568;
+    border-radius: 8px;
+    padding: 8px 12px;
+    margin: 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+.rsa-lines-label { color: #a0aec0; font-weight: 700; font-size: 0.85em; white-space: nowrap; }
+#rsa-line-tabs { display: flex; gap: 4px; flex-wrap: wrap; flex: 1; }
+.rsa-tab {
+    background: #2d3748; border: 1px solid #4a5568; color: #cbd5e0;
+    padding: 4px 12px; border-radius: 6px; cursor: pointer; font-size: 0.85em;
+    transition: all 0.15s;
+}
+.rsa-tab:hover { background: #4a5568; }
+.rsa-tab-active { background: #4299e1; color: #fff; border-color: #4299e1; }
+.rsa-line-btn {
+    background: #2d3748; border: 1px solid #4a5568; color: #a0aec0;
+    padding: 4px 10px; border-radius: 6px; cursor: pointer; font-size: 0.8em;
+}
+.rsa-line-btn:hover { background: #4a5568; color: #fff; }
+.rsa-line-btn-danger { border-color: #e53e3e; color: #fc8181; }
+.rsa-line-btn-danger:hover { background: #e53e3e; color: #fff; }
+
+/* ── Team Panels ──────────────────────────────────────────── */
+.rsa-team-panel {
+    flex: 1;
+    border: 1px solid #4a5568;
+    border-radius: 8px;
+    background: #1a202c;
+    padding: 10px;
+    min-width: 0;
+}
+
+/* Team slots scroll horizontally on wide screens */
+#rsa-team-p1, #rsa-team-p2 {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.rsa-team-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 8px; padding-bottom: 6px; border-bottom: 1px solid #2d3748;
+}
+.rsa-team-title { font-weight: 700; color: #e2e8f0; font-size: 1em; }
+.rsa-team-title-p1 { color: #63b3ed; }
+.rsa-team-title-p2 { color: #fc8181; }
+.rsa-team-count {
+    background: #4a5568; color: #e2e8f0; border-radius: 10px;
+    padding: 1px 8px; font-size: 0.75em; font-weight: 700;
+}
+
+.rsa-team-slot {
+    display: flex; align-items: center; gap: 6px;
+    padding: 4px 8px; border-radius: 6px; cursor: pointer;
+    border: 1px solid transparent;
+    border-left: 3px solid transparent;
+    transition: all 0.15s; position: relative;
+    min-width: 110px; max-width: 180px;
+    flex: 1 1 110px;
+}
+.rsa-team-slot:hover { background: #2d3748; border-color: #4a5568; }
+.rsa-team-slot.rsa-active { background: #2d3748; }
+.rsa-team-slot.rsa-fainted { opacity: 0.5; }
+
+/* P1 team slots — blue theme */
+.rsa-team-slot-p1 { border-left-color: #4299e1; }
+.rsa-team-slot-p1.rsa-active { border-color: #4299e1; border-left-width: 3px; box-shadow: 0 0 0 1px #4299e1; }
+
+/* P2 team slots — red theme */
+.rsa-team-slot-p2 { border-left-color: #fc8181; }
+.rsa-team-slot-p2.rsa-active { border-color: #fc8181; border-left-width: 3px; box-shadow: 0 0 0 1px #fc8181; }
+.rsa-team-sprite { width: 40px; height: 40px; image-rendering: pixelated; }
+.rsa-team-info { flex: 1; min-width: 0; }
+.rsa-team-name { font-size: 0.85em; font-weight: 600; color: #e2e8f0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rsa-team-hp-bar { height: 4px; background: #2d3748; border-radius: 2px; overflow: hidden; margin: 2px 0; }
+.rsa-team-hp-fill { height: 100%; border-radius: 2px; transition: width 0.3s; }
+.rsa-team-hp-text { font-size: 0.7em; color: #a0aec0; }
+.rsa-team-remove {
+    position: absolute; top: 2px; right: 2px;
+    background: none; border: none; color: #718096; cursor: pointer;
+    font-size: 1em; padding: 2px 4px; line-height: 1;
+}
+.rsa-team-remove:hover { color: #fc8181; }
+.rsa-team-add {
+    width: 100%; padding: 8px; background: #2d3748; border: 1px dashed #4a5568;
+    border-radius: 6px; color: #a0aec0; cursor: pointer; font-size: 0.85em;
+    margin-top: 4px;
+}
+.rsa-team-add:hover { background: #4a5568; color: #e2e8f0; }
+
+/* ── Status badges ────────────────────────────────────────── */
+.rsa-status-badge, .rsa-item-badge {
+    font-size: 0.65em; font-weight: 700; padding: 1px 5px;
+    border-radius: 3px; display: inline-block; margin-top: 2px;
+}
+.rsa-item-badge { background: #2d3748; color: #cbd5e0; }
+.rsa-ability-badge {
+    font-size: 0.65em; font-weight: 700; padding: 1px 5px;
+    border-radius: 3px; display: inline-block; margin-top: 2px;
+    background: #2a4365; color: #bee3f8;
+}
+.rsa-status-burn { background: #c53030; color: #fff; }
+.rsa-status-paralysis { background: #d69e2e; color: #1a202c; }
+.rsa-status-poison { background: #805ad5; color: #fff; }
+.rsa-status-badly-poisoned { background: #6b46c1; color: #fff; }
+.rsa-status-sleep { background: #4a5568; color: #e2e8f0; }
+.rsa-status-freeze { background: #4299e1; color: #fff; }
+.rsa-boost-tag { background: #2b6cb0; color: #bee3f8; font-size: 0.65em; }
+
+/* ── Round Controls ───────────────────────────────────────── */
+.rsa-controls {
+    background: #1a202c;
+    border: 1px solid #4a5568;
+    border-radius: 8px;
+    padding: 10px 12px;
+    margin: 8px;
+}
+.rsa-controls-title {
+    font-weight: 700; color: #e2e8f0; font-size: 0.9em;
+    margin-bottom: 8px; display: flex; align-items: center; gap: 8px;
+}
+.rsa-controls-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 6px;
+    align-items: end;
+}
+.rsa-ctrl-group { display: flex; flex-direction: column; gap: 2px; }
+.rsa-ctrl-group label { font-size: 0.75em; color: #a0aec0; font-weight: 600; }
+.rsa-ctrl-group select,
+.rsa-ctrl-group textarea,
+.rsa-ctrl-group input[type="text"] {
+    background: #2d3748; border: 1px solid #4a5568; color: #e2e8f0;
+    padding: 4px 6px; border-radius: 4px; font-size: 0.85em;
+}
+.rsa-ctrl-group textarea { resize: vertical; min-height: 28px; }
+.rsa-crit-group {
+    display: flex; flex-direction: row; align-items: center; gap: 6px;
+    padding-top: 16px;
+}
+.rsa-crit-group label { font-size: 0.8em; }
+.rsa-btn-row { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+.rsa-btn {
+    padding: 6px 14px; border-radius: 6px; border: 1px solid #4a5568;
+    background: #2d3748; color: #cbd5e0; cursor: pointer; font-size: 0.85em;
+    font-weight: 600; transition: all 0.15s;
+}
+.rsa-btn:hover { background: #4a5568; }
+.rsa-btn-primary { background: #4299e1; border-color: #4299e1; color: #fff; }
+.rsa-btn-primary:hover { background: #3182ce; }
+.rsa-btn-danger { border-color: #e53e3e; color: #fc8181; }
+.rsa-btn-danger:hover { background: #e53e3e; color: #fff; }
+.rsa-btn-success { background: #38a169; border-color: #38a169; color: #fff; }
+.rsa-btn-success:hover { background: #2f855a; }
+
+/* ── Round Log ────────────────────────────────────────────── */
+.rsa-round-log-area {
+    border: 1px solid #4a5568;
+    border-radius: 8px;
+    background: #1a202c;
+    padding: 10px;
+    margin: 8px;
+}
+.rsa-log-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 8px; padding-bottom: 6px; border-bottom: 1px solid #2d3748;
+}
+.rsa-log-title { font-weight: 700; color: #e2e8f0; font-size: 1em; }
+#rsa-round-count {
+    background: #4a5568; color: #e2e8f0; border-radius: 10px;
+    padding: 1px 8px; font-size: 0.75em;
+}
+.rsa-empty { color: #718096; font-style: italic; text-align: center; padding: 20px; }
+
+/* ── Round Card ───────────────────────────────────────────── */
+.rsa-round-card {
+    background: #2d3748; border: 1px solid #4a5568; border-radius: 8px;
+    margin-bottom: 8px; overflow: hidden;
+}
+.rsa-round-header {
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+    padding: 6px 10px; background: #1e2533; border-bottom: 1px solid #4a5568;
+}
+.rsa-round-num { font-weight: 700; color: #e2e8f0; font-size: 0.9em; }
+.rsa-speed { font-size: 0.8em; color: #a0aec0; flex: 1; }
+.rsa-tag {
+    display: inline-block; padding: 1px 6px; border-radius: 3px;
+    font-size: 0.7em; font-weight: 700;
+}
+.rsa-weather { background: #2b6cb0; color: #fff; }
+.rsa-terrain { background: #2f855a; color: #fff; }
+.rsa-trickroom { background: #805ad5; color: #fff; }
+.rsa-crit-tag { background: #e53e3e; color: #fff; }
+.rsa-item-tag { background: #2d3748; color: #cbd5e0; }
+.rsa-ability-tag { background: #553c9a; color: #e2e8f0; }
+.rsa-status-tag { font-weight: 700; }
+.rsa-delete-round {
+    background: none; border: none; color: #718096; cursor: pointer;
+    font-size: 1.1em; padding: 0 4px; margin-left: auto;
+}
+.rsa-delete-round:hover { color: #fc8181; }
+
+/* ── Round Body ───────────────────────────────────────────── */
+.rsa-round-body {
+    display: flex; gap: 8px; padding: 10px; align-items: flex-start;
+}
+.rsa-vs {
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 900; color: #718096; font-size: 0.9em;
+    padding: 0 4px; align-self: center;
+}
+.rsa-actor {
+    flex: 1; background: #1e2533; border-radius: 6px; padding: 8px;
+    border: 1px solid #4a5568; min-width: 0;
+}
+.rsa-actor.rsa-p1 { border-left: 3px solid #63b3ed; }
+.rsa-actor.rsa-p2 { border-left: 3px solid #fc8181; }
+.rsa-actor-header { display: flex; gap: 8px; align-items: center; margin-bottom: 6px; }
+.rsa-sprite { width: 48px; height: 48px; image-rendering: pixelated; }
+.rsa-actor-info { flex: 1; min-width: 0; }
+.rsa-actor-name { font-weight: 700; font-size: 0.9em; color: #e2e8f0; }
+.rsa-actor-tags { display: flex; gap: 3px; flex-wrap: wrap; margin: 2px 0; }
+.rsa-hp-bar-wrap { height: 5px; background: #4a5568; border-radius: 3px; overflow: hidden; }
+.rsa-hp-bar { height: 100%; border-radius: 3px; transition: width 0.3s; }
+.rsa-hp-text { font-size: 0.75em; color: #a0aec0; }
+.rsa-move-name { font-weight: 700; font-size: 0.9em; color: #fbd38d; margin-bottom: 2px; }
+.rsa-move-name.rsa-no-move { color: #a0aec0; font-style: italic; }
+.rsa-damage-desc { font-size: 0.78em; color: #cbd5e0; word-break: break-word; }
+.rsa-damage-inline { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-top: 2px; }
+.rsa-dmg-range { font-size: 0.8em; color: #90cdf4; font-weight: 600; }
+.rsa-crit-info { font-size: 0.8em; color: #f6ad55; font-weight: 600; }
+
+/* ── Extra damage sources ─────────────────────────────────── */
+.rsa-extras, .rsa-eot {
+    display: flex; gap: 4px; flex-wrap: wrap; margin-top: 4px;
+}
+.rsa-extra {
+    font-size: 0.72em; font-weight: 600; padding: 1px 5px;
+    border-radius: 3px; display: inline-block;
+}
+.rsa-extra-dmg { background: #742a2a; color: #feb2b2; }
+.rsa-extra-heal { background: #22543d; color: #9ae6b4; }
+
+/* ── AI Probabilities ─────────────────────────────────────── */
+.rsa-ai-probs {
+    margin-top: 6px; display: flex; flex-direction: column; gap: 2px;
+}
+.rsa-ai-row {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 0.8em; padding: 2px 4px; border-radius: 4px;
+}
+.rsa-ai-row.rsa-ai-selected {
+    background: #2c3e5a; border-left: 3px solid #63b3ed;
+    font-weight: 700;
+}
+.rsa-ai-pct-val {
+    min-width: 52px; text-align: right; font-weight: 600; color: #90cdf4; font-size: 0.9em;
+}
+.rsa-ai-row.rsa-ai-selected .rsa-ai-pct-val { color: #63b3ed; }
+.rsa-ai-move-name { color: #cbd5e0; }
+
+/* ── HP Sim ───────────────────────────────────────────────── */
+.rsa-hp-sim {
+    margin-top: 6px; padding-top: 6px; border-top: 1px dashed #4a5568;
+}
+.rsa-hp-after { font-size: 0.8em; color: #cbd5e0; }
+.rsa-hp-diff { font-weight: 700; }
+
+/* ── Comment ──────────────────────────────────────────────── */
+.rsa-comment {
+    background: #1e2533; padding: 6px 12px; font-size: 0.85em;
+    color: #a0aec0; border-top: 1px solid #2d3748; font-style: italic;
+}
+.rsa-comment::before { content: '💬 '; }
+
+/* ── Trainer Import Section ───────────────────────────────── */
+.rsa-trainer-import {
+    margin-top: 8px; padding-top: 8px; border-top: 1px solid #2d3748;
+}
+.rsa-trainer-import label { font-size: 0.75em; color: #a0aec0; font-weight: 600; }
+.rsa-trainer-import input {
+    background: #2d3748; border: 1px solid #4a5568; color: #e2e8f0;
+    padding: 4px 6px; border-radius: 4px; width: 100%; margin: 4px 0; font-size: 0.85em;
+}
+
+/* ── Box import button ────────────────────────────────────── */
+.rsa-box-import { margin-top: 8px; }
+
+/* ── Hide excess calc sections in Round Sim ───────────────── */
+#trainer-mons,
+#trashFieldset,
+.left-side-pannel,
+.right-side-pannel,
+.range-compare,
+#aiOptionsAndDisclaims {
+    display: none !important;
+}
+
+/* Also hide the "Range Compare" buttons inside move results */
+.btn-range-add { display: none !important; }
+
+/* Hide the original move-result-group in the calc flow (we moved it into controls) */
+.move-result-group { display: none !important; }
+
+/* Show import inline in the P2 team panel */
+.poke-import {
+    float: none !important;
+    border: 1px solid #4a5568 !important;
+    background: #1a202c !important;
+    color: #e2e8f0 !important;
+    width: auto !important;
+}
+.poke-import legend { color: #e2e8f0; }
+.poke-import .import-name-text,
+.poke-import .import-team-text {
+    background: #2d3748;
+    border: 1px solid #4a5568;
+    color: #e2e8f0;
+    width: 100%;
+    box-sizing: border-box;
+    margin: 4px 0;
+    padding: 4px 6px;
+    font-size: 0.85em;
+}
+.poke-import .import-team-text { min-height: 60px; resize: vertical; }
+
+/* Style the opposing team panel when visible */
+#opp-trainer-mons {
+    float: none !important;
+    border: 1px solid #4a5568 !important;
+    background: #1a202c !important;
+    color: #e2e8f0 !important;
+    width: auto !important;
+}
+#opp-trainer-mons legend { color: #e2e8f0; }
+#opp-trainer-mons button {
+    background: #2d3748; border: 1px solid #4a5568; color: #cbd5e0;
+    padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 0.85em;
+    margin: 2px;
+}
+#opp-trainer-mons button:hover { background: #4a5568; }
+
+/* ── Override float-based calc layout for Round Sim ───────── */
+.wrapper {
+    max-width: none;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 4px;
+    align-items: flex-start;
+}
+
+/* Everything full-width by default */
+.wrapper > * {
+    flex: 0 0 100%;
+    min-width: 0;
+}
+
+/* Panels shrink to content and sit side-by-side */
+.panel {
+    float: none !important;
+    flex: 0 0 auto !important;
+    display: block;
+}
+
+/* Kill all fieldset floats */
+fieldset {
+    float: none !important;
+}
+
+/* Fix move result group: remove huge margin, fix widths */
+.rsa-moves-area .move-result-group {
+    display: block !important;
+    min-width: auto !important;
+    margin: 0 !important;
+    overflow: hidden;
+}
+
+.rsa-moves-area .move-result-subgroupL,
+.rsa-moves-area .move-result-subgroupR {
+    float: none !important;
+    width: auto !important;
+    display: inline-block;
+    vertical-align: top;
+    min-width: 45%;
+}
+
+.rsa-moves-area .result-move-header { color: #a0aec0; }
+.rsa-moves-area .btn-xxxwide { font-size: 0.8em; }
+
+/* Selected move highlight for round sim */
+.rsa-move-selected label.btn-xxxwide {
+    outline: 3px solid #4299e1;
+    outline-offset: 1px;
+    position: relative;
+}
+
+.rsa-move-selected-r label.btn-xxxwide {
+    outline: 3px solid #fc8181;
+    outline-offset: 1px;
+    position: relative;
+}
+
+/* Most probable P2 move highlight */
+.rsa-move-most-probable {
+    background: rgba(252, 129, 129, 0.15);
+    border-left: 3px solid #fc8181;
+}
+
+/* Team slot color coding (same as box) */
+.rsa-team-slot.rsa-speed-F { border-left-color: #7ee1ff; }
+.rsa-team-slot.rsa-speed-T { border-left-color: #894197; }
+.rsa-team-slot.rsa-speed-S { border-left-color: #1c1414; }
+.rsa-team-slot.rsa-dmg-W { background: linear-gradient(to right, #0f0bf3 3px, transparent 3px); }
+.rsa-team-slot.rsa-dmg-WMO { background: linear-gradient(to right, #1295ec 3px, transparent 3px); }
+.rsa-team-slot.rsa-dmg-4 { background: linear-gradient(to right, transparent 3px, rgba(221,11,11,0.15) 3px); }
+.rsa-team-slot.rsa-dmg-3 { background: linear-gradient(to right, transparent 3px, rgba(255,127,22,0.15) 3px); }
+.rsa-team-slot.rsa-dmg-1 { background: linear-gradient(to right, rgba(32,212,8,0.2) 3px, transparent 3px); }
+.rsa-team-slot.rsa-dmg-2 { background: linear-gradient(to right, rgba(218,255,8,0.15) 3px, transparent 3px); }
+.rsa-team-slot.rsa-dmg-14 { background: linear-gradient(to right, rgba(32,212,8,0.2) 3px, rgba(221,11,11,0.15) 3px); }
+.rsa-team-slot.rsa-dmg-23 { background: linear-gradient(to right, rgba(218,255,8,0.15) 3px, rgba(255,127,22,0.15) 3px); }
+.rsa-team-slot.rsa-dmg-13 { background: linear-gradient(to right, rgba(32,212,8,0.2) 3px, rgba(255,127,22,0.15) 3px); }
+.rsa-team-slot.rsa-dmg-24 { background: linear-gradient(to right, rgba(218,255,8,0.15) 3px, rgba(221,11,11,0.15) 3px); }
+.rsa-team-slot.rsa-active.rsa-dmg-W,
+.rsa-team-slot.rsa-active.rsa-dmg-WMO,
+.rsa-team-slot.rsa-active.rsa-dmg-1,
+.rsa-team-slot.rsa-active.rsa-dmg-2,
+.rsa-team-slot.rsa-active.rsa-dmg-3,
+.rsa-team-slot.rsa-active.rsa-dmg-4,
+.rsa-team-slot.rsa-active.rsa-dmg-14,
+.rsa-team-slot.rsa-active.rsa-dmg-23,
+.rsa-team-slot.rsa-active.rsa-dmg-13,
+.rsa-team-slot.rsa-active.rsa-dmg-24 { background-color: #2d3748; }
+
+/* Round card order badges */
+.rsa-first-badge {
+    display: inline-block; font-size: 0.6em; font-weight: 700;
+    background: #48bb78; color: #1a202c;
+    padding: 1px 5px; border-radius: 3px; margin-left: 4px;
+    vertical-align: middle;
+}
+.rsa-second-badge {
+    display: inline-block; font-size: 0.6em; font-weight: 700;
+    background: #4a5568; color: #e2e8f0;
+    padding: 1px 5px; border-radius: 3px; margin-left: 4px;
+    vertical-align: middle;
+}
+
+/* Stat boost controls */
+.rsa-boosts-row {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    align-items: end;
+    margin-top: 6px;
+}
+.rsa-boost-group {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1px;
+}
+.rsa-boost-group label {
+    font-size: 0.7em;
+    color: #a0aec0;
+    font-weight: 600;
+}
+.rsa-boost-group select {
+    background: #2d3748;
+    border: 1px solid #4a5568;
+    color: #e2e8f0;
+    padding: 2px 4px;
+    border-radius: 4px;
+    font-size: 0.8em;
+    width: 52px;
+}
+.rsa-boost-section-label {
+    font-size: 0.75em;
+    font-weight: 700;
+    color: #a0aec0;
+    margin-right: 4px;
+    align-self: center;
+}
+
+/* ── Moves area inside controls ───────────────────────────── */
+.rsa-moves-area {
+    margin-bottom: 8px;
+    border-bottom: 1px solid #2d3748;
+    padding-bottom: 8px;
+}
+
+/* Hide verbose damage description text */
+.rsa-moves-area #resultDamageL1,
+.rsa-moves-area #resultDamageL2,
+.rsa-moves-area #resultDamageL3,
+.rsa-moves-area #resultDamageL4,
+.rsa-moves-area #resultDamageR1,
+.rsa-moves-area #resultDamageR2,
+.rsa-moves-area #resultDamageR3,
+.rsa-moves-area #resultDamageR4 {
+    display: none !important;
+}
+
+/* Also hide the AI move rate percentages */
+.rsa-moves-area .resultMoveRateR {
+    display: none !important;
+}
+
+/* Hide original headers, we show our own compact layout */
+.rsa-moves-area .result-move-header {
+    font-size: 0.75em;
+    color: #718096;
+    margin-bottom: 2px;
+}
+.rsa-moves-area .result-move-header span {
+    font-size: 1em;
+}
+
+/* Compact damage badge injected by JS */
+.rsa-dmg-badge {
+    display: inline-block;
+    font-size: 0.72em;
+    font-weight: 700;
+    padding: 1px 6px;
+    border-radius: 3px;
+    margin-left: 4px;
+    cursor: pointer;
+    vertical-align: middle;
+    position: relative;
+}
+.rsa-dmg-badge.rsa-dmg-ohko { background: #c53030; color: #fff; }
+.rsa-dmg-badge.rsa-dmg-high { background: #dd6b20; color: #fff; }
+.rsa-dmg-badge.rsa-dmg-mid { background: #d69e2e; color: #1a202c; }
+.rsa-dmg-badge.rsa-dmg-low { background: #2f855a; color: #fff; }
+.rsa-dmg-badge.rsa-dmg-none { background: #4a5568; color: #a0aec0; }
+
+/* Expandable damage amounts tooltip */
+.rsa-dmg-detail {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    z-index: 100;
+    background: #1a202c;
+    border: 1px solid #4a5568;
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 0.85em;
+    font-weight: 400;
+    color: #cbd5e0;
+    white-space: nowrap;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+    max-width: 400px;
+    overflow-x: auto;
+}
+.rsa-dmg-badge:hover .rsa-dmg-detail,
+.rsa-dmg-badge.rsa-dmg-open .rsa-dmg-detail {
+    display: block;
+}
+
+.rsa-pick-name { font-weight: 600; }
+
+/* ── Scrollbar styling ────────────────────────────────────── */
+.rsa-team-panel::-webkit-scrollbar {
+    width: 6px;
+}
+.rsa-team-panel::-webkit-scrollbar-track {
+    background: #1a202c;
+}
+.rsa-team-panel::-webkit-scrollbar-thumb {
+    background: #4a5568; border-radius: 3px;
+}
