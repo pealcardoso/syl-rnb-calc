@@ -71,8 +71,9 @@
   </div>
 
 <div class="wrapper">
-    <div aria-label="Settings" role="region">
+    <div aria-label="Settings" role="region" style="display:flex; align-items:center; flex-wrap:wrap;">
         <span class="title-text">Pok&eacute;mon Damage Calculator</span>
+        <a href="./roundsim.template.html" style="margin-left:auto; color:#90cdf4; font-size:0.95em; text-decoration:none; font-weight:600;">Open Round Simulator &rarr;</a>
         <span class="genSelection" aria-labelledby="selectGenInstruction" role="radiogroup" title="Select the generation.">
             <span class="visually-hidden" id="selectGenInstruction">Select the generation.</span>
             <input class="gen visually-hidden" type="radio" name="gen" value="8" id="gen8" checked="checked" />
@@ -91,10 +92,6 @@
         </span>
     </div>
     <hr />
-
-    <div style="text-align:center; padding:6px 0;">
-        <a href="./roundsim.template.html" style="color:#90cdf4; font-size:0.95em; text-decoration:none; font-weight:600;">Open Round Simulator →</a>
-    </div>
 
     <div aria-label="Move selection" class="move-result-group" role="region" title="Select a move to show detailed results.">
         <div  aria-labelledby="resultHeaderL" class="move-result-subgroupL" id="move-result-subgroupL" role="radiogroup">
