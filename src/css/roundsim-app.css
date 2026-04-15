@@ -346,24 +346,6 @@
 .rsa-extra-dmg { background: #742a2a; color: #feb2b2; }
 .rsa-extra-heal { background: #22543d; color: #9ae6b4; }
 
-/* ── AI Probabilities ─────────────────────────────────────── */
-.rsa-ai-probs {
-    margin-top: 6px; display: flex; flex-direction: column; gap: 2px;
-}
-.rsa-ai-row {
-    display: flex; align-items: center; gap: 6px;
-    font-size: 0.8em; padding: 2px 4px; border-radius: 4px;
-}
-.rsa-ai-row.rsa-ai-selected {
-    background: #2c3e5a; border-left: 3px solid #63b3ed;
-    font-weight: 700;
-}
-.rsa-ai-pct-val {
-    min-width: 52px; text-align: right; font-weight: 600; color: #90cdf4; font-size: 0.9em;
-}
-.rsa-ai-row.rsa-ai-selected .rsa-ai-pct-val { color: #63b3ed; }
-.rsa-ai-move-name { color: #cbd5e0; }
-
 /* ── HP Sim ───────────────────────────────────────────────── */
 .rsa-hp-sim {
     margin-top: 6px; padding-top: 6px; border-top: 1px dashed #4a5568;
@@ -398,6 +380,15 @@
 .right-side-pannel,
 .range-compare,
 #aiOptionsAndDisclaims {
+    display: none !important;
+}
+
+/* Hide the parent .panel wrapping #trainer-mons (all its children are hidden) */
+.panel:has(#trainer-mons) {
+    display: none !important;
+}
+/* Hide the range-compare panel (already has .range-compare class) */
+.panel.range-compare {
     display: none !important;
 }
 
@@ -466,11 +457,13 @@
     float: none !important;
     flex: 0 0 auto !important;
     display: block;
+    margin: 0 !important;
 }
 
-/* Kill all fieldset floats */
+/* Kill all fieldset floats and extra margins */
 fieldset {
     float: none !important;
+    margin: 0 !important;
 }
 
 /* Fix move result group: remove huge margin, fix widths */
@@ -606,9 +599,14 @@ fieldset {
     display: none !important;
 }
 
-/* Also hide the AI move rate percentages */
+/* Show the AI move rate percentages next to move buttons */
 .rsa-moves-area .resultMoveRateR {
-    display: none !important;
+    display: inline-block !important;
+    font-size: 0.8em;
+    font-weight: 700;
+    color: #90cdf4;
+    margin-left: 6px;
+    min-width: 48px;
 }
 
 /* Hide original headers, we show our own compact layout */

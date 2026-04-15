@@ -7,7 +7,6 @@
     <link type="text/css" rel="stylesheet" href="./js/vendor/select2/select2.css" />
     <link type="text/css" rel="stylesheet" href="./css/main.css?" />
     <link type="text/css" rel="stylesheet" href="./css/vendor/bootstrap.css" />
-    <link type="text/css" rel="stylesheet" href="./css/round-simulator.css?" />
     <link type="text/css" rel="stylesheet" href="./css/dark-theme.css" id="dark-theme-styles">
     <script defer src="https://analytics.sylmar.dev/script.js" data-website-id="439a9f71-dbd6-4abf-8b55-a3593e3c88a8"></script>
     <script>
@@ -93,92 +92,9 @@
     </div>
     <hr />
 
-    <!-- ═══ Round Simulator ═══ -->
-    <div id="rs-toggle-btn" class="rs-toggle-bar" title="Click to open the Round Simulator">
-        <span class="rs-toggle-icon">▶</span>
-        <span class="rs-toggle-title">Round Simulator</span>
-        <span class="rs-toggle-badge" id="rs-round-count">0</span>
+    <div style="text-align:center; padding:6px 0;">
+        <a href="./roundsim.template.html" style="color:#90cdf4; font-size:0.95em; text-decoration:none; font-weight:600;">Open Round Simulator →</a>
     </div>
-    <div id="rs-panel">
-        <!-- Line Tabs -->
-        <div class="rs-lines-bar">
-            <div class="rs-lines-tabs" id="rs-lines-tabs"></div>
-            <button class="rs-btn rs-btn-sm" id="rs-new-line" title="Create a new line">+ New Line</button>
-            <button class="rs-btn rs-btn-sm rs-btn-danger" id="rs-delete-line" title="Delete current line">&#128465; Delete Line</button>
-        </div>
-
-        <!-- Team Rosters -->
-        <div class="rs-teams-row">
-            <div class="rs-team-panel rs-team-p1">
-                <div class="rs-team-label">P1 Team</div>
-                <div class="rs-team-roster" id="rs-team-p1"></div>
-            </div>
-            <div class="rs-team-panel rs-team-p2">
-                <div class="rs-team-label">P2 Team</div>
-                <div class="rs-team-roster" id="rs-team-p2"></div>
-            </div>
-        </div>
-
-        <!-- Controls -->
-        <div class="rs-controls">
-            <div class="rs-control-group">
-                <label for="rs-p1-action-type">P1 Action</label>
-                <select id="rs-p1-action-type">
-                    <option value="attack">Attack</option>
-                    <option value="switch">Switch</option>
-                </select>
-            </div>
-            <div class="rs-control-group">
-                <label for="rs-p1-move">P1 Move</label>
-                <select id="rs-p1-move"></select>
-            </div>
-            <div class="rs-control-group">
-                <label for="rs-p2-move">P2 Move (Opponent)</label>
-                <select id="rs-p2-move"></select>
-            </div>
-            <div class="rs-control-group rs-crit-group">
-                <label for="rs-p2-crit">P2 Crits</label>
-                <input type="checkbox" id="rs-p2-crit" />
-            </div>
-            <div class="rs-control-group">
-                <label for="rs-p1-status">Inflict on P1</label>
-                <select id="rs-p1-status">
-                    <option value="">— None —</option>
-                    <option value="Burn">Burn</option>
-                    <option value="Paralysis">Paralysis</option>
-                    <option value="Poison">Poison</option>
-                    <option value="Badly Poisoned">Badly Poisoned</option>
-                    <option value="Sleep">Sleep</option>
-                    <option value="Freeze">Freeze</option>
-                </select>
-            </div>
-            <div class="rs-control-group">
-                <label for="rs-p2-status">Inflict on P2</label>
-                <select id="rs-p2-status">
-                    <option value="">— None —</option>
-                    <option value="Burn">Burn</option>
-                    <option value="Paralysis">Paralysis</option>
-                    <option value="Poison">Poison</option>
-                    <option value="Badly Poisoned">Badly Poisoned</option>
-                    <option value="Sleep">Sleep</option>
-                    <option value="Freeze">Freeze</option>
-                </select>
-            </div>
-            <div class="rs-control-group rs-comment-group">
-                <label for="rs-comment">Comment</label>
-                <textarea id="rs-comment" rows="1" placeholder="Optional note for this round..."></textarea>
-            </div>
-            <div class="rs-btn-group">
-                <button class="rs-btn rs-btn-primary" id="rs-log-round">&#9654; Log Round</button>
-                <button class="rs-btn" id="rs-export">&#128203; Copy Log</button>
-                <button class="rs-btn rs-btn-danger" id="rs-clear-all">&#128465; Clear Line</button>
-            </div>
-        </div>
-        <div id="rs-round-log">
-            <div class="rs-empty">No rounds recorded yet. Use the controls above to log a round.</div>
-        </div>
-    </div>
-    <!-- ═══ End Round Simulator ═══ -->
 
     <div aria-label="Move selection" class="move-result-group" role="region" title="Select a move to show detailed results.">
         <div  aria-labelledby="resultHeaderL" class="move-result-subgroupL" id="move-result-subgroupL" role="radiogroup">
@@ -1973,7 +1889,6 @@
     <script type="text/javascript" src="./js/index_randoms_controls.js?"></script>
     <script type="text/javascript" src="./js/moveset_import.js?"></script>
     <script type="text/javascript" src="./js/range_compare.js?"></script>
-    <script type="text/javascript" src="./js/round_simulator.js?"></script>
 </div>
 
 <div class="credits">Run and Bun AI %, Range Compare, and Quality of Life work done by SylmarDev. <br>Modified by dekzeh, ForwardFeed, Originaly Created by Honko, maintained by Austin and Kris, Special thanks to Hzla

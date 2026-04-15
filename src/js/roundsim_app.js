@@ -490,13 +490,18 @@
             } else {
                 var set = lookupSet(setId);
                 var maxHP = set ? calcMaxHP(pokeName, set) : 100;
+                var types = [];
+                try {
+                    var species = calc.SPECIES[gen.num][pokeName];
+                    if (species && species.types) types = species.types;
+                } catch (e) {}
                 var entry = createRosterEntry(
                     pokeName, setId,
                     getSprite(pokeName),
                     set ? (set.item || '') : '',
                     set ? (set.ability || '') : '',
                     set ? (set.moves || []) : [],
-                    maxHP, []
+                    maxHP, types
                 );
                 newRoster.push(entry);
             }
@@ -514,8 +519,9 @@
         if (!parts) return null;
         var pokeName = parts[1];
         var setName = parts[2];
-        var setdex = window.SETDEX_SV || {};
-        return (setdex[pokeName] && setdex[pokeName][setName]) || null;
+        // Use the global setdex (tracks current gen) with fallback to SETDEX_SV
+        var sd = window.setdex || window.SETDEX_SV || {};
+        return (sd[pokeName] && sd[pokeName][setName]) || null;
     }
 
     function addToTeam(side) {
@@ -1027,30 +1033,8 @@
                     '<span class="rsa-hp-text">' + actor.hpBefore.current + '/' + actor.hpBefore.max + '</span>' +
                 '</div>' +
             '</div>' +
-            moveHtml + extrasHtml + eotHtml + renderAIProbs(actor, side) + hpSim +
+            moveHtml + extrasHtml + eotHtml + hpSim +
         '</div>';
-    }
-
-    function renderAIProbs(actor, side) {
-        if (side !== 'p2' || !actor.aiPcts || !actor.allMoves) return '';
-        var hasAny = false;
-        for (var i = 0; i < actor.aiPcts.length; i++) {
-            if (actor.aiPcts[i] && actor.aiPcts[i] !== '') { hasAny = true; break; }
-        }
-        if (!hasAny) return '';
-        var html = '<div class="rsa-ai-probs">';
-        for (var i = 0; i < 4; i++) {
-            var moveName = actor.allMoves[i];
-            if (!moveName || moveName === '—') continue;
-            var isSelected = actor.moveIdx === i;
-            var pct = actor.aiPcts[i] || '—';
-            html += '<div class="rsa-ai-row' + (isSelected ? ' rsa-ai-selected' : '') + '">' +
-                '<span class="rsa-ai-pct-val">' + esc(pct) + '</span>' +
-                '<span class="rsa-ai-move-name">' + esc(moveName) + '</span>' +
-            '</div>';
-        }
-        html += '</div>';
-        return html;
     }
 
     // ── Render All ───────────────────────────────────────────
@@ -1452,13 +1436,30 @@
         $(document).on('click', '#next-trainer, #previous-trainer', function (e) {
             var line = curLine();
             if (line.rounds.length > 0) {
-                var save = confirm('You have ' + line.rounds.length + ' round(s) logged. Save current line before switching trainer?');
+                var save = confirm(
+                    'You have ' + line.rounds.length + ' round(s) logged in "' + line.name + '".\n\n' +
+                    'OK = Save this line and start a new one\n' +
+                    'Cancel = Discard rounds and load next opponent'
+                );
                 if (save) {
-                    // Create a new line for the next trainer
+                    // Keep current line, create a new one for the next trainer
                     lines.push(createLine('Line ' + String.fromCharCode(65 + lines.length)));
                     currentLineIdx = lines.length - 1;
-                    renderAll();
+                } else {
+                    // Discard: clear current line's rounds and reset teams
+                    line.rounds = [];
+                    line.roundCounter = 0;
+                    line.teams = {
+                        p1: { roster: [], activeIdx: -1 },
+                        p2: { roster: [], activeIdx: -1 }
+                    };
                 }
+                renderAll();
+                // Re-init P1 team after the form loads the new trainer
+                setTimeout(function () {
+                    initP1Team();
+                    syncP2Team();
+                }, 500);
             }
         });
 
