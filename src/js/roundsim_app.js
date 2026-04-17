@@ -10,7 +10,192 @@
     // ════════════════════════════════════════════════════════════
 
     var SPRITE_BASE = 'https://raw.githubusercontent.com/May8th1995/sprites/master/';
+    var ITEM_SPRITE_BASE = 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/';
+    var TYPE_SPRITE_BASE = 'https://play.pokemonshowdown.com/sprites/types/';
+    var CATEGORY_SPRITE_BASE = 'https://play.pokemonshowdown.com/sprites/categories/';
     var MAX_TEAM_SIZE = 6;
+
+    // ── RBDex move data lookup ──────────────────────────────────
+    function lookupMoveData(moveName) {
+        if (!moveName || !window.BattleMovedex) return null;
+        var key = moveName.toLowerCase().replace(/[\s\-\']+/g, '');
+        return window.BattleMovedex[key] || null;
+    }
+
+    function lookupItemData(itemName) {
+        if (!itemName || !window.BattleItems) return null;
+        var key = itemName.toLowerCase().replace(/[\s\-\']+/g, '');
+        return window.BattleItems[key] || null;
+    }
+
+    function getItemSpriteUrl(itemName) {
+        if (!itemName) return '';
+        var slug = itemName.toLowerCase().replace(/\s+/g, '-');
+        return ITEM_SPRITE_BASE + slug + '.png';
+    }
+
+    function getTypeSpriteUrl(type) {
+        if (!type) return '';
+        return TYPE_SPRITE_BASE + type + '.png';
+    }
+
+    function getCategorySpriteUrl(category) {
+        if (!category) return '';
+        return CATEGORY_SPRITE_BASE + category + '.png';
+    }
+
+    /** Parse secondary effects from BattleMovedex entry */
+    function parseMoveEffects(moveData) {
+        if (!moveData) return null;
+        var effects = { primary: null, secondary: null };
+
+        // Primary effects (non-secondary, inherent to the move)
+        var primaryParts = [];
+        if (moveData.drain) primaryParts.push('Drains ' + moveData.drain[0] + '/' + moveData.drain[1] + ' HP');
+        if (moveData.recoil) primaryParts.push('Recoil ' + moveData.recoil[0] + '/' + moveData.recoil[1]);
+        if (moveData.heal) primaryParts.push('Heals ' + moveData.heal[0] + '/' + moveData.heal[1] + ' HP');
+        if (moveData.hasCrashDamage) primaryParts.push('Crash damage on miss');
+        if (moveData.willCrit) primaryParts.push('Always crits');
+        if (moveData.forceSwitch) primaryParts.push('Forces switch');
+        if (moveData.selfdestruct) primaryParts.push('User faints');
+        if (moveData.breaksProtect) primaryParts.push('Breaks Protect');
+        if (moveData.status) primaryParts.push('Inflicts ' + formatStatus(moveData.status));
+        if (moveData.boosts) {
+            var parts = formatBoosts(moveData.boosts);
+            if (parts) primaryParts.push(parts);
+        }
+        if (moveData.self && moveData.self.boosts) {
+            var selfParts = formatBoosts(moveData.self.boosts);
+            if (selfParts) primaryParts.push('User: ' + selfParts);
+        }
+        if (primaryParts.length) effects.primary = primaryParts.join('; ');
+
+        // Secondary effects
+        if (moveData.secondary) {
+            var sec = moveData.secondary;
+            var secParts = [];
+            if (sec.chance) secParts.push(sec.chance + '% chance');
+            if (sec.status) secParts.push(formatStatus(sec.status));
+            if (sec.volatileStatus) secParts.push(formatVolatile(sec.volatileStatus));
+            if (sec.boosts) secParts.push(formatBoosts(sec.boosts));
+            if (sec.self && sec.self.boosts) secParts.push('User: ' + formatBoosts(sec.self.boosts));
+            if (secParts.length) effects.secondary = secParts.join(' ');
+        }
+
+        // secondaries (array form, e.g. Triple Arrows)
+        if (moveData.secondaries && moveData.secondaries.length) {
+            var secAll = [];
+            for (var i = 0; i < moveData.secondaries.length; i++) {
+                var s = moveData.secondaries[i];
+                var sp = [];
+                if (s.chance) sp.push(s.chance + '%');
+                if (s.status) sp.push(formatStatus(s.status));
+                if (s.volatileStatus) sp.push(formatVolatile(s.volatileStatus));
+                if (s.boosts) sp.push(formatBoosts(s.boosts));
+                if (sp.length) secAll.push(sp.join(' '));
+            }
+            if (secAll.length) effects.secondary = secAll.join('; ');
+        }
+
+        return (effects.primary || effects.secondary) ? effects : null;
+    }
+
+    function formatStatus(s) {
+        var map = { brn: 'Burn', par: 'Paralysis', psn: 'Poison', tox: 'Badly Poisoned', slp: 'Sleep', frz: 'Freeze' };
+        return map[s] || s;
+    }
+
+    function formatVolatile(v) {
+        var map = { flinch: 'Flinch', confusion: 'Confusion', partiallytrapped: 'Trap', leechseed: 'Leech Seed' };
+        return map[v] || v;
+    }
+
+    function formatBoosts(boosts) {
+        if (!boosts) return '';
+        var names = { atk: 'Atk', def: 'Def', spa: 'SpA', spd: 'SpD', spe: 'Spe', accuracy: 'Acc', evasion: 'Eva' };
+        var parts = [];
+        for (var stat in boosts) {
+            var val = boosts[stat];
+            parts.push(names[stat] || stat);
+            parts[parts.length - 1] += (val > 0 ? '+' : '') + val;
+        }
+        return parts.join('/');
+    }
+
+    // ── Apply secondary effect to battle state ──────────────────
+    /** Check if a move has 100% guaranteed effects (always apply regardless of checkbox) */
+    function isGuaranteedEffect(moveData) {
+        if (!moveData) return false;
+        // Primary status moves (e.g., Thunder Wave, Will-O-Wisp, Toxic) — always 100%
+        if (moveData.status) return true;
+        // Primary boosts on target (e.g., Charm -2 Atk) — always 100%
+        if (moveData.boosts) return true;
+        // Self boosts that always happen (e.g., Close Combat, Shell Smash)
+        if (moveData.self && moveData.self.boosts) return true;
+        // Secondary with 100% chance (e.g., Scald's 30% is not guaranteed, but some moves have 100%)
+        if (moveData.secondary && moveData.secondary.chance === 100) return true;
+        // secondaries array — all 100%
+        if (moveData.secondaries) {
+            var allGuaranteed = true;
+            for (var i = 0; i < moveData.secondaries.length; i++) {
+                if (moveData.secondaries[i].chance && moveData.secondaries[i].chance < 100) {
+                    allGuaranteed = false;
+                    break;
+                }
+            }
+            if (allGuaranteed) return true;
+        }
+        return false;
+    }
+
+    /** Given move data, determine state changes. guaranteedOnly = only apply 100% effects */
+    function resolveSecondaryEffects(moveData, targetSide, guaranteedOnly) {
+        var changes = { status: '', volatile: '', boosts: null, selfBoosts: null };
+        if (!moveData) return changes;
+
+        // Primary status (e.g., Thunder Wave always paralyzes) — always guaranteed
+        if (moveData.status) {
+            changes.status = formatStatus(moveData.status);
+        }
+        // Primary boosts — check target to determine if self or opponent
+        if (moveData.boosts) {
+            if (moveData.target === 'self' || moveData.target === 'allies' || moveData.target === 'allySide') {
+                // Self-targeting moves: boosts apply to the user (e.g., Swords Dance, Calm Mind)
+                changes.selfBoosts = moveData.boosts;
+            } else {
+                // Target-directed moves: boosts apply to opponent (e.g., Charm, Growl)
+                changes.boosts = moveData.boosts;
+            }
+        }
+        // Self boosts from .self property (e.g., Close Combat self stat drops) — always guaranteed
+        if (moveData.self && moveData.self.boosts) {
+            // Merge with any existing self boosts
+            if (changes.selfBoosts) {
+                var existing = changes.selfBoosts;
+                var incoming = moveData.self.boosts;
+                var merged = {};
+                for (var s in existing) merged[s] = existing[s];
+                for (var s in incoming) merged[s] = (merged[s] || 0) + incoming[s];
+                changes.selfBoosts = merged;
+            } else {
+                changes.selfBoosts = moveData.self.boosts;
+            }
+        }
+
+        // Secondary effects — apply if not in guaranteedOnly mode, OR if chance is 100%
+        if (moveData.secondary) {
+            var sec = moveData.secondary;
+            var isSecGuaranteed = !sec.chance || sec.chance === 100;
+            if (!guaranteedOnly || isSecGuaranteed) {
+                if (sec.status) changes.status = formatStatus(sec.status);
+                if (sec.volatileStatus) changes.volatile = sec.volatileStatus;
+                if (sec.boosts) changes.boosts = sec.boosts;
+                if (sec.self && sec.self.boosts) changes.selfBoosts = sec.self.boosts;
+            }
+        }
+
+        return changes;
+    }
 
     // Map RS status names ↔ calc form status names
     var RS_TO_CALC = {
@@ -396,7 +581,6 @@
                 for (var i = 0; i < stats.length; i++) {
                     var b = entry.boosts[stats[i]] || 0;
                     $('#' + side + ' .' + stats[i] + ' .boost').val(b);
-                    $('#rsa-boost-' + side + '-' + stats[i]).val(b);
                 }
             }
             // Re-inject damage badges now that the new pokemon is loaded
@@ -547,6 +731,12 @@
             saveFormToRoster(side);
         }
 
+        // Reset boosts on the outgoing pokemon (boosts clear on switch)
+        var outgoing = getActiveEntry(team);
+        if (outgoing) {
+            outgoing.boosts = { at: 0, df: 0, sa: 0, sd: 0, sp: 0 };
+        }
+
         team.activeIdx = idx;
         var entry = team.roster[idx];
 
@@ -580,11 +770,7 @@
             entry.toxicCounter = parseInt($('#' + side + ' .toxic-counter').val()) || 1;
         }
 
-        // Save boosts (from RSA boost selects)
-        var stats = ['at', 'df', 'sa', 'sd', 'sp'];
-        for (var i = 0; i < stats.length; i++) {
-            entry.boosts[stats[i]] = parseInt($('#rsa-boost-' + side + '-' + stats[i]).val()) || 0;
-        }
+        // Boosts are tracked in roster entry directly (not from UI selects)
 
         // Save item/ability (might have changed)
         entry.item = getItem(side);
@@ -592,16 +778,40 @@
     }
 
     // ════════════════════════════════════════════════════════════
+    // SYNC BOOSTS
+    // ════════════════════════════════════════════════════════════
+
+    function syncBoostsToCalc() {
+        var line = curLine();
+        if (!line) return;
+        var sides = ['p1', 'p2'];
+        var stats = ['at', 'df', 'sa', 'sd', 'sp'];
+        for (var si = 0; si < sides.length; si++) {
+            var side = sides[si];
+            var entry = getActiveEntry(line.teams[side]);
+            if (!entry) continue;
+            for (var sti = 0; sti < stats.length; sti++) {
+                var val = (entry.boosts && entry.boosts[stats[sti]]) || 0;
+                $('#' + side + ' .' + stats[sti] + ' .boost').val(val).trigger('change');
+            }
+        }
+    }
+
+    // ════════════════════════════════════════════════════════════
     // CAPTURE ROUND
     // ════════════════════════════════════════════════════════════
 
-    function captureRound(p1MoveIdx, p2MoveIdx, p2Crit, p1StatusInflict, p2StatusInflict, comment) {
+    function captureRound(p1MoveIdx, p2MoveIdx, p2Crit, p1PreDmg, p1PreStatus, comment, p1ApplySecondary, p2ApplySecondary) {
         var line = curLine();
-        var speed = getSpeedInfo();
 
         // Save current form state to roster
         saveFormToRoster('p1');
         saveFormToRoster('p2');
+
+        // Sync boosts from roster to calc form before damage calculation
+        syncBoostsToCalc();
+
+        var speed = getSpeedInfo();
 
         var p1Entry = getActiveEntry(line.teams.p1);
         var p2Entry = getActiveEntry(line.teams.p2);
@@ -615,6 +825,21 @@
         var p2Dmg = (p2MoveIdx !== 'none' && p2MoveIdx !== -1) ? getDamageInfo(1, p2MoveIdx) : null;
         var p2CritInfo = (p2Crit && p2MoveIdx !== 'none' && p2MoveIdx !== -1) ? getCritResult(1, p2MoveIdx) : null;
 
+        // Look up RBDex move data for detailed info
+        var p1MoveName = (p1MoveIdx !== 'none' && p1MoveIdx !== -1) ? getMoveNames(0, p1MoveIdx) : null;
+        var p2MoveName = (p2MoveIdx !== 'none' && p2MoveIdx !== -1) ? getMoveNames(1, p2MoveIdx) : null;
+        var p1MoveData = p1MoveName ? lookupMoveData(p1MoveName) : null;
+        var p2MoveData = p2MoveName ? lookupMoveData(p2MoveName) : null;
+
+        // ── Move priority determines turn order ──
+        var p1Priority = (p1MoveData && typeof p1MoveData.priority === 'number') ? p1MoveData.priority : 0;
+        var p2Priority = (p2MoveData && typeof p2MoveData.priority === 'number') ? p2MoveData.priority : 0;
+        if (p1Priority !== p2Priority) {
+            // Higher priority bracket goes first (regardless of speed)
+            speed.faster = p1Priority > p2Priority ? 'p1' : 'p2';
+        }
+        // If same priority bracket, speed.faster from getSpeedInfo() is used as-is
+
         // Capture all P2 AI percentages and move names for display in the round log
         var p2AllMoves = [], p2AllAIPcts = [];
         for (var ai = 0; ai < 4; ai++) {
@@ -622,9 +847,117 @@
             p2AllAIPcts.push($('#resultMoveRateR' + (ai + 1)).text() || '');
         }
 
-        // Apply status inflictions before EOT so newly inflicted poison/burn takes effect this turn
-        if (p1StatusInflict) { p1Entry.status = p1StatusInflict; }
-        if (p2StatusInflict) { p2Entry.status = p2StatusInflict; }
+        // Apply P1 pre-damage (e.g., hazard damage, prior chip)
+        if (p1PreDmg && p1PreDmg > 0) {
+            p1Entry.currentHP = Math.max(0, p1Entry.currentHP - p1PreDmg);
+        }
+        // Apply P1 pre-status (e.g., from a previous turn's move)
+        if (p1PreStatus) {
+            p1Entry.status = p1PreStatus;
+        }
+
+        // Determine which effects are guaranteed (100% chance) vs optional (checkbox)
+        var p1Guaranteed = isGuaranteedEffect(p1MoveData);
+        var p2Guaranteed = isGuaranteedEffect(p2MoveData);
+
+        // Resolve secondary effects for both sides (but apply in speed order)
+        var p1SecondaryApplied = null, p2SecondaryApplied = null;
+        var p1Eff = ((p1ApplySecondary || p1Guaranteed) && p1MoveData) ? resolveSecondaryEffects(p1MoveData, 'p2', p1Guaranteed) : null;
+        var p2Eff = ((p2ApplySecondary || p2Guaranteed) && p2MoveData) ? resolveSecondaryEffects(p2MoveData, 'p1', p2Guaranteed) : null;
+
+        // Helper: check if a pokemon is immune to sleep
+        function isSleepImmune(entry) {
+            var ab = (entry.ability || '').toLowerCase().replace(/\s/g, '');
+            return ab === 'insomnia' || ab === 'vitalspirit' || ab === 'sweetveil';
+        }
+        // Helper: check if a pokemon is immune to freeze
+        function isFreezeImmune(entry) {
+            var ab = (entry.ability || '').toLowerCase().replace(/\s/g, '');
+            if (ab === 'magmaarmor') return true;
+            // Ice types are freeze-immune in gen 6+
+            if (entry.types && entry.types.indexOf('Ice') !== -1) return true;
+            return false;
+        }
+        // Helper: check if item cures a status
+        function itemCuresStatus(entry, status) {
+            var it = (entry.item || '').toLowerCase().replace(/\s/g, '');
+            if (it === 'lumberry') return true;
+            if (status === 'Sleep' && it === 'chestoberry') return true;
+            if (status === 'Freeze' && it === 'aspearberry') return true;
+            return false;
+        }
+
+        // Apply effects in turn order: first mover applies effects, then check blocking
+        var firstMover  = (speed.faster === 'p2') ? 'p2' : 'p1';
+        var secondMover = (firstMover === 'p1') ? 'p2' : 'p1';
+        var firstEff    = (firstMover === 'p1') ? p1Eff : p2Eff;
+        var secondEff   = (firstMover === 'p1') ? p2Eff : p1Eff;
+        var firstEntry  = (firstMover === 'p1') ? p1Entry : p2Entry;
+        var secondEntry = (firstMover === 'p1') ? p2Entry : p1Entry;
+
+        // Apply first mover's secondary effects
+        var secondMoverBlocked = false;
+        var secondMoverBlockReason = '';
+        if (firstEff) {
+            if (firstMover === 'p1') p1SecondaryApplied = firstEff;
+            else p2SecondaryApplied = firstEff;
+
+            // Target effects (damages the defender = second mover)
+            if (firstEff.status && !secondEntry.status) {
+                var blocked = false;
+                if (firstEff.status === 'Sleep' && isSleepImmune(secondEntry)) blocked = true;
+                if (firstEff.status === 'Freeze' && isFreezeImmune(secondEntry)) blocked = true;
+                if (!blocked) {
+                    secondEntry.status = firstEff.status;
+                    // Check if status blocks second mover from attacking
+                    if (firstEff.status === 'Sleep') {
+                        if (!itemCuresStatus(secondEntry, 'Sleep')) {
+                            secondMoverBlocked = true;
+                            secondMoverBlockReason = 'sleep';
+                        }
+                    } else if (firstEff.status === 'Freeze') {
+                        if (!itemCuresStatus(secondEntry, 'Freeze')) {
+                            secondMoverBlocked = true;
+                            secondMoverBlockReason = 'freeze';
+                        }
+                    }
+                }
+            }
+            if (firstEff.boosts) {
+                applyBoosts(secondEntry, firstEff.boosts);
+            }
+            if (firstEff.selfBoosts) {
+                applyBoosts(firstEntry, firstEff.selfBoosts);
+            }
+            if (firstEff.volatile === 'flinch') {
+                if (firstMover === 'p1') { firstEff.flinchTarget = true; p1SecondaryApplied = firstEff; }
+                else { firstEff.flinchTarget = true; p2SecondaryApplied = firstEff; }
+                secondMoverBlocked = true;
+                secondMoverBlockReason = 'flinch';
+            }
+        }
+
+        // Apply second mover's secondary effects ONLY if they are not blocked
+        if (secondEff && !secondMoverBlocked) {
+            if (secondMover === 'p1') p1SecondaryApplied = secondEff;
+            else p2SecondaryApplied = secondEff;
+
+            if (secondEff.status && !firstEntry.status) {
+                firstEntry.status = secondEff.status;
+            }
+            if (secondEff.boosts) {
+                applyBoosts(firstEntry, secondEff.boosts);
+            }
+            if (secondEff.selfBoosts) {
+                applyBoosts(secondEntry, secondEff.selfBoosts);
+            }
+            // Flinch from second mover doesn't matter (first mover already attacked)
+        }
+
+        // Set blocked flags for HP calculation
+        var p1Flinched = secondMoverBlocked && (secondMover === 'p1');
+        var p2Flinched = secondMoverBlocked && (secondMover === 'p2');
+
         // Increment toxic counter before EOT so the correct turn count is used
         if (p1Entry.status === 'Badly Poisoned') p1Entry.toxicCounter = (p1Entry.toxicCounter || 0) + 1;
         if (p2Entry.status === 'Badly Poisoned') p2Entry.toxicCounter = (p2Entry.toxicCounter || 0) + 1;
@@ -644,8 +977,9 @@
         var p2HPAfter = p2HPBefore;
 
         // Calc move damage to HP
-        var p2DmgToP1 = p2Dmg ? (p2Crit && p2CritInfo ? p2CritInfo.maxDmg : p2Dmg.maxDmg) : 0;
-        var p1DmgToP2 = p1Dmg ? p1Dmg.minDmg : 0;
+        // If the second mover is blocked (flinch/sleep/freeze), their move does 0 damage
+        var p2DmgToP1 = (p2Dmg && !p2Flinched) ? (p2Crit && p2CritInfo ? p2CritInfo.maxDmg : p2Dmg.maxDmg) : 0;
+        var p1DmgToP2 = (p1Dmg && !p1Flinched) ? p1Dmg.minDmg : 0;
 
         // Apply in speed order
         if (speed.faster === 'p1' || speed.faster === 'tie') {
@@ -697,10 +1031,14 @@
         var rd = {
             roundNum: ++line.roundCounter,
             speed: speed,
+            p1Priority: p1Priority,
+            p2Priority: p2Priority,
             weather: getWeather(),
             terrain: getTerrain(),
             trickRoom: speed.trickRoom,
             p2Crit: p2Crit,
+            p1PreDmg: p1PreDmg || 0,
+            p1PreStatus: p1PreStatus || '',
             comment: comment || '',
             p1: {
                 name: p1Entry.name,
@@ -713,6 +1051,18 @@
                 hpAfter: { current: p1HPAfter, max: p1Entry.maxHP },
                 move: p1Dmg ? getMoveNames(0, p1MoveIdx) : '—',
                 moveIdx: p1MoveIdx,
+                moveData: p1MoveData ? {
+                    type: p1MoveData.type || '',
+                    category: p1MoveData.category || '',
+                    basePower: p1MoveData.basePower || 0,
+                    accuracy: p1MoveData.accuracy || 0,
+                    pp: p1MoveData.pp || 0,
+                    effects: parseMoveEffects(p1MoveData),
+                    shortDesc: p1MoveData.shortDesc || ''
+                } : null,
+                flinched: p1Flinched,
+                blockReason: (secondMover === 'p1') ? secondMoverBlockReason : '',
+                secondaryApplied: p1ApplySecondary && p1SecondaryApplied,
                 damage: p1Dmg,
                 critDamage: null,
                 extras: p1Extras,
@@ -729,6 +1079,18 @@
                 hpAfter: { current: p2HPAfter, max: p2Entry.maxHP },
                 move: p2Dmg ? getMoveNames(1, p2MoveIdx) : '—',
                 moveIdx: p2MoveIdx,
+                moveData: p2MoveData ? {
+                    type: p2MoveData.type || '',
+                    category: p2MoveData.category || '',
+                    basePower: p2MoveData.basePower || 0,
+                    accuracy: p2MoveData.accuracy || 0,
+                    pp: p2MoveData.pp || 0,
+                    effects: parseMoveEffects(p2MoveData),
+                    shortDesc: p2MoveData.shortDesc || ''
+                } : null,
+                flinched: p2Flinched,
+                blockReason: (secondMover === 'p2') ? secondMoverBlockReason : '',
+                secondaryApplied: p2ApplySecondary && p2SecondaryApplied,
                 damage: p2Dmg,
                 critDamage: p2CritInfo,
                 extras: p2Extras,
@@ -741,6 +1103,9 @@
         // Sync status to calc form
         syncStatusToForm('p1', p1Entry);
         syncStatusToForm('p2', p2Entry);
+
+        // Sync boosts to calc form so next round's damage uses updated boosts
+        syncBoostsToCalc();
 
         // Update form HP
         $('#p1 .current-hp').val(p1HPAfter);
@@ -767,6 +1132,18 @@
         }
     }
 
+    /** Apply stat boost changes to a roster entry, clamping to ±6 */
+    function applyBoosts(entry, boosts) {
+        if (!entry || !boosts) return;
+        var map = { atk: 'at', def: 'df', spa: 'sa', spd: 'sd', spe: 'sp' };
+        for (var stat in boosts) {
+            var key = map[stat] || stat;
+            if (entry.boosts[key] !== undefined) {
+                entry.boosts[key] = Math.max(-6, Math.min(6, (entry.boosts[key] || 0) + boosts[stat]));
+            }
+        }
+    }
+
     // ════════════════════════════════════════════════════════════
     // REBUILD TEAMS (after round deletion)
     // ════════════════════════════════════════════════════════════
@@ -783,7 +1160,7 @@
                 team.roster[i].boosts = { at: 0, df: 0, sa: 0, sd: 0, sp: 0 };
             }
         }
-        // Replay rounds to reconstruct HP/status
+        // Replay rounds to reconstruct HP/status/boosts
         for (var i = 0; i < line.rounds.length; i++) {
             var rd = line.rounds[i];
             // P1
@@ -791,6 +1168,7 @@
             if (p1i >= 0) {
                 line.teams.p1.roster[p1i].currentHP = rd.p1.hpAfter.current;
                 if (rd.p1.status) line.teams.p1.roster[p1i].status = rd.p1.status;
+                if (rd.p1.boosts) line.teams.p1.roster[p1i].boosts = $.extend({}, rd.p1.boosts);
                 line.teams.p1.activeIdx = p1i;
             }
             // P2
@@ -798,6 +1176,7 @@
             if (p2i >= 0) {
                 line.teams.p2.roster[p2i].currentHP = rd.p2.hpAfter.current;
                 if (rd.p2.status) line.teams.p2.roster[p2i].status = rd.p2.status;
+                if (rd.p2.boosts) line.teams.p2.roster[p2i].boosts = $.extend({}, rd.p2.boosts);
                 line.teams.p2.activeIdx = p2i;
             }
         }
@@ -815,6 +1194,8 @@
         if (p2Active) {
             $('#p2 .current-hp').val(p2Active.currentHP);
         }
+        // Sync boosts to calc form
+        syncBoostsToCalc();
     }
 
     // ════════════════════════════════════════════════════════════
@@ -869,7 +1250,7 @@
                     '<div class="rsa-team-hp-text">' + e.currentHP + '/' + e.maxHP + '</div>' +
                     (e.status ? '<span class="rsa-status-badge rsa-status-' + e.status.toLowerCase().replace(/\s+/g, '-') + '">' + esc(e.status) + '</span>' : '') +
                     (e.ability ? '<span class="rsa-ability-badge">' + esc(e.ability) + '</span>' : '') +
-                    (e.item ? '<span class="rsa-item-badge">🎒 ' + esc(e.item) + '</span>' : '') +
+                    (e.item ? '<span class="rsa-item-badge"><img class="rsa-item-sprite" src="' + esc(getItemSpriteUrl(e.item)) + '" alt="" onerror="this.style.display=\'none\'"> ' + esc(e.item) + '</span>' : '') +
                 '</div>' +
                 (side === 'p1' ? '<button class="rsa-team-remove" data-side="' + side + '" data-idx="' + i + '" title="Remove">×</button>' : '') +
             '</div>';
@@ -913,15 +1294,23 @@
 
     function renderRoundCard(rd) {
         var speedLabel;
+        var priorityOverride = (rd.p1Priority !== undefined && rd.p2Priority !== undefined && rd.p1Priority !== rd.p2Priority);
         if (rd.speed.faster === 'tie') speedLabel = 'Speed Tie';
         else if (rd.speed.faster === 'p1') speedLabel = rd.p1.name + ' first';
         else speedLabel = rd.p2.name + ' first';
+        if (priorityOverride) {
+            var prioMon = rd.p1Priority > rd.p2Priority ? rd.p1.name : rd.p2.name;
+            var prioVal = Math.max(rd.p1Priority, rd.p2Priority);
+            speedLabel += ' (Priority +' + prioVal + ')';
+        }
 
         var tags = '';
         if (rd.weather !== 'None')  tags += '<span class="rsa-tag rsa-weather">' + esc(rd.weather) + '</span>';
         if (rd.terrain !== 'None')  tags += '<span class="rsa-tag rsa-terrain">' + esc(rd.terrain) + '</span>';
         if (rd.trickRoom)           tags += '<span class="rsa-tag rsa-trickroom">Trick Room</span>';
         if (rd.p2Crit)              tags += '<span class="rsa-tag rsa-crit-tag">P2 CRIT</span>';
+        if (rd.p1PreDmg)            tags += '<span class="rsa-tag rsa-predmg-tag">P1 Pre-Dmg: -' + rd.p1PreDmg + '</span>';
+        if (rd.p1PreStatus)         tags += '<span class="rsa-tag rsa-prestatus-tag">P1 Pre: ' + esc(rd.p1PreStatus) + '</span>';
 
         // Determine who moves first for the indicator
         var p1First = rd.speed.faster === 'p1' || rd.speed.faster === 'tie';
@@ -961,8 +1350,46 @@
             var d = actor.damage;
             var rng = d ? '<span class="rsa-dmg-range">Dmg: ' + d.minDmg + '-' + d.maxDmg + '</span>' : '';
             var crit = actor.critDamage ? '<span class="rsa-crit-info">⚔ Crit: ' + actor.critDamage.minDmg + '-' + actor.critDamage.maxDmg + '</span>' : '';
-            moveHtml = '<div class="rsa-move-name">' + esc(actor.move) + '</div>' +
-                '<div class="rsa-damage-inline">' + rng + crit + '</div>';
+
+            // Move type and category sprites
+            var md = actor.moveData;
+            var typeSprite = md && md.type ? '<img class="rsa-type-sprite" src="' + esc(getTypeSpriteUrl(md.type)) + '" alt="' + esc(md.type) + '" title="' + esc(md.type) + '">' : '';
+            var catSprite = md && md.category ? '<img class="rsa-cat-sprite" src="' + esc(getCategorySpriteUrl(md.category)) + '" alt="' + esc(md.category) + '" title="' + esc(md.category) + '">' : '';
+
+            // Move stats line (BP / Acc / PP)
+            var moveStats = '';
+            if (md) {
+                var statParts = [];
+                if (md.basePower) statParts.push('BP: ' + md.basePower);
+                if (md.accuracy === true) statParts.push('Acc: —');
+                else if (md.accuracy) statParts.push('Acc: ' + md.accuracy);
+                if (md.pp) statParts.push('PP: ' + md.pp);
+                if (statParts.length) moveStats = '<span class="rsa-move-stats">' + statParts.join(' · ') + '</span>';
+            }
+
+            // Effects line
+            var effectsHtml = '';
+            if (md && md.effects) {
+                var efParts = [];
+                if (md.effects.primary) efParts.push('<span class="rsa-effect-primary">' + esc(md.effects.primary) + '</span>');
+                if (md.effects.secondary) efParts.push('<span class="rsa-effect-secondary">' + esc(md.effects.secondary) + '</span>');
+                if (efParts.length) effectsHtml = '<div class="rsa-move-effects">' + efParts.join(' ') + '</div>';
+            }
+
+            // Blocked indicator (flinch, sleep, freeze)
+            var blockedHtml = '';
+            if (actor.flinched) {
+                var reason = actor.blockReason || 'flinch';
+                var label = reason === 'sleep' ? 'ASLEEP' : reason === 'freeze' ? 'FROZEN' : 'FLINCHED';
+                blockedHtml = '<span class="rsa-tag rsa-flinch-tag">' + label + '</span>';
+            }
+
+            moveHtml = '<div class="rsa-move-line">' +
+                '<div class="rsa-move-name">' + typeSprite + catSprite + ' ' + esc(actor.move) + '</div>' +
+                moveStats +
+            '</div>' +
+            effectsHtml + blockedHtml +
+            '<div class="rsa-damage-inline">' + rng + crit + '</div>';
         }
 
         // Extra damage sources
@@ -1024,7 +1451,7 @@
                 '<div class="rsa-actor-info">' +
                     '<div class="rsa-actor-name">' + esc(actor.name) + ' ' + (orderIndicator || '') + '</div>' +
                     '<div class="rsa-actor-tags">' +
-                        '<span class="rsa-tag rsa-item-tag">🎒 ' + esc(actor.item) + '</span>' +
+                        '<span class="rsa-tag rsa-item-tag"><img class="rsa-item-sprite-sm" src="' + esc(getItemSpriteUrl(actor.item)) + '" alt="" onerror="this.style.display=\'none\'"> ' + esc(actor.item) + '</span>' +
                         '<span class="rsa-tag rsa-ability-tag">' + esc(actor.ability) + '</span>' +
                         (actor.status ? '<span class="rsa-tag rsa-status-tag rsa-status-' + actor.status.toLowerCase().replace(/\s+/g, '-') + '">' + esc(actor.status) + '</span>' : '') +
                         boostHtml +
@@ -1078,6 +1505,44 @@
         if (maxIdx > 0 && maxPct > 0) {
             $('.move-result-subgroupR > div').eq(maxIdx).addClass('rsa-move-most-probable');
         }
+
+        // Update move info preview panels
+        updateMovePreview('p1', selectedP1Move);
+        updateMovePreview('p2', selectedP2Move);
+    }
+
+    function updateMovePreview(side, moveIdx) {
+        var $panel = $('#rsa-move-preview-' + side);
+        if (!$panel.length) return;
+        if (moveIdx === 'none' || moveIdx === -1) {
+            $panel.html('<span class="rsa-preview-empty">Select a move</span>');
+            return;
+        }
+        var moveName = getMoveNames(side === 'p1' ? 0 : 1, moveIdx);
+        var md = lookupMoveData(moveName);
+        if (!md) {
+            $panel.html('<span class="rsa-preview-name">' + esc(moveName) + '</span>');
+            return;
+        }
+        var typeImg = md.type ? '<img class="rsa-type-sprite" src="' + esc(getTypeSpriteUrl(md.type)) + '" alt="' + esc(md.type) + '">' : '';
+        var catImg = md.category ? '<img class="rsa-cat-sprite" src="' + esc(getCategorySpriteUrl(md.category)) + '" alt="' + esc(md.category) + '">' : '';
+        var stats = [];
+        if (md.basePower) stats.push('BP: ' + md.basePower);
+        if (md.accuracy === true) stats.push('Acc: —');
+        else if (md.accuracy) stats.push('Acc: ' + md.accuracy);
+        if (md.pp) stats.push('PP: ' + md.pp);
+        var effects = parseMoveEffects(md);
+        var effHtml = '';
+        if (effects) {
+            if (effects.primary) effHtml += '<div class="rsa-effect-primary">' + esc(effects.primary) + '</div>';
+            if (effects.secondary) effHtml += '<div class="rsa-effect-secondary">' + esc(effects.secondary) + '</div>';
+        }
+        $panel.html(
+            '<div class="rsa-preview-header">' + typeImg + catImg + '<span class="rsa-preview-name">' + esc(md.name) + '</span></div>' +
+            '<div class="rsa-preview-stats">' + stats.join(' · ') + '</div>' +
+            (md.shortDesc ? '<div class="rsa-preview-desc">' + esc(md.shortDesc) + '</div>' : '') +
+            effHtml
+        );
     }
 
     // ════════════════════════════════════════════════════════════
@@ -1347,47 +1812,9 @@
             movesArea.appendChild(moveGroup);
         }
 
-        // ── Populate boost selects with -6 to +6 ──
+        // ── Sync boosts from roster to calc form ──
         var stats = ['at', 'df', 'sa', 'sd', 'sp'];
         var sides = ['p1', 'p2'];
-        for (var si = 0; si < sides.length; si++) {
-            for (var sti = 0; sti < stats.length; sti++) {
-                var sel = document.getElementById('rsa-boost-' + sides[si] + '-' + stats[sti]);
-                if (!sel) continue;
-                sel.innerHTML = '';
-                for (var b = 6; b >= -6; b--) {
-                    var opt = document.createElement('option');
-                    opt.value = b;
-                    opt.text = (b > 0 ? '+' : '') + b;
-                    if (b === 0) opt.selected = true;
-                    sel.appendChild(opt);
-                }
-            }
-        }
-
-        // ── Sync boost selects ↔ calc form ──
-        function syncBoostsToCalc() {
-            for (var si = 0; si < sides.length; si++) {
-                for (var sti = 0; sti < stats.length; sti++) {
-                    var val = parseInt($('#rsa-boost-' + sides[si] + '-' + stats[sti]).val()) || 0;
-                    $('#' + sides[si] + ' .' + stats[sti] + ' .boost').val(val).trigger('change');
-                }
-            }
-        }
-
-        function syncBoostsFromCalc() {
-            for (var si = 0; si < sides.length; si++) {
-                for (var sti = 0; sti < stats.length; sti++) {
-                    var val = parseInt($('#' + sides[si] + ' .' + stats[sti] + ' .boost').val()) || 0;
-                    $('#rsa-boost-' + sides[si] + '-' + stats[sti]).val(val);
-                }
-            }
-        }
-
-        // When RSA boost dropdowns change, sync to calc form
-        $('[id^="rsa-boost-"]').on('change', function () {
-            syncBoostsToCalc();
-        });
 
         // ── Move selection tracking ──
         $(document).on('change', 'input[id^="resultMoveL"]', function () {
@@ -1467,7 +1894,7 @@
         setTimeout(function () {
             initP1Team();
             syncP2Team();
-            syncBoostsFromCalc();
+            syncBoostsToCalc();
         }, 2000);
 
         // ── Line management ──
@@ -1527,21 +1954,24 @@
             var p1MoveIdx = selectedP1Move;
             var p2MoveIdx = selectedP2Move;
             var p2Crit = $('#rsa-p2-crit').is(':checked');
-            var p1Status = $('#rsa-p1-status').val();
-            var p2Status = $('#rsa-p2-status').val();
+            var p1PreDmg = parseInt($('#rsa-p1-predmg').val()) || 0;
+            var p1PreStatus = $('#rsa-p1-prestatus').val();
             var comment = $('#rsa-comment').val().trim();
+            var p1ApplySec = $('#rsa-p1-apply-secondary').is(':checked');
+            var p2ApplySec = $('#rsa-p2-apply-secondary').is(':checked');
 
-            var rd = captureRound(p1MoveIdx, p2MoveIdx, p2Crit, p1Status, p2Status, comment);
+            var rd = captureRound(p1MoveIdx, p2MoveIdx, p2Crit, p1PreDmg, p1PreStatus, comment, p1ApplySec, p2ApplySec);
             if (!rd) return;
 
             curLine().rounds.push(rd);
             renderAll();
 
-            // Reset dropdowns
+            // Reset controls (but keep P2 effect checked by default)
             $('#rsa-comment').val('');
-            $('#rsa-p1-status').val('');
-            $('#rsa-p2-status').val('');
+            $('#rsa-p1-predmg').val(0);
+            $('#rsa-p1-prestatus').val('');
             $('#rsa-p2-crit').prop('checked', false);
+            $('#rsa-p1-apply-secondary').prop('checked', false);
         });
 
         // ── Delete round ──
@@ -1562,6 +1992,38 @@
             line.rounds = [];
             line.roundCounter = 0;
             rebuildLineTeams(line);
+            renderAll();
+        });
+
+        // ── Import panel toggle ──
+        $('#rsa-import-toggle').on('click', function () {
+            $('#rsa-import-panel').toggle();
+        });
+        $('#rsa-import-cancel').on('click', function () {
+            $('#rsa-import-panel').hide();
+        });
+        $('#rsa-import-go').on('click', function () {
+            var text = $('#rsa-import-text').val().trim();
+            if (!text) return;
+            var name = $('#rsa-import-name').val().trim() || 'Custom Set';
+            addSets(text, name);
+            $('#rsa-import-text').val('');
+            $('#rsa-import-panel').hide();
+            // Re-render box after import so new mons appear
+            setTimeout(function () { renderBox('p1'); }, 400);
+        });
+
+        // ── Trainer nav buttons ──
+        $('#rsa-prev-trainer').on('click', function () {
+            $('#previous-trainer').trigger('click');
+        });
+        $('#rsa-next-trainer').on('click', function () {
+            $('#next-trainer').trigger('click');
+        });
+        $('#rsa-reset-trainer').on('click', function () {
+            var line = curLine();
+            line.teams.p2 = { roster: [], activeIdx: -1 };
+            syncP2Team();
             renderAll();
         });
 

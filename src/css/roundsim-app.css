@@ -371,7 +371,68 @@
 }
 
 /* ── Box import button ────────────────────────────────────── */
-.rsa-box-import { margin-top: 8px; }
+.rsa-box-import-btn {
+    background: #2d3748; border: 1px solid #4a5568; color: #90cdf4;
+    padding: 2px 10px; border-radius: 4px; cursor: pointer;
+    font-size: 0.75em; font-weight: 600; margin-left: auto;
+    transition: all 0.15s;
+}
+.rsa-box-import-btn:hover { background: #4a5568; color: #fff; }
+
+.rsa-import-panel {
+    border-top: 1px solid #2d3748; margin-top: 6px; padding-top: 6px;
+}
+.rsa-import-name {
+    background: #2d3748; border: 1px solid #4a5568; color: #e2e8f0;
+    padding: 4px 6px; border-radius: 4px; font-size: 0.82em; width: 100%;
+    margin-bottom: 4px; box-sizing: border-box;
+}
+.rsa-import-text {
+    background: #2d3748; border: 1px solid #4a5568; color: #e2e8f0;
+    padding: 4px 6px; border-radius: 4px; font-size: 0.82em; width: 100%;
+    resize: vertical; font-family: monospace; box-sizing: border-box;
+}
+.rsa-import-btns { display: flex; gap: 6px; margin-top: 4px; }
+
+/* ── Trainer nav buttons in P2 header ─────────────────────── */
+.rsa-trainer-nav {
+    display: flex; gap: 4px; margin-left: auto;
+}
+.rsa-trainer-btn {
+    background: #2d3748; border: 1px solid #4a5568; color: #cbd5e0;
+    padding: 2px 8px; border-radius: 4px; cursor: pointer;
+    font-size: 0.8em; transition: all 0.15s;
+}
+.rsa-trainer-btn:hover { background: #4a5568; color: #fff; }
+.rsa-trainer-reset { color: #fc8181; border-color: #e53e3e; }
+.rsa-trainer-reset:hover { background: #e53e3e; color: #fff; }
+
+/* ── Log Round options row ────────────────────────────────── */
+.rsa-log-options-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 10px;
+    margin-top: 6px;
+}
+.rsa-ctrl-inline {
+    flex-direction: row !important;
+    align-items: center;
+    gap: 4px !important;
+}
+.rsa-comment-row {
+    margin-top: 4px;
+}
+.rsa-comment-ctrl {
+    flex-direction: row;
+    align-items: center;
+    gap: 4px;
+}
+.rsa-comment-ctrl input[type="text"] {
+    background: #2d3748; border: 1px solid #4a5568; color: #e2e8f0;
+    padding: 4px 6px; border-radius: 4px; font-size: 0.85em;
+    flex: 1; min-width: 200px;
+}
 
 /* ── Hide excess calc sections in Round Sim ───────────────── */
 #trainer-mons,
@@ -626,4 +687,129 @@ fieldset {
 }
 .rsa-team-panel::-webkit-scrollbar-thumb {
     background: #4a5568; border-radius: 3px;
+}
+
+/* ── Item sprites ─────────────────────────────────────────── */
+.rsa-item-sprite {
+    width: 24px;
+    height: 24px;
+    vertical-align: middle;
+    margin-right: 2px;
+    image-rendering: pixelated;
+}
+.rsa-item-sprite-sm {
+    width: 18px;
+    height: 18px;
+    vertical-align: middle;
+    margin-right: 2px;
+    image-rendering: pixelated;
+}
+
+/* ── Move type & category sprites ─────────────────────────── */
+.rsa-type-sprite {
+    height: 14px;
+    vertical-align: middle;
+    margin-right: 3px;
+}
+.rsa-cat-sprite {
+    height: 14px;
+    vertical-align: middle;
+    margin-right: 4px;
+}
+
+/* ── Move details in battle log ──────────────────────────── */
+.rsa-move-line {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 2px;
+}
+.rsa-move-stats {
+    font-size: 0.75em;
+    color: #a0aec0;
+    background: rgba(255,255,255,0.06);
+    padding: 1px 6px;
+    border-radius: 3px;
+    white-space: nowrap;
+}
+.rsa-move-effects {
+    font-size: 0.72em;
+    margin: 1px 0 3px 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+.rsa-effect-primary {
+    color: #63b3ed;
+    background: rgba(99,179,237,0.12);
+    padding: 1px 5px;
+    border-radius: 3px;
+}
+.rsa-effect-secondary {
+    color: #f6ad55;
+    background: rgba(246,173,85,0.12);
+    padding: 1px 5px;
+    border-radius: 3px;
+}
+
+/* ── Flinch tag ──────────────────────────────────────────── */
+.rsa-flinch-tag {
+    background: #e53e3e !important;
+    color: #fff !important;
+    font-size: 0.7em;
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-weight: 700;
+    margin-left: 4px;
+}
+
+/* ── Move preview panels ─────────────────────────────────── */
+.rsa-move-previews {
+    display: flex;
+    gap: 8px;
+    margin: 6px 0;
+}
+.rsa-move-preview {
+    flex: 1;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 6px;
+    padding: 6px 10px;
+    min-height: 36px;
+    font-size: 0.82em;
+}
+.rsa-preview-empty {
+    color: #718096;
+    font-style: italic;
+}
+.rsa-preview-header {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-bottom: 2px;
+}
+.rsa-preview-name {
+    font-weight: 700;
+    color: #e2e8f0;
+}
+.rsa-preview-stats {
+    font-size: 0.9em;
+    color: #a0aec0;
+    margin-bottom: 2px;
+}
+.rsa-preview-desc {
+    font-size: 0.85em;
+    color: #cbd5e0;
+    font-style: italic;
+}
+
+/* ── Pre-damage / Pre-status tags ────────────────────────── */
+.rsa-predmg-tag {
+    background: #c53030 !important;
+    color: #fff !important;
+}
+.rsa-prestatus-tag {
+    background: #805ad5 !important;
+    color: #fff !important;
 }

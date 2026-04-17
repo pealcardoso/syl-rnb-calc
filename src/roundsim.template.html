@@ -113,8 +113,17 @@
             <div class="rsa-box-header">
                 <span class="rsa-box-title rsa-box-title-p1">Your Box</span>
                 <span class="rsa-box-count" id="rsa-box-count-p1">0</span>
+                <button class="rsa-box-import-btn" id="rsa-import-toggle" title="Import Pokémon sets">📥 Import</button>
             </div>
             <div class="rsa-box-grid" id="rsa-box-p1"></div>
+            <div class="rsa-import-panel" id="rsa-import-panel" style="display:none;">
+                <input type="text" class="rsa-import-name" id="rsa-import-name" placeholder="Set name (e.g. Custom Set)" value="Custom Set" />
+                <textarea class="rsa-import-text" id="rsa-import-text" rows="5" placeholder="Paste Showdown sets here..."></textarea>
+                <div class="rsa-import-btns">
+                    <button class="rsa-btn rsa-btn-primary" id="rsa-import-go">Import</button>
+                    <button class="rsa-btn" id="rsa-import-cancel">Cancel</button>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -134,6 +143,11 @@
             <div class="rsa-team-header">
                 <span class="rsa-team-title rsa-team-title-p2">Opponent Team</span>
                 <span class="rsa-team-count" id="rsa-team-count-p2">0</span>
+                <div class="rsa-trainer-nav">
+                    <button class="rsa-trainer-btn" id="rsa-prev-trainer" title="Previous Trainer">◀</button>
+                    <button class="rsa-trainer-btn" id="rsa-next-trainer" title="Next Trainer">▶</button>
+                    <button class="rsa-trainer-btn rsa-trainer-reset" id="rsa-reset-trainer" title="Reset Trainer">🚚</button>
+                </div>
             </div>
             <div id="rsa-team-p2"></div>
         </div>
@@ -146,30 +160,33 @@
         <!-- Move results will be moved here by JS -->
         <div class="rsa-moves-area" id="rsa-moves-area"></div>
 
-        <!-- Stat boosts -->
-        <div class="rsa-boosts-row">
-            <span class="rsa-boost-section-label">P1 Boosts:</span>
-            <div class="rsa-boost-group"><label>Atk</label><select id="rsa-boost-p1-at"><option value="0">0</option></select></div>
-            <div class="rsa-boost-group"><label>Def</label><select id="rsa-boost-p1-df"><option value="0">0</option></select></div>
-            <div class="rsa-boost-group"><label>SpA</label><select id="rsa-boost-p1-sa"><option value="0">0</option></select></div>
-            <div class="rsa-boost-group"><label>SpD</label><select id="rsa-boost-p1-sd"><option value="0">0</option></select></div>
-            <div class="rsa-boost-group"><label>Spe</label><select id="rsa-boost-p1-sp"><option value="0">0</option></select></div>
-            <span class="rsa-boost-section-label" style="margin-left:12px">P2 Boosts:</span>
-            <div class="rsa-boost-group"><label>Atk</label><select id="rsa-boost-p2-at"><option value="0">0</option></select></div>
-            <div class="rsa-boost-group"><label>Def</label><select id="rsa-boost-p2-df"><option value="0">0</option></select></div>
-            <div class="rsa-boost-group"><label>SpA</label><select id="rsa-boost-p2-sa"><option value="0">0</option></select></div>
-            <div class="rsa-boost-group"><label>SpD</label><select id="rsa-boost-p2-sd"><option value="0">0</option></select></div>
-            <div class="rsa-boost-group"><label>Spe</label><select id="rsa-boost-p2-sp"><option value="0">0</option></select></div>
+        <!-- Move preview panels -->
+        <div class="rsa-move-previews">
+            <div class="rsa-move-preview" id="rsa-move-preview-p1"><span class="rsa-preview-empty">Select a P1 move</span></div>
+            <div class="rsa-move-preview" id="rsa-move-preview-p2"><span class="rsa-preview-empty">Select a P2 move</span></div>
         </div>
 
-        <div class="rsa-controls-grid">
+        <!-- Round options row -->
+        <div class="rsa-log-options-row">
             <div class="rsa-crit-group">
                 <input type="checkbox" id="rsa-p2-crit" />
                 <label for="rsa-p2-crit">P2 Crits</label>
             </div>
-            <div class="rsa-ctrl-group">
-                <label for="rsa-p1-status">Inflict on P1</label>
-                <select id="rsa-p1-status">
+            <div class="rsa-crit-group">
+                <input type="checkbox" id="rsa-p1-apply-secondary" />
+                <label for="rsa-p1-apply-secondary">Apply P1 Effect</label>
+            </div>
+            <div class="rsa-crit-group">
+                <input type="checkbox" id="rsa-p2-apply-secondary" checked />
+                <label for="rsa-p2-apply-secondary">Apply P2 Effect</label>
+            </div>
+            <div class="rsa-ctrl-group rsa-ctrl-inline">
+                <label for="rsa-p1-predmg">P1 Pre-Dmg</label>
+                <input type="number" id="rsa-p1-predmg" min="0" value="0" placeholder="0" style="width:60px" />
+            </div>
+            <div class="rsa-ctrl-group rsa-ctrl-inline">
+                <label for="rsa-p1-prestatus">P1 Pre-Status</label>
+                <select id="rsa-p1-prestatus">
                     <option value="">— None —</option>
                     <option value="Burn">Burn</option>
                     <option value="Paralysis">Paralysis</option>
@@ -179,21 +196,11 @@
                     <option value="Freeze">Freeze</option>
                 </select>
             </div>
-            <div class="rsa-ctrl-group">
-                <label for="rsa-p2-status">Inflict on P2</label>
-                <select id="rsa-p2-status">
-                    <option value="">— None —</option>
-                    <option value="Burn">Burn</option>
-                    <option value="Paralysis">Paralysis</option>
-                    <option value="Poison">Poison</option>
-                    <option value="Badly Poisoned">Badly Poisoned</option>
-                    <option value="Sleep">Sleep</option>
-                    <option value="Freeze">Freeze</option>
-                </select>
-            </div>
-            <div class="rsa-ctrl-group">
+        </div>
+        <div class="rsa-comment-row">
+            <div class="rsa-ctrl-group rsa-comment-ctrl">
                 <label for="rsa-comment">Comment</label>
-                <textarea id="rsa-comment" rows="1" placeholder="Note..."></textarea>
+                <input type="text" id="rsa-comment" placeholder="Note..." />
             </div>
         </div>
         <div class="rsa-btn-row">
@@ -1984,6 +1991,9 @@
     <script type="text/javascript" src="./js/data/sets/gen1.js?"></script>
     <script type="text/javascript" src="./js/data/changelog.js?"></script>
     <script type="text/javascript" src="./js/data/name-search-overrides.js"></script>
+    <script type="text/javascript" src="./js/data/rbdex/moves.js"></script>
+    <script type="text/javascript" src="./js/data/rbdex/items.js"></script>
+    <script type="text/javascript" src="./js/data/rbdex/pokedex.js"></script>
     <script type="text/javascript" src="./calc/data/types.js?"></script>
     <script type="text/javascript" src="./calc/data/natures.js?"></script>
     <script type="text/javascript" src="./calc/data/abilities.js?"></script>
