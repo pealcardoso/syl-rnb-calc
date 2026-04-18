@@ -273,7 +273,8 @@
             moves: moves || [],
             types: types || [],
             maxHP: maxHP,
-            currentHP: maxHP,
+            currentHP: maxHP,   // worst-case HP (displayed as solid bar)
+            bestCaseHP: maxHP,  // best-case HP (upper bound of uncertainty range)
             status: '',
             toxicCounter: 0,
             boosts: { at: 0, df: 0, sa: 0, sd: 0, sp: 0 }
@@ -343,10 +344,9 @@
         var p2sMod = $('#p2 .sp .totalMod').text();
         if (p1sMod) p1s = parseInt(p1sMod) || p1s;
         if (p2sMod) p2s = parseInt(p2sMod) || p2s;
-        // Apply paralysis speed penalty (gen 1: ÷4; gen 2+: ÷2)
-        var paraDiv = (gen && gen.num === 1) ? 4 : 2;
-        if ($('#p1 .status').val() === 'Paralyzed') p1s = Math.floor(p1s / paraDiv);
-        if ($('#p2 .status').val() === 'Paralyzed') p2s = Math.floor(p2s / paraDiv);
+        // Apply paralysis speed penalty (speed drops to 75% of original)
+        if ($('#p1 .status').val() === 'Paralyzed') p1s = Math.floor(p1s * 0.75);
+        if ($('#p2 .status').val() === 'Paralyzed') p2s = Math.floor(p2s * 0.75);
         var tr = $('#trickroom').is(':checked');
         var f;
         if (tr) f = p1s === p2s ? 'tie' : (p1s < p2s ? 'p1' : 'p2');
@@ -548,6 +548,67 @@
 
     function isWeatherImmune(ability) {
         return ability === 'Overcoat' || ability === 'Magic Guard';
+    }
+
+    // ════════════════════════════════════════════════════════════
+    // ROUND PROBABILITY CALCULATION
+    // ════════════════════════════════════════════════════════════
+
+    function calcRoundProbability(p2MoveIdx, p2Crit, p1MoveData, p2MoveData,
+        p1ApplySec, p2ApplySec, p1Guaranteed, p2Guaranteed, p2AllAIPcts) {
+        var factors = [];
+        var totalProb = 1.0;
+
+        // 1. P2 move selection probability (from AI percentages)
+        var p2MoveProb = 1.0;
+        if (p2MoveIdx !== 'none' && p2MoveIdx !== -1 && p2AllAIPcts && p2AllAIPcts[p2MoveIdx]) {
+            var pctStr = p2AllAIPcts[p2MoveIdx].replace('%', '').trim();
+            var pctVal = parseFloat(pctStr);
+            if (!isNaN(pctVal) && pctVal > 0 && pctVal < 100) {
+                p2MoveProb = pctVal / 100;
+            }
+        }
+        factors.push({ name: 'P2 Move Selection', prob: p2MoveProb });
+        totalProb *= p2MoveProb;
+
+        // 2. P2 crit probability (1/24 = 4.17% base crit rate)
+        var CRIT_RATE = 1 / 24;
+        if (p2Crit) {
+            factors.push({ name: 'P2 Critical Hit', prob: CRIT_RATE });
+            totalProb *= CRIT_RATE;
+        } else {
+            factors.push({ name: 'P2 No Crit', prob: 1 - CRIT_RATE });
+            totalProb *= (1 - CRIT_RATE);
+        }
+
+        // 3. P1 effect application probability
+        if (p1ApplySec && !p1Guaranteed && p1MoveData) {
+            var p1EffChance = 1.0;
+            if (p1MoveData.secondary && p1MoveData.secondary.chance) {
+                p1EffChance = p1MoveData.secondary.chance / 100;
+            }
+            factors.push({ name: 'P1 Effect Applied', prob: p1EffChance });
+            totalProb *= p1EffChance;
+        }
+
+        // 4. P2 effect application probability
+        if (p2ApplySec && !p2Guaranteed && p2MoveData) {
+            var p2EffChance = 1.0;
+            if (p2MoveData.secondary && p2MoveData.secondary.chance) {
+                p2EffChance = p2MoveData.secondary.chance / 100;
+            }
+            factors.push({ name: 'P2 Effect Applied', prob: p2EffChance });
+            totalProb *= p2EffChance;
+        }
+
+        // 5. P2 accuracy (miss chance)
+        if (p2MoveData && p2MoveData.accuracy && p2MoveData.accuracy !== true) {
+            var accProb = p2MoveData.accuracy / 100;
+            factors.push({ name: 'P2 Move Hits', prob: accProb });
+            totalProb *= accProb;
+        }
+
+        return { total: totalProb, factors: factors };
     }
 
     // ════════════════════════════════════════════════════════════
@@ -976,31 +1037,48 @@
         var p1HPAfter = p1HPBefore;
         var p2HPAfter = p2HPBefore;
 
-        // Calc move damage to HP
-        // If the second mover is blocked (flinch/sleep/freeze), their move does 0 damage
-        var p2DmgToP1 = (p2Dmg && !p2Flinched) ? (p2Crit && p2CritInfo ? p2CritInfo.maxDmg : p2Dmg.maxDmg) : 0;
-        var p1DmgToP2 = (p1Dmg && !p1Flinched) ? p1Dmg.minDmg : 0;
+        // Best-case HP tracking (for uncertainty range bar)
+        var p1BestBefore = p1Entry.bestCaseHP != null ? p1Entry.bestCaseHP : p1HPBefore;
+        var p2BestBefore = p2Entry.bestCaseHP != null ? p2Entry.bestCaseHP : p2HPBefore;
+        var p1BestAfter = p1BestBefore;
+        var p2BestAfter = p2BestBefore;
 
-        // Apply in speed order
+        // Calc move damage to HP
+        // Worst case: P2 max damage to P1, P1 min damage to P2
+        // Best case: P2 min damage to P1, P1 max damage to P2
+        // If P2 crits: worst = crit max, best = non-crit min (per user request)
+        var p2DmgToP1Max = (p2Dmg && !p2Flinched) ? (p2Crit && p2CritInfo ? p2CritInfo.maxDmg : p2Dmg.maxDmg) : 0;
+        var p2DmgToP1Min = (p2Dmg && !p2Flinched) ? (p2Crit ? p2Dmg.minDmg : p2Dmg.minDmg) : 0;
+        var p1DmgToP2Min = (p1Dmg && !p1Flinched) ? p1Dmg.minDmg : 0;
+        var p1DmgToP2Max = (p1Dmg && !p1Flinched) ? p1Dmg.maxDmg : 0;
+
+        // Apply in speed order (worst case)
         if (speed.faster === 'p1' || speed.faster === 'tie') {
-            // P1 attacks first
-            p2HPAfter = Math.max(0, p2HPAfter - p1DmgToP2);
-            if (p2HPAfter > 0) p1HPAfter = Math.max(0, p1HPAfter - p2DmgToP1);
+            p2HPAfter = Math.max(0, p2HPAfter - p1DmgToP2Min);
+            if (p2HPAfter > 0) p1HPAfter = Math.max(0, p1HPAfter - p2DmgToP1Max);
+            // Best case
+            p2BestAfter = Math.max(0, p2BestAfter - p1DmgToP2Max);
+            if (p2BestAfter > 0) p1BestAfter = Math.max(0, p1BestAfter - p2DmgToP1Min);
+            else p1BestAfter = p1BestBefore; // P2 KO'd, P1 takes no damage in best case
         } else {
-            p1HPAfter = Math.max(0, p1HPAfter - p2DmgToP1);
-            if (p1HPAfter > 0) p2HPAfter = Math.max(0, p2HPAfter - p1DmgToP2);
+            p1HPAfter = Math.max(0, p1HPAfter - p2DmgToP1Max);
+            if (p1HPAfter > 0) p2HPAfter = Math.max(0, p2HPAfter - p1DmgToP2Min);
+            // Best case
+            p1BestAfter = Math.max(0, p1BestAfter - p2DmgToP1Min);
+            if (p1BestAfter > 0) p2BestAfter = Math.max(0, p2BestAfter - p1DmgToP2Max);
+            else p2BestAfter = p2BestBefore; // P1 KO'd in best case, but that's not best...
         }
 
-        // Apply extra damage from attacks (worst case for P1)
+        // Apply extra damage from attacks (same for worst and best — extras are fixed values)
         for (var i = 0; i < p1Extras.length; i++) {
             var ex = p1Extras[i];
             if (ex.target === 'attacker') {
-                // Damage/heal to P1 (attacker)
                 if (ex.type === 'drain') {
-                    // Drain heals attacker — worst case for P1 = min heal
                     p1HPAfter = Math.min(p1Entry.maxHP, p1HPAfter - (ex.damageMin || ex.damage));
+                    p1BestAfter = Math.min(p1Entry.maxHP, p1BestAfter - (ex.damageMin || ex.damage));
                 } else {
                     p1HPAfter = Math.max(0, p1HPAfter - ex.damage);
+                    p1BestAfter = Math.max(0, p1BestAfter - ex.damage);
                 }
             }
         }
@@ -1009,23 +1087,39 @@
             if (ex.target === 'attacker') {
                 if (ex.type === 'drain') {
                     p2HPAfter = Math.min(p2Entry.maxHP, p2HPAfter - (ex.damageMin || ex.damage));
+                    p2BestAfter = Math.min(p2Entry.maxHP, p2BestAfter - (ex.damageMin || ex.damage));
                 } else {
                     p2HPAfter = Math.max(0, p2HPAfter - ex.damage);
+                    p2BestAfter = Math.max(0, p2BestAfter - ex.damage);
                 }
             }
         }
 
-        // Apply end-of-turn damage (worst case: damage hurts P1, healing helps P2)
+        // Apply end-of-turn damage (same for both — EOT is fixed)
         for (var i = 0; i < p1EOT.length; i++) {
             p1HPAfter = Math.max(0, Math.min(p1Entry.maxHP, p1HPAfter - p1EOT[i].damage));
+            p1BestAfter = Math.max(0, Math.min(p1Entry.maxHP, p1BestAfter - p1EOT[i].damage));
         }
         for (var i = 0; i < p2EOT.length; i++) {
             p2HPAfter = Math.max(0, Math.min(p2Entry.maxHP, p2HPAfter - p2EOT[i].damage));
+            p2BestAfter = Math.max(0, Math.min(p2Entry.maxHP, p2BestAfter - p2EOT[i].damage));
         }
+
+        // P1 bestCase: best for P1 = P1 has MORE HP, so bestCase >= worst
+        p1BestAfter = Math.max(p1BestAfter, p1HPAfter);
+        // P2 bestCase (from P1's perspective): best for P1 = P2 has LESS HP, so bestCase <= worst
+        p2BestAfter = Math.min(p2BestAfter, p2HPAfter);
 
         // Update roster HP
         p1Entry.currentHP = p1HPAfter;
+        p1Entry.bestCaseHP = p1BestAfter;
         p2Entry.currentHP = p2HPAfter;
+        p2Entry.bestCaseHP = p2BestAfter;
+
+        // ── Round probability calculation ──
+        var roundProb = calcRoundProbability(p2MoveIdx, p2Crit, p1MoveData, p2MoveData,
+            p1ApplySecondary, p2ApplySecondary, p1Guaranteed, p2Guaranteed,
+            p2AllAIPcts);
 
         // Build round data
         var rd = {
@@ -1040,6 +1134,7 @@
             p1PreDmg: p1PreDmg || 0,
             p1PreStatus: p1PreStatus || '',
             comment: comment || '',
+            probability: roundProb,
             p1: {
                 name: p1Entry.name,
                 sprite: p1Entry.sprite,
@@ -1047,8 +1142,8 @@
                 ability: p1Entry.ability,
                 status: p1Entry.status,
                 boosts: $.extend({}, p1Entry.boosts),
-                hpBefore: { current: p1HPBefore, max: p1Entry.maxHP },
-                hpAfter: { current: p1HPAfter, max: p1Entry.maxHP },
+                hpBefore: { current: p1HPBefore, max: p1Entry.maxHP, bestCase: p1BestBefore },
+                hpAfter: { current: p1HPAfter, max: p1Entry.maxHP, bestCase: p1BestAfter },
                 move: p1Dmg ? getMoveNames(0, p1MoveIdx) : '—',
                 moveIdx: p1MoveIdx,
                 moveData: p1MoveData ? {
@@ -1075,8 +1170,8 @@
                 ability: p2Entry.ability,
                 status: p2Entry.status,
                 boosts: $.extend({}, p2Entry.boosts),
-                hpBefore: { current: p2HPBefore, max: p2Entry.maxHP },
-                hpAfter: { current: p2HPAfter, max: p2Entry.maxHP },
+                hpBefore: { current: p2HPBefore, max: p2Entry.maxHP, bestCase: p2BestBefore },
+                hpAfter: { current: p2HPAfter, max: p2Entry.maxHP, bestCase: p2BestAfter },
                 move: p2Dmg ? getMoveNames(1, p2MoveIdx) : '—',
                 moveIdx: p2MoveIdx,
                 moveData: p2MoveData ? {
@@ -1155,6 +1250,7 @@
             var team = line.teams[side];
             for (var i = 0; i < team.roster.length; i++) {
                 team.roster[i].currentHP = team.roster[i].maxHP;
+                team.roster[i].bestCaseHP = team.roster[i].maxHP;
                 team.roster[i].status = '';
                 team.roster[i].toxicCounter = 0;
                 team.roster[i].boosts = { at: 0, df: 0, sa: 0, sd: 0, sp: 0 };
@@ -1167,6 +1263,7 @@
             var p1i = findInRoster(line.teams.p1, rd.p1.name);
             if (p1i >= 0) {
                 line.teams.p1.roster[p1i].currentHP = rd.p1.hpAfter.current;
+                line.teams.p1.roster[p1i].bestCaseHP = rd.p1.hpAfter.bestCase != null ? rd.p1.hpAfter.bestCase : rd.p1.hpAfter.current;
                 if (rd.p1.status) line.teams.p1.roster[p1i].status = rd.p1.status;
                 if (rd.p1.boosts) line.teams.p1.roster[p1i].boosts = $.extend({}, rd.p1.boosts);
                 line.teams.p1.activeIdx = p1i;
@@ -1175,6 +1272,7 @@
             var p2i = findInRoster(line.teams.p2, rd.p2.name);
             if (p2i >= 0) {
                 line.teams.p2.roster[p2i].currentHP = rd.p2.hpAfter.current;
+                line.teams.p2.roster[p2i].bestCaseHP = rd.p2.hpAfter.bestCase != null ? rd.p2.hpAfter.bestCase : rd.p2.hpAfter.current;
                 if (rd.p2.status) line.teams.p2.roster[p2i].status = rd.p2.status;
                 if (rd.p2.boosts) line.teams.p2.roster[p2i].boosts = $.extend({}, rd.p2.boosts);
                 line.teams.p2.activeIdx = p2i;
@@ -1242,12 +1340,32 @@
                 if (cc.code) ccClass += ' rsa-dmg-' + cc.code;
             }
 
+            // Uncertainty range for team panel
+            var bestHP = e.bestCaseHP != null ? e.bestCaseHP : e.currentHP;
+            var teamUncertainBar = '';
+            var teamRangeText = '';
+
+            if (side === 'p1' && bestHP > e.currentHP) {
+                // P1: bestCase > currentHP — bar extends right
+                var uncertaintyPct = e.maxHP > 0 ? ((bestHP - e.currentHP) / e.maxHP * 100) : 0;
+                teamUncertainBar = '<div class="rsa-team-hp-uncertain" style="width:' +
+                    Math.min(100, uncertaintyPct).toFixed(1) + '%;left:' + pct.toFixed(1) + '%"></div>';
+                teamRangeText = '<span class="rsa-team-hp-range">(' + e.currentHP + '–' + bestHP + ')</span>';
+            } else if (side === 'p2' && bestHP < e.currentHP) {
+                // P2: bestCase < currentHP — bar overlays the solid portion (P2 might have less HP)
+                var bestPct = e.maxHP > 0 ? (bestHP / e.maxHP * 100) : 0;
+                var uncertaintyPct = pct - bestPct;
+                teamUncertainBar = '<div class="rsa-team-hp-uncertain rsa-hp-bar-uncertain-p2" style="width:' +
+                    Math.min(100, uncertaintyPct).toFixed(1) + '%;left:' + bestPct.toFixed(1) + '%"></div>';
+                teamRangeText = '<span class="rsa-team-hp-range">(' + bestHP + '–' + e.currentHP + ')</span>';
+            }
+
             html += '<div class="rsa-team-slot rsa-team-slot-' + side + active + fainted + statusCls + ccClass + '" data-side="' + side + '" data-idx="' + i + '">' +
                 '<img class="rsa-team-sprite" src="' + esc(e.sprite) + '" alt="' + esc(e.name) + '" title="' + esc(e.name) + '">' +
                 '<div class="rsa-team-info">' +
                     '<div class="rsa-team-name">' + esc(e.name) + '</div>' +
-                    '<div class="rsa-team-hp-bar"><div class="rsa-team-hp-fill" style="width:' + pct.toFixed(0) + '%;background:' + col + '"></div></div>' +
-                    '<div class="rsa-team-hp-text">' + e.currentHP + '/' + e.maxHP + '</div>' +
+                    '<div class="rsa-team-hp-bar"><div class="rsa-team-hp-fill" style="width:' + pct.toFixed(0) + '%;background:' + col + '"></div>' + teamUncertainBar + '</div>' +
+                    '<div class="rsa-team-hp-text">' + e.currentHP + '/' + e.maxHP + ' ' + teamRangeText + '</div>' +
                     (e.status ? '<span class="rsa-status-badge rsa-status-' + e.status.toLowerCase().replace(/\s+/g, '-') + '">' + esc(e.status) + '</span>' : '') +
                     (e.ability ? '<span class="rsa-ability-badge">' + esc(e.ability) + '</span>' : '') +
                     (e.item ? '<span class="rsa-item-badge"><img class="rsa-item-sprite" src="' + esc(getItemSpriteUrl(e.item)) + '" alt="" onerror="this.style.display=\'none\'"> ' + esc(e.item) + '</span>' : '') +
@@ -1260,6 +1378,9 @@
 
         // Update counter badges
         $('#rsa-team-count-' + side).text(team.roster.length);
+
+        // Keep switch dropdown in sync whenever P1 team changes
+        if (side === 'p1') populateSwitchDropdown();
     }
 
     // ── Line Tabs ────────────────────────────────────────────
@@ -1308,6 +1429,7 @@
         if (rd.weather !== 'None')  tags += '<span class="rsa-tag rsa-weather">' + esc(rd.weather) + '</span>';
         if (rd.terrain !== 'None')  tags += '<span class="rsa-tag rsa-terrain">' + esc(rd.terrain) + '</span>';
         if (rd.trickRoom)           tags += '<span class="rsa-tag rsa-trickroom">Trick Room</span>';
+        if (rd.isSwitch)            tags += '<span class="rsa-tag rsa-switch-tag">⇄ SWITCH</span>';
         if (rd.p2Crit)              tags += '<span class="rsa-tag rsa-crit-tag">P2 CRIT</span>';
         if (rd.p1PreDmg)            tags += '<span class="rsa-tag rsa-predmg-tag">P1 Pre-Dmg: -' + rd.p1PreDmg + '</span>';
         if (rd.p1PreStatus)         tags += '<span class="rsa-tag rsa-prestatus-tag">P1 Pre: ' + esc(rd.p1PreStatus) + '</span>';
@@ -1319,11 +1441,29 @@
 
         var cmnt = rd.comment ? '<div class="rsa-comment">' + esc(rd.comment) + '</div>' : '';
 
+        // Probability display
+        var probHtml = '';
+        if (rd.probability) {
+            var pct = (rd.probability.total * 100);
+            var probClass = pct >= 50 ? 'rsa-prob-high' : pct >= 20 ? 'rsa-prob-mid' : 'rsa-prob-low';
+            var tooltip = '';
+            if (rd.probability.factors && rd.probability.factors.length) {
+                var parts = [];
+                for (var fi = 0; fi < rd.probability.factors.length; fi++) {
+                    var f = rd.probability.factors[fi];
+                    parts.push(f.name + ': ' + (f.prob * 100).toFixed(1) + '%');
+                }
+                tooltip = parts.join('\n');
+            }
+            probHtml = '<span class="rsa-tag rsa-prob-tag ' + probClass + '" title="' + esc(tooltip) + '">📊 ' + pct.toFixed(1) + '%</span>';
+        }
+
         return '<div class="rsa-round-card" data-round="' + rd.roundNum + '">' +
             '<div class="rsa-round-header">' +
                 '<span class="rsa-round-num">Round ' + rd.roundNum + '</span>' +
                 '<span class="rsa-speed">⚡ ' + rd.speed.p1 + ' vs ' + rd.speed.p2 + ' — ' + speedLabel + '</span>' +
                 tags +
+                probHtml +
                 '<button class="rsa-delete-round" data-round="' + rd.roundNum + '" title="Delete round">×</button>' +
             '</div>' +
             '<div class="rsa-round-body">' +
@@ -1422,11 +1562,41 @@
 
         // HP sim
         var hpSim = '';
-        if (diff !== 0) {
+        if (diff !== 0 || (actor.hpAfter.bestCase != null && actor.hpAfter.bestCase !== actor.hpAfter.current)) {
             var diffSign = diff > 0 ? '-' : '+';
+            // Uncertainty range (striped bar)
+            var bestHP = actor.hpAfter.bestCase != null ? actor.hpAfter.bestCase : actor.hpAfter.current;
+            var worstHP = actor.hpAfter.current;
+            var stripedBar = '';
+            var rangeText = '';
+
+            if (side === 'p1' && bestHP > worstHP) {
+                // P1: bestCase >= currentHP — striped bar extends RIGHT of solid bar
+                var uncertaintyPct = actor.hpAfter.max > 0 ? ((bestHP - worstHP) / actor.hpAfter.max * 100) : 0;
+                stripedBar = '<div class="rsa-hp-bar rsa-hp-bar-uncertain" style="width:' +
+                    Math.min(100, uncertaintyPct).toFixed(1) + '%;left:' +
+                    Math.min(100, aPct).toFixed(1) + '%"></div>';
+                rangeText = ' <span class="rsa-hp-range">(' + worstHP + '–' + bestHP + ')</span>';
+            } else if (side === 'p2' && bestHP < worstHP) {
+                // P2: bestCase <= currentHP (best for P1 = P2 has less HP)
+                // Striped bar shows the portion of the solid bar that MIGHT be gone
+                var bestPct = actor.hpAfter.max > 0 ? (bestHP / actor.hpAfter.max * 100) : 0;
+                var uncertaintyPct = aPct - bestPct;
+                stripedBar = '<div class="rsa-hp-bar rsa-hp-bar-uncertain rsa-hp-bar-uncertain-p2" style="width:' +
+                    Math.min(100, uncertaintyPct).toFixed(1) + '%;left:' +
+                    Math.max(0, bestPct).toFixed(1) + '%"></div>';
+                rangeText = ' <span class="rsa-hp-range">(' + bestHP + '–' + worstHP + ')</span>';
+            }
+
             hpSim = '<div class="rsa-hp-sim">' +
-                '<div class="rsa-hp-bar-wrap"><div class="rsa-hp-bar" style="width:' + Math.max(0, Math.min(100, aPct)).toFixed(0) + '%;background:' + aCol + '"></div></div>' +
-                '<span class="rsa-hp-after">' + actor.hpAfter.current + '/' + actor.hpAfter.max + ' (' + aPct.toFixed(0) + '%) <span class="rsa-hp-diff">' + diffSign + Math.abs(diff) + '</span></span>' +
+                '<div class="rsa-hp-bar-wrap">' +
+                    '<div class="rsa-hp-bar" style="width:' + Math.max(0, Math.min(100, aPct)).toFixed(0) + '%;background:' + aCol + '"></div>' +
+                    stripedBar +
+                '</div>' +
+                '<span class="rsa-hp-after">' + actor.hpAfter.current + '/' + actor.hpAfter.max + ' (' + aPct.toFixed(0) + '%)' +
+                    (diff !== 0 ? ' <span class="rsa-hp-diff">' + diffSign + Math.abs(diff) + '</span>' : '') +
+                    rangeText +
+                '</span>' +
             '</div>';
         }
 
@@ -1472,6 +1642,20 @@
         renderBox('p1');
         renderRoundLog();
         updateMovePickDisplay();
+        populateSwitchDropdown();
+    }
+
+    function populateSwitchDropdown() {
+        var $sel = $('#rsa-switch-p1');
+        var line = curLine();
+        var team = line.teams.p1;
+        var html = '<option value="">— Switch P1 —</option>';
+        for (var i = 0; i < team.roster.length; i++) {
+            if (i === team.activeIdx) continue; // can't switch to current
+            if (team.roster[i].currentHP <= 0) continue; // can't switch to fainted
+            html += '<option value="' + i + '">' + esc(team.roster[i].name) + '</option>';
+        }
+        $sel.html(html);
     }
 
     // ════════════════════════════════════════════════════════════
@@ -1966,12 +2150,43 @@
             curLine().rounds.push(rd);
             renderAll();
 
-            // Reset controls (but keep P2 effect checked by default)
+            // Reset controls (keep P2 crit and P2 effect persistent across rounds)
             $('#rsa-comment').val('');
             $('#rsa-p1-predmg').val(0);
             $('#rsa-p1-prestatus').val('');
-            $('#rsa-p2-crit').prop('checked', false);
             $('#rsa-p1-apply-secondary').prop('checked', false);
+        });
+
+        // ── Switch P1 in (takes the P2 move) ──
+        $('#rsa-do-switch').on('click', function () {
+            var switchIdx = parseInt($('#rsa-switch-p1').val());
+            if (isNaN(switchIdx)) {
+                alert('Select a Pokémon to switch in.');
+                return;
+            }
+            var line = curLine();
+            var p2MoveIdx = selectedP2Move;
+            var p2Crit = $('#rsa-p2-crit').is(':checked');
+            var p2ApplySec = $('#rsa-p2-apply-secondary').is(':checked');
+            var comment = $('#rsa-comment').val().trim();
+            var switchName = line.teams.p1.roster[switchIdx].name;
+
+            // Perform the switch (resets outgoing boosts, loads new mon into form)
+            switchActive('p1', switchIdx);
+
+            // Wait for the calc engine to recalculate with the new P1 pokemon
+            setTimeout(function () {
+                var rd = captureRound('none', p2MoveIdx, p2Crit, 0, '',
+                    comment ? comment : 'Switch in: ' + switchName, false, p2ApplySec);
+                if (!rd) return;
+                rd.isSwitch = true;
+
+                line.rounds.push(rd);
+                renderAll();
+
+                $('#rsa-comment').val('');
+                $('#rsa-switch-p1').val('');
+            }, 600);
         });
 
         // ── Delete round ──

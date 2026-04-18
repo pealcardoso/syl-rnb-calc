@@ -177,9 +177,14 @@
 .rsa-team-sprite { width: 40px; height: 40px; image-rendering: pixelated; }
 .rsa-team-info { flex: 1; min-width: 0; }
 .rsa-team-name { font-size: 0.85em; font-weight: 600; color: #e2e8f0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.rsa-team-hp-bar { height: 4px; background: #2d3748; border-radius: 2px; overflow: hidden; margin: 2px 0; }
-.rsa-team-hp-fill { height: 100%; border-radius: 2px; transition: width 0.3s; }
+.rsa-team-hp-bar { height: 4px; background: #2d3748; border-radius: 2px; overflow: hidden; margin: 2px 0; position: relative; }
+.rsa-team-hp-fill { height: 100%; border-radius: 2px; transition: width 0.3s; position: relative; z-index: 1; }
+.rsa-team-hp-uncertain {
+    height: 100%; position: absolute; top: 0; border-radius: 2px; z-index: 0;
+    background: repeating-linear-gradient(-45deg, rgba(144,205,244,0.45), rgba(144,205,244,0.45) 2px, rgba(144,205,244,0.15) 2px, rgba(144,205,244,0.15) 4px);
+}
 .rsa-team-hp-text { font-size: 0.7em; color: #a0aec0; }
+.rsa-team-hp-range { font-size: 0.65em; color: #90cdf4; font-style: italic; }
 .rsa-team-remove {
     position: absolute; top: 2px; right: 2px;
     background: none; border: none; color: #718096; cursor: pointer;
@@ -244,7 +249,17 @@
     padding-top: 16px;
 }
 .rsa-crit-group label { font-size: 0.8em; }
-.rsa-btn-row { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+.rsa-btn-row { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; align-items: center; }
+.rsa-switch-group {
+    display: flex; gap: 4px; align-items: center;
+    margin-left: 4px; padding-left: 8px; border-left: 1px solid #4a5568;
+}
+.rsa-switch-group select {
+    background: #2d3748; border: 1px solid #4a5568; color: #e2e8f0;
+    padding: 4px 6px; border-radius: 4px; font-size: 0.85em;
+}
+.rsa-btn-switch { background: #805ad5; border-color: #805ad5; color: #fff; }
+.rsa-btn-switch:hover { background: #6b46c1; }
 .rsa-btn {
     padding: 6px 14px; border-radius: 6px; border: 1px solid #4a5568;
     background: #2d3748; color: #cbd5e0; cursor: pointer; font-size: 0.85em;
@@ -296,6 +311,11 @@
 .rsa-terrain { background: #2f855a; color: #fff; }
 .rsa-trickroom { background: #805ad5; color: #fff; }
 .rsa-crit-tag { background: #e53e3e; color: #fff; }
+.rsa-switch-tag { background: #805ad5; color: #fff; }
+.rsa-prob-tag { cursor: help; font-weight: 600; }
+.rsa-prob-high { background: #2f855a; color: #fff; }
+.rsa-prob-mid { background: #c05621; color: #fff; }
+.rsa-prob-low { background: #e53e3e; color: #fff; }
 .rsa-item-tag { background: #2d3748; color: #cbd5e0; }
 .rsa-ability-tag { background: #553c9a; color: #e2e8f0; }
 .rsa-status-tag { font-weight: 700; }
@@ -325,8 +345,33 @@
 .rsa-actor-info { flex: 1; min-width: 0; }
 .rsa-actor-name { font-weight: 700; font-size: 0.9em; color: #e2e8f0; }
 .rsa-actor-tags { display: flex; gap: 3px; flex-wrap: wrap; margin: 2px 0; }
-.rsa-hp-bar-wrap { height: 5px; background: #4a5568; border-radius: 3px; overflow: hidden; }
-.rsa-hp-bar { height: 100%; border-radius: 3px; transition: width 0.3s; }
+.rsa-hp-bar-wrap { height: 8px; background: #4a5568; border-radius: 3px; overflow: hidden; position: relative; }
+.rsa-hp-bar { height: 100%; border-radius: 3px; transition: width 0.3s; position: relative; z-index: 1; }
+.rsa-hp-bar-uncertain {
+    height: 100%;
+    position: absolute;
+    top: 0;
+    border-radius: 3px;
+    z-index: 0;
+    background: repeating-linear-gradient(
+        -45deg,
+        rgba(144,205,244,0.45),
+        rgba(144,205,244,0.45) 2px,
+        rgba(144,205,244,0.15) 2px,
+        rgba(144,205,244,0.15) 4px
+    );
+}
+.rsa-hp-bar-uncertain-p2 {
+    z-index: 2;
+    background: repeating-linear-gradient(
+        -45deg,
+        rgba(246,173,85,0.5),
+        rgba(246,173,85,0.5) 2px,
+        rgba(246,173,85,0.2) 2px,
+        rgba(246,173,85,0.2) 4px
+    );
+}
+.rsa-hp-range { font-size: 0.75em; color: #90cdf4; font-style: italic; }
 .rsa-hp-text { font-size: 0.75em; color: #a0aec0; }
 .rsa-move-name { font-weight: 700; font-size: 0.9em; color: #fbd38d; margin-bottom: 2px; }
 .rsa-move-name.rsa-no-move { color: #a0aec0; font-style: italic; }
