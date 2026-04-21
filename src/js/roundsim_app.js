@@ -2434,6 +2434,8 @@
         $(document).on('change', '.calc-trigger', function () {
             setTimeout(function () {
                 updateMovePickDisplay();
+                // Recompute rankings so defensive ranks reflect any P2 move/stat changes
+                try { cachedRankings = computeBoxRankings(); } catch (e) { cachedRankings = []; }
                 // Render box first (uses calculationsColors which temporarily overwrites damageResults)
                 // then inject damage badges using the correct damageResults
                 renderBox('p1');
@@ -2809,7 +2811,8 @@
             setTimeout(function () {
                 try { cachedRankings = computeBoxRankings(); } catch (e) { cachedRankings = []; }
                 renderBox('p1');
-            }, 500);
+                injectDamageBadges();
+            }, 400);
         });
 
         // ── Inject initial damage badges after calc loads ──
