@@ -1636,6 +1636,7 @@
 
         var html = '';
         for (var i = 0; i < team.roster.length; i++) {
+            try {
             var e = team.roster[i];
             var pct = hpPct(e.currentHP, e.maxHP);
             var col = hpColor(pct);
@@ -1694,6 +1695,7 @@
                 '</div>' +
                 (side === 'p1' ? '<button class="rsa-team-remove" data-side="' + side + '" data-idx="' + i + '" title="Remove">×</button>' : '') +
             '</div>';
+            } catch (ex) { /* skip slot on error */ }
         }
 
         $panel.html(html);
@@ -2565,12 +2567,29 @@
             }
         });
 
-        // Initial sync after calc loads
-        setTimeout(function () {
-            initP1Team();
-            syncP2Team();
-            syncBoostsToCalc();
-        }, 2000);
+        // Initial sync after calc loads — poll until the form is ready instead of fixed timeout
+        (function pollUntilReady(attempts) {
+            var p1Ready = !!getP1Name();
+            var p2Ready = !!getP2Name();
+            if (p1Ready || p2Ready) {
+                if (p1Ready) initP1Team();
+                syncP2Team();
+                syncBoostsToCalc();
+                // Second pass after a short delay to catch any remaining async setup
+                setTimeout(function () {
+                    if (curLine().teams.p1.roster.length === 0 && getP1Name()) {
+                        initP1Team();
+                    }
+                    syncP2Team();
+                    renderBox('p1');
+                    injectDamageBadges();
+                    injectMoveLabelSprites();
+                    try { cachedRankings = computeBoxRankings(); renderBox('p1'); } catch (e) {}
+                }, 800);
+            } else if (attempts > 0) {
+                setTimeout(function () { pollUntilReady(attempts - 1); }, 500);
+            }
+        })(40); // up to 40 × 500ms = 20 seconds
 
         // ── Line management ──
         $('#rsa-add-line').on('click', function () {
