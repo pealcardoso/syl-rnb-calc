@@ -823,8 +823,10 @@
         var defMaxHP = defender.maxHP;
         var move = moveInfo.move;
 
-        // --- Life Orb recoil on attacker ---
-        if (attacker.item === 'Life Orb' && moveInfo.minDmg > 0) {
+        var atkMagicGuard = attacker.ability === 'Magic Guard';
+
+        // --- Life Orb recoil on attacker (blocked by Magic Guard) ---
+        if (attacker.item === 'Life Orb' && moveInfo.minDmg > 0 && !atkMagicGuard) {
             var loRecoil = Math.max(1, Math.floor(atkMaxHP / 10));
             extras.push({
                 target: 'attacker',
@@ -834,8 +836,8 @@
             });
         }
 
-        // --- Move recoil ---
-        if (move.recoil && moveInfo.maxDmg > 0) {
+        // --- Move recoil (blocked by Magic Guard) ---
+        if (move.recoil && moveInfo.maxDmg > 0 && !atkMagicGuard) {
             var recoilMin = Math.max(1, Math.floor(moveInfo.minDmg * move.recoil[0] / move.recoil[1]));
             var recoilMax = Math.max(1, Math.floor(moveInfo.maxDmg * move.recoil[0] / move.recoil[1]));
             extras.push({
@@ -847,9 +849,9 @@
             });
         }
 
-        // --- Contact damage (Iron Barbs, Rough Skin, Rocky Helmet) ---
+        // --- Contact damage (Iron Barbs, Rough Skin, Rocky Helmet) — blocked by Magic Guard ---
         var isContact = !!(move.makesContact || move.flags && move.flags.contact);
-        if (isContact && moveInfo.minDmg > 0) {
+        if (isContact && moveInfo.minDmg > 0 && !atkMagicGuard) {
             // Defender ability
             if (CONTACT_DAMAGE_ABILITIES[defender.ability]) {
                 var frac = CONTACT_DAMAGE_ABILITIES[defender.ability];
@@ -893,20 +895,27 @@
     function calcEndOfTurnDamage(entry, weather) {
         var eot = [];
         var maxHP = entry.maxHP;
+        var hasMagicGuard = entry.ability === 'Magic Guard';
+        var hasPoisonHeal = entry.ability === 'Poison Heal';
 
-        // --- Status damage ---
-        if (entry.status === 'Burn') {
+        // --- Status damage (blocked by Magic Guard) ---
+        if (entry.status === 'Burn' && !hasMagicGuard) {
             var burnDmg = Math.max(1, Math.floor(maxHP / 16));
             eot.push({ source: 'Burn', damage: burnDmg });
         }
-        if (entry.status === 'Poison') {
-            var psnDmg = Math.max(1, Math.floor(maxHP / 8));
-            eot.push({ source: 'Poison', damage: psnDmg });
-        }
-        if (entry.status === 'Badly Poisoned') {
-            var toxN = Math.min(entry.toxicCounter || 1, 15);
-            var toxDmg = Math.max(1, Math.floor(maxHP * toxN / 16));
-            eot.push({ source: 'Toxic (' + toxN + '/16)', damage: toxDmg });
+        // Poison Heal: heal 1/8 instead of taking poison/toxic damage
+        if (hasPoisonHeal && (entry.status === 'Poison' || entry.status === 'Badly Poisoned')) {
+            eot.push({ source: 'Poison Heal', damage: -Math.max(1, Math.floor(maxHP / 8)) });
+        } else {
+            if (entry.status === 'Poison' && !hasMagicGuard) {
+                var psnDmg = Math.max(1, Math.floor(maxHP / 8));
+                eot.push({ source: 'Poison', damage: psnDmg });
+            }
+            if (entry.status === 'Badly Poisoned' && !hasMagicGuard) {
+                var toxN = Math.min(entry.toxicCounter || 1, 15);
+                var toxDmg = Math.max(1, Math.floor(maxHP * toxN / 16));
+                eot.push({ source: 'Toxic (' + toxN + '/16)', damage: toxDmg });
+            }
         }
 
         // --- Weather damage ---
@@ -936,7 +945,8 @@
         if (entry.item === 'Black Sludge') {
             if (hasType(entry, ['Poison'])) {
                 eot.push({ source: 'Black Sludge', damage: -Math.max(1, Math.floor(maxHP / 16)) });
-            } else {
+            } else if (!hasMagicGuard) {
+                // Magic Guard blocks Black Sludge damage (but not healing)
                 eot.push({ source: 'Black Sludge', damage: Math.max(1, Math.floor(maxHP / 8)) });
             }
         }
@@ -960,7 +970,7 @@
     }
 
     function isWeatherImmune(ability) {
-        return ability === 'Overcoat' || ability === 'Magic Guard';
+        return WEATHER_IMMUNE_ABILITIES.indexOf(ability) !== -1;
     }
 
     // ════════════════════════════════════════════════════════════
@@ -1514,6 +1524,21 @@
             else p2BestAfter = p2BestBefore; // P1 KO'd in best case, but that's not best...
         }
 
+        // ── Focus Sash: survive a one-hit KO from full HP (consumed) ──
+        // Must have been at full HP before the move hit (p1HPBefore = post-pre-damage HP)
+        if (p1Entry.item === 'Focus Sash' && p1HPBefore >= p1Entry.maxHP && p1HPAfter <= 0 && p1HPBefore > 0) {
+            p1HPAfter = 1;
+            if (p1BestAfter <= 0 && p1BestBefore >= p1Entry.maxHP) p1BestAfter = 1;
+            p1Entry.item = '';
+            $('#p1 .item').val('').trigger('change');
+        }
+        if (p2Entry.item === 'Focus Sash' && p2HPBefore >= p2Entry.maxHP && p2HPAfter <= 0 && p2HPBefore > 0) {
+            p2HPAfter = 1;
+            if (p2BestAfter <= 0 && p2BestBefore >= p2Entry.maxHP) p2BestAfter = 1;
+            p2Entry.item = '';
+            $('#p2 .item').val('').trigger('change');
+        }
+
         // Apply extra damage from attacks (same for worst and best — extras are fixed values)
         for (var i = 0; i < p1Extras.length; i++) {
             var ex = p1Extras[i];
@@ -1548,6 +1573,69 @@
         for (var i = 0; i < p2EOT.length; i++) {
             p2HPAfter = Math.max(0, Math.min(p2Entry.maxHP, p2HPAfter - p2EOT[i].damage));
             p2BestAfter = Math.max(0, Math.min(p2Entry.maxHP, p2BestAfter - p2EOT[i].damage));
+        }
+
+        // ── Post-EOT item effects ──
+        // Helper to clear a consumed item from the entry and its calc form
+        function consumeItem(entry, side) {
+            entry.item = '';
+            $('#' + side + ' .item').val('').trigger('change');
+        }
+
+        // Status-curing berries activate end-of-turn (after EOT status damage)
+        // Sitrus Berry heals 25% max HP when at ≤ 50% HP
+        function applyPostEOTBerries(entry, hpVar, bestVar, eotList, side) {
+            if (!entry.item || entry.currentHP <= 0) return { hp: hpVar, best: bestVar };
+            var itlc = entry.item.toLowerCase().replace(/\s/g, '');
+            var cured = false;
+
+            if (hpVar > 0) {
+                if (itlc === 'lumberry' && entry.status) {
+                    entry.status = ''; entry.toxicCounter = 0; cured = true;
+                } else if (itlc === 'rawstberry' && entry.status === 'Burn') {
+                    entry.status = ''; cured = true;
+                } else if (itlc === 'pechaberry' && (entry.status === 'Poison' || entry.status === 'Badly Poisoned')) {
+                    entry.status = ''; entry.toxicCounter = 0; cured = true;
+                } else if (itlc === 'cheriberry' && entry.status === 'Paralysis') {
+                    entry.status = ''; cured = true;
+                } else if (itlc === 'chestoberry' && entry.status === 'Sleep') {
+                    entry.status = ''; cured = true;
+                } else if (itlc === 'aspearberry' && entry.status === 'Freeze') {
+                    entry.status = ''; cured = true;
+                }
+                if (cured) consumeItem(entry, side);
+
+                // Sitrus Berry: heal 25% max HP when at ≤ 50%
+                if (!cured && itlc === 'sitrusberry' && hpVar <= Math.floor(entry.maxHP / 2)) {
+                    var sitrusHeal = Math.max(1, Math.floor(entry.maxHP / 4));
+                    hpVar  = Math.min(entry.maxHP, hpVar  + sitrusHeal);
+                    bestVar = Math.min(entry.maxHP, bestVar + sitrusHeal);
+                    eotList.push({ source: 'Sitrus Berry', damage: -sitrusHeal });
+                    consumeItem(entry, side);
+                }
+            }
+            return { hp: hpVar, best: bestVar };
+        }
+
+        var p1PostEOT = applyPostEOTBerries(p1Entry, p1HPAfter, p1BestAfter, p1EOT, 'p1');
+        p1HPAfter = p1PostEOT.hp; p1BestAfter = p1PostEOT.best;
+        var p2PostEOT = applyPostEOTBerries(p2Entry, p2HPAfter, p2BestAfter, p2EOT, 'p2');
+        p2HPAfter = p2PostEOT.hp; p2BestAfter = p2PostEOT.best;
+
+        // Toxic Orb / Flame Orb: inflict status at end of turn (no damage this turn; starts next)
+        if (!p1Entry.status) {
+            if (p1Entry.item === 'Toxic Orb') {
+                p1Entry.status = 'Badly Poisoned'; p1Entry.toxicCounter = 0;
+            } else if (p1Entry.item === 'Flame Orb') {
+                p1Entry.status = 'Burn';
+            }
+        }
+        if (!p2Entry.status) {
+            if (p2Entry.item === 'Toxic Orb') {
+                p2Entry.status = 'Badly Poisoned'; p2Entry.toxicCounter = 0;
+            } else if (p2Entry.item === 'Flame Orb') {
+                p2Entry.status = 'Burn';
+            }
         }
 
         // P1 bestCase: best for P1 = P1 has MORE HP, so bestCase >= worst
