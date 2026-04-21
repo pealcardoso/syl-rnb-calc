@@ -681,7 +681,7 @@ fieldset {
 
 /* Type/category sprites injected into move selection buttons */
 .rsa-moves-area label.btn.btn-xxxwide {
-    display: flex;
+    display: inline-flex;
     align-items: center;
     white-space: nowrap;
     overflow: hidden;
@@ -689,6 +689,7 @@ fieldset {
     padding-left: 6px;
     padding-right: 6px;
     box-sizing: border-box;
+    vertical-align: middle;
 }
 .rsa-moves-area label.btn .rsa-btn-move-sprites {
     display: inline-flex;
