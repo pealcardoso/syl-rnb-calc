@@ -825,8 +825,13 @@
         var move = moveInfo.move;
 
         var atkMagicGuard = attacker.ability === 'Magic Guard';
+        var atkRockHead   = attacker.ability === 'Rock Head';
+        // Recoil/drain are based on actual damage dealt, which is capped at the defender's current HP
+        var defCurHP = Math.max(1, defender.currentHP || defender.maxHP);
+        var effMinDmg = Math.min(moveInfo.minDmg, defCurHP);
+        var effMaxDmg = Math.min(moveInfo.maxDmg, defCurHP);
 
-        // --- Life Orb recoil on attacker (blocked by Magic Guard) ---
+        // --- Life Orb recoil on attacker (blocked by Magic Guard; fixed 1/10 of attacker maxHP) ---
         if (attacker.item === 'Life Orb' && moveInfo.minDmg > 0 && !atkMagicGuard) {
             var loRecoil = Math.max(1, Math.floor(atkMaxHP / 10));
             extras.push({
@@ -837,11 +842,10 @@
             });
         }
 
-        // --- Move recoil (blocked by Magic Guard / Rock Head) ---
-        var atkRockHead = attacker.ability === 'Rock Head';
+        // --- Move recoil (blocked by Magic Guard / Rock Head; based on actual damage dealt) ---
         if (move.recoil && moveInfo.maxDmg > 0 && !atkMagicGuard && !atkRockHead) {
-            var recoilMin = Math.max(1, Math.floor(moveInfo.minDmg * move.recoil[0] / move.recoil[1]));
-            var recoilMax = Math.max(1, Math.floor(moveInfo.maxDmg * move.recoil[0] / move.recoil[1]));
+            var recoilMin = Math.max(1, Math.floor(effMinDmg * move.recoil[0] / move.recoil[1]));
+            var recoilMax = Math.max(1, Math.floor(effMaxDmg * move.recoil[0] / move.recoil[1]));
             extras.push({
                 target: 'attacker',
                 source: 'Recoil (' + move.recoil[0] + '/' + move.recoil[1] + ')',
@@ -878,10 +882,10 @@
             }
         }
 
-        // --- Drain / healing moves ---
+        // --- Drain / healing moves (based on actual damage dealt, capped at defender current HP) ---
         if (move.drain && moveInfo.maxDmg > 0) {
-            var drainMin = Math.max(1, Math.floor(moveInfo.minDmg * move.drain[0] / move.drain[1]));
-            var drainMax = Math.max(1, Math.floor(moveInfo.maxDmg * move.drain[0] / move.drain[1]));
+            var drainMin = Math.max(1, Math.floor(effMinDmg * move.drain[0] / move.drain[1]));
+            var drainMax = Math.max(1, Math.floor(effMaxDmg * move.drain[0] / move.drain[1]));
             extras.push({
                 target: 'attacker',
                 source: 'Drain (' + move.drain[0] + '/' + move.drain[1] + ')',
@@ -1558,9 +1562,10 @@
             p2HPAfter = 1;
             if (p2BestAfter <= 0 && p2BestBefore >= p2Entry.maxHP) p2BestAfter = 1;
             // P2 survived — apply P2's counterattack if it was blocked
-            if (p2AttackBlockedBySash && p2DmgToP1Min > 0) {
-                p1HPAfter = Math.max(0, p1HPAfter - p2DmgToP1Min);
-                p1BestAfter = Math.max(0, p1BestAfter - p2DmgToP1Max);
+            // Worst case for P1: P2 does MAX damage; best case for P1: P2 does MIN damage
+            if (p2AttackBlockedBySash && p2DmgToP1Max > 0) {
+                p1HPAfter  = Math.max(0, p1HPAfter  - p2DmgToP1Max);
+                p1BestAfter = Math.max(0, p1BestAfter - p2DmgToP1Min);
             }
             p2Entry.item = '';
             $('#p2 .item').val('').trigger('change');
