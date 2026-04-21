@@ -1513,31 +1513,45 @@
         var p1DmgToP2Min = (p1Dmg && !p1Flinched) ? p1Dmg.minDmg : 0;
         var p1DmgToP2Max = (p1Dmg && !p1Flinched) ? p1Dmg.maxDmg : 0;
 
-        // Apply in speed order (worst case)
-        // Track whether P1/P2 was blocked from attacking because they "died" going second
-        // (needed for Focus Sash correction: if sash fires, the blocked attacker CAN retaliate)
-        var p1AttackBlockedBySash = false;  // P1's attack was skipped because P1 "died" going second
-        var p2AttackBlockedBySash = false;  // P2's attack was skipped because P2 "died" going second
+        // Apply in speed order with inline Focus Sash check
+        // Sash must fire BEFORE deciding if the second mover can attack
+        var p1Sashed = false, p2Sashed = false;
+
         if (speed.faster === 'p1' || speed.faster === 'tie') {
+            // P1 attacks P2 first
             p2HPAfter = Math.max(0, p2HPAfter - p1DmgToP2Min);
+            p2BestAfter = Math.max(0, p2BestAfter - p1DmgToP2Max);
+
+            // Focus Sash: P2 survives at 1 HP if at full HP before the hit
+            if (p2Entry.item === 'Focus Sash' && p2HPBefore >= p2Entry.maxHP && p2HPBefore > 0) {
+                if (p2HPAfter <= 0) { p2HPAfter = 1; p2Sashed = true; }
+                if (p2BestAfter <= 0 && p2BestBefore >= p2Entry.maxHP) { p2BestAfter = 1; p2Sashed = true; }
+            }
+
+            // P2 attacks P1 only if P2 survived (including via sash)
             if (p2HPAfter > 0) {
                 p1HPAfter = Math.max(0, p1HPAfter - p2DmgToP1Max);
-            } else {
-                p2AttackBlockedBySash = true; // P2 "died" — may be un-blocked by Focus Sash
             }
-            // Best case
-            p2BestAfter = Math.max(0, p2BestAfter - p1DmgToP2Max);
-            if (p2BestAfter > 0) p1BestAfter = Math.max(0, p1BestAfter - p2DmgToP1Min);
-            else p1BestAfter = p1BestBefore; // P2 KO'd, P1 takes no damage in best case
+            if (p2BestAfter > 0) {
+                p1BestAfter = Math.max(0, p1BestAfter - p2DmgToP1Min);
+            } else {
+                p1BestAfter = p1BestBefore; // P2 KO'd, P1 takes no damage in best case
+            }
         } else {
+            // P2 attacks P1 first
             p1HPAfter = Math.max(0, p1HPAfter - p2DmgToP1Max);
+            p1BestAfter = Math.max(0, p1BestAfter - p2DmgToP1Min);
+
+            // Focus Sash: P1 survives at 1 HP if at full HP before the hit
+            if (p1Entry.item === 'Focus Sash' && p1HPBefore >= p1Entry.maxHP && p1HPBefore > 0) {
+                if (p1HPAfter <= 0) { p1HPAfter = 1; p1Sashed = true; }
+                if (p1BestAfter <= 0 && p1BestBefore >= p1Entry.maxHP) { p1BestAfter = 1; p1Sashed = true; }
+            }
+
+            // P1 attacks P2 only if P1 survived (including via sash)
             if (p1HPAfter > 0) {
                 p2HPAfter = Math.max(0, p2HPAfter - p1DmgToP2Min);
-            } else {
-                p1AttackBlockedBySash = true; // P1 "died" — may be un-blocked by Focus Sash
             }
-            // Best case
-            p1BestAfter = Math.max(0, p1BestAfter - p2DmgToP1Min);
             if (p1BestAfter > 0) {
                 p2BestAfter = Math.max(0, p2BestAfter - p1DmgToP2Max);
             } else {
@@ -1545,31 +1559,9 @@
             }
         }
 
-        // ── Focus Sash: survive a one-hit KO from full HP (consumed) ──
-        // Must have been at full HP before the move hit (p1HPBefore = post-pre-damage HP)
-        if (p1Entry.item === 'Focus Sash' && p1HPBefore >= p1Entry.maxHP && p1HPAfter <= 0 && p1HPBefore > 0) {
-            p1HPAfter = 1;
-            if (p1BestAfter <= 0 && p1BestBefore >= p1Entry.maxHP) p1BestAfter = 1;
-            // P1 survived — apply P1's counterattack if it was blocked by the speed-order death check
-            if (p1AttackBlockedBySash && p1DmgToP2Min > 0) {
-                p2HPAfter = Math.max(0, p2HPAfter - p1DmgToP2Min);
-                p2BestAfter = Math.max(0, p2BestAfter - p1DmgToP2Max);
-            }
-            p1Entry.item = '';
-            $('#p1 .item').val('').trigger('change');
-        }
-        if (p2Entry.item === 'Focus Sash' && p2HPBefore >= p2Entry.maxHP && p2HPAfter <= 0 && p2HPBefore > 0) {
-            p2HPAfter = 1;
-            if (p2BestAfter <= 0 && p2BestBefore >= p2Entry.maxHP) p2BestAfter = 1;
-            // P2 survived — apply P2's counterattack if it was blocked
-            // Worst case for P1: P2 does MAX damage; best case for P1: P2 does MIN damage
-            if (p2AttackBlockedBySash && p2DmgToP1Max > 0) {
-                p1HPAfter  = Math.max(0, p1HPAfter  - p2DmgToP1Max);
-                p1BestAfter = Math.max(0, p1BestAfter - p2DmgToP1Min);
-            }
-            p2Entry.item = '';
-            $('#p2 .item').val('').trigger('change');
-        }
+        // Consume Focus Sash after speed-order resolution
+        if (p1Sashed) { p1Entry.item = ''; $('#p1 .item').val('').trigger('change'); }
+        if (p2Sashed) { p2Entry.item = ''; $('#p2 .item').val('').trigger('change'); }
 
         // Apply extra damage from attacks (same for worst and best — extras are fixed values)
         for (var i = 0; i < p1Extras.length; i++) {
