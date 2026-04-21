@@ -231,6 +231,146 @@
 
     var cachedRankings = [];
     var boxSortMode = 'default'; // 'default', 'offense', 'defense'
+
+    // ════════════════════════════════════════════════════════════
+    // AI SWITCH-IN PREDICTION ENGINE
+    // ════════════════════════════════════════════════════════════
+
+    /**
+     * Compute the AI switch-in score for one AI pokemon vs the player's pokemon.
+     * p1calc = calc.Pokemon for the player's mon (with current HP/boosts)
+     * p2calc = calc.Pokemon for the AI candidate (fresh, full HP)
+     * returns { score, reason }
+     */
+    function computeSwitchScore(p1calc, p2calc) {
+        try {
+            var field = createField();
+            var fieldSwap = field.clone().swap();
+            // AI candidate attacks player
+            var aiMoves = [];
+            for (var i = 0; i < 4; i++) {
+                aiMoves.push(calc.calculate(gen, p2calc, p1calc, p2calc.moves[i], fieldSwap));
+            }
+            // Player attacks AI candidate
+            var plMoves = [];
+            for (var i = 0; i < 4; i++) {
+                plMoves.push(calc.calculate(gen, p1calc, p2calc, p1calc.moves[i], field));
+            }
+
+            var p1hp = p1calc.curHP();
+            var p2hp = p2calc.curHP();
+            if (!p1hp) p1hp = p1calc.stats ? p1calc.stats.hp : 100;
+            if (!p2hp) p2hp = p2calc.stats ? p2calc.stats.hp : 100;
+
+            // Best damage AI deals to player (% of player HP)
+            var bestAiPct = 0;
+            for (var i = 0; i < aiMoves.length; i++) {
+                var d = aiMoves[i].damage;
+                var maxD = Array.isArray(d) ? d[d.length - 1] : d;
+                var hits = p2calc.moves[i] ? (p2calc.moves[i].hits || 1) : 1;
+                var pct = maxD * hits / p1hp * 100;
+                if (pct > bestAiPct) bestAiPct = pct;
+            }
+
+            // Best damage player deals to AI candidate (% of AI HP)
+            var bestPlPct = 0;
+            for (var i = 0; i < plMoves.length; i++) {
+                var d = plMoves[i].damage;
+                var maxD = Array.isArray(d) ? d[d.length - 1] : d;
+                var hits = p1calc.moves[i] ? (p1calc.moves[i].hits || 1) : 1;
+                var pct = maxD * hits / p2hp * 100;
+                if (pct > bestPlPct) bestPlPct = pct;
+            }
+
+            var aiOHKO = bestAiPct >= 100;
+            var plOHKO = bestPlPct >= 100;
+
+            // Speed comparison
+            var p1spd = p1calc.stats ? p1calc.stats.spe : 0;
+            var p2spd = p2calc.stats ? p2calc.stats.spe : 0;
+            var tr = $('#trickroom').is(':checked');
+            var aiFaster = tr ? (p2spd < p1spd) : (p2spd > p1spd);
+            // tie goes to... neither is faster per the logic table (+1 for faster, 0 for default)
+            if (p1spd === p2spd) aiFaster = false;
+            var aiSlower = !aiFaster && p1spd !== p2spd;
+
+            // Special cases
+            var aiName = (p2calc.name || '').toLowerCase();
+            if (aiName === 'ditto') return { score: 2, reason: 'Ditto' };
+            if (aiName === 'wynaut' || aiName === 'wobbuffet') {
+                if (aiSlower && plOHKO) return { score: 0, reason: 'Default' };
+                return { score: 2, reason: aiName.charAt(0).toUpperCase() + aiName.slice(1) };
+            }
+
+            // Main scoring table
+            if (aiFaster && aiOHKO) return { score: 5, reason: 'Faster + OHKO' };
+            if (aiSlower && aiOHKO && !plOHKO) return { score: 4, reason: 'OHKO + survives' };
+            if (aiFaster && bestAiPct > bestPlPct) return { score: 3, reason: 'Faster + better trade' };
+            if (aiSlower && bestAiPct > bestPlPct) return { score: 2, reason: 'Better trade' };
+            if (aiFaster) return { score: 1, reason: 'Faster' };
+            if (aiSlower && plOHKO) return { score: -1, reason: 'Slower + OHKO\'d' };
+            return { score: 0, reason: 'Default' };
+        } catch (e) {
+            return { score: 0, reason: 'Error' };
+        }
+    }
+
+    /**
+     * Predict which P2 mon will switch in against a given P1 pokemon.
+     * p1SetIdOrCalc = setId string for full-HP box mode, or '$p1' for live form
+     * Returns { name, sprite, score, reason, scores[] } or null
+     */
+    function predictSwitchIn(p1SetIdOrCalc) {
+        var line = curLine();
+        var team = line.teams.p2;
+        if (team.roster.length < 2) return null;
+
+        // Build P1 calc pokemon
+        var p1;
+        try {
+            if (p1SetIdOrCalc === '$p1') {
+                p1 = createPokemon($('#p1'));
+            } else {
+                p1 = createPokemon(p1SetIdOrCalc);
+            }
+        } catch (e) { return null; }
+
+        var activeP2 = getActiveEntry(team);
+        var candidates = [];
+
+        for (var i = 0; i < team.roster.length; i++) {
+            var e = team.roster[i];
+            // Skip active P2 and fainted mons
+            if (activeP2 && e.name === activeP2.name) continue;
+            if (e.currentHP <= 0) continue;
+
+            var p2;
+            try { p2 = createPokemon(e.setId); } catch (ex) { continue; }
+
+            var result = computeSwitchScore(p1, p2);
+            candidates.push({
+                name: e.name,
+                sprite: e.sprite || getSprite(e.name),
+                score: result.score,
+                reason: result.reason,
+                partyIdx: i
+            });
+        }
+
+        if (candidates.length === 0) return null;
+
+        // Ties go to first in party order (stable sort — keep original order)
+        var best = candidates[0];
+        for (var i = 1; i < candidates.length; i++) {
+            if (candidates[i].score > best.score) best = candidates[i];
+        }
+
+        return { name: best.name, sprite: best.sprite, score: best.score,
+                 reason: best.reason, scores: candidates };
+    }
+
+    /** Cached switch-in prediction for current live state */
+    var cachedSwitchPred = null;
     var boxDeleteMode = false;
     var boxExcluded = [];
     try { boxExcluded = JSON.parse(localStorage.getItem('rsa-box-excluded') || '[]'); } catch (ex) {}
@@ -1513,6 +1653,13 @@
         $('#p1 .current-hp').val(p1HPAfter);
         $('#p2 .current-hp').val(p2HPAfter);
 
+        // If P2 is KO'd, predict who switches in next
+        if (p2HPAfter <= 0) {
+            try {
+                rd.switchPred = predictSwitchIn('$p1');
+            } catch (e) { rd.switchPred = null; }
+        }
+
         return rd;
     }
 
@@ -1712,7 +1859,41 @@
         $('#rsa-team-count-' + side).text(team.roster.length);
 
         // Keep switch dropdown in sync whenever P1 team changes
-        if (side === 'p1') populateSwitchDropdown();
+        if (side === 'p1') {
+            populateSwitchDropdown();
+            renderSwitchPrediction();
+        }
+    }
+
+    /** Render the AI switch-in prediction below the P1 team panel */
+    function renderSwitchPrediction() {
+        var $el = $('#rsa-switch-pred');
+        if (!$el.length) return;
+        try {
+            cachedSwitchPred = predictSwitchIn('$p1');
+        } catch (e) { cachedSwitchPred = null; }
+        if (!cachedSwitchPred) { $el.html(''); return; }
+        var pred = cachedSwitchPred;
+        var scoresCells = '';
+        if (pred.scores && pred.scores.length) {
+            for (var i = 0; i < pred.scores.length; i++) {
+                var s = pred.scores[i];
+                var cls = s.score > 0 ? 'rsa-swpred-pos' : (s.score < 0 ? 'rsa-swpred-neg' : '');
+                var best = s.name === pred.name ? ' rsa-swpred-best' : '';
+                scoresCells += '<span class="rsa-swpred-score' + best + '" title="' + esc(s.name) + ': ' + esc(s.reason) + '">' +
+                    '<img class="rsa-swpred-mini" src="' + esc(s.sprite) + '" alt="">' +
+                    '<span class="' + cls + '">' + (s.score > 0 ? '+' : '') + s.score + '</span></span>';
+            }
+        }
+        $el.html(
+            '<div class="rsa-swpred-bar">' +
+                '<span class="rsa-swpred-label">🔮 AI sends:</span>' +
+                '<img class="rsa-swpred-sprite" src="' + esc(pred.sprite) + '" alt="">' +
+                '<span class="rsa-swpred-name">' + esc(pred.name) + '</span>' +
+                '<span class="rsa-swpred-detail">(' + (pred.score > 0 ? '+' : '') + pred.score + ' — ' + esc(pred.reason) + ')</span>' +
+            '</div>' +
+            (scoresCells ? '<div class="rsa-swpred-all">' + scoresCells + '</div>' : '')
+        );
     }
 
     // ── Line Tabs ────────────────────────────────────────────
@@ -1790,6 +1971,18 @@
             probHtml = '<span class="rsa-tag rsa-prob-tag ' + probClass + '" title="' + esc(tooltip) + '">📊 ' + pct.toFixed(1) + '%</span>';
         }
 
+        // Switch-in prediction for KO rounds
+        var switchPredHtml = '';
+        if (rd.switchPred) {
+            var sp = rd.switchPred;
+            switchPredHtml = '<div class="rsa-round-switchpred">' +
+                '<span class="rsa-swpred-label">🔮 AI sends:</span>' +
+                '<img class="rsa-swpred-sprite" src="' + esc(sp.sprite) + '" alt="">' +
+                '<span class="rsa-swpred-name">' + esc(sp.name) + '</span>' +
+                '<span class="rsa-swpred-detail">(' + (sp.score > 0 ? '+' : '') + sp.score + ' — ' + esc(sp.reason) + ')</span>' +
+            '</div>';
+        }
+
         return '<div class="rsa-round-card" data-round="' + rd.roundNum + '">' +
             '<div class="rsa-round-header">' +
                 '<span class="rsa-round-num">Round ' + rd.roundNum + '</span>' +
@@ -1803,6 +1996,7 @@
                 '<div class="rsa-vs">VS</div>' +
                 renderActorCard(rd.p2, 'p2', rd, p2Indicator) +
             '</div>' +
+            switchPredHtml +
             cmnt +
         '</div>';
     }
@@ -2432,6 +2626,18 @@
             mons = sorted;
         }
 
+        // Build bait prediction map for each box mon (what P2 switches in at full HP)
+        var boxBaitMap = null;
+        if (side === 'p1' && curLine().teams.p2.roster.length >= 2) {
+            boxBaitMap = {};
+            for (var b = 0; b < mons.length; b++) {
+                try {
+                    var pred = predictSwitchIn(mons[b].setId);
+                    if (pred) boxBaitMap[mons[b].setId] = pred;
+                } catch (e) {}
+            }
+        }
+
         var html = '';
         for (var i = 0; i < mons.length; i++) {
             var m = mons[i];
@@ -2463,6 +2669,14 @@
                 rankHtml = '<span class="rsa-rank-badges">' + offBadge + defBadge + '</span>';
             }
 
+            // Bait prediction (what P2 mon switches in if this box mon is out)
+            var baitHtml = '';
+            if (side === 'p1' && boxBaitMap && boxBaitMap[m.setId]) {
+                var bp = boxBaitMap[m.setId];
+                baitHtml = '<span class="rsa-bait-badge" title="AI sends ' + esc(bp.name) + ' (' + (bp.score > 0 ? '+' : '') + bp.score + ': ' + esc(bp.reason) + ')">🔮' +
+                    '<img class="rsa-bait-mini" src="' + esc(bp.sprite) + '" alt=""></span>';
+            }
+
             var deleteX = (side === 'p1' && boxDeleteMode)
                 ? '<button class="rsa-box-delete-x" data-set-id="' + esc(m.setId) + '" title="Remove from box">×</button>'
                 : '';
@@ -2470,6 +2684,7 @@
                 deleteX +
                 '<img class="rsa-box-sprite" src="' + esc(m.sprite) + '" alt="' + esc(m.name) + '" title="' + esc(tooltip) + '">' +
                 rankHtml +
+                baitHtml +
                 '<span class="rsa-box-name">' + esc(m.name) + '</span>' +
             '</div>';
         }
@@ -2525,6 +2740,7 @@
                 renderBox('p1');
                 injectDamageBadges();
                 injectMoveLabelSprites();
+                renderSwitchPrediction();
             }, 200);
         });
 

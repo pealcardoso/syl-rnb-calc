@@ -172,6 +172,45 @@
 .rsa-cov-wall { font-size: 0.9em; color: #63b3ed; text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rsa-cov-th { text-align: center; }
 
+/* ── AI Switch-In Prediction ──────────────────────────────── */
+/* Team panel prediction bar */
+.rsa-switch-pred { margin-top: 6px; }
+.rsa-swpred-bar {
+    display: flex; align-items: center; gap: 5px;
+    background: #2d3748; border: 1px solid #4a5568; border-radius: 6px;
+    padding: 4px 8px; font-size: 0.8em;
+}
+.rsa-swpred-label { color: #a0aec0; font-weight: 600; white-space: nowrap; }
+.rsa-swpred-sprite { width: 32px; height: 32px; image-rendering: pixelated; }
+.rsa-swpred-name { color: #e2e8f0; font-weight: 700; }
+.rsa-swpred-detail { color: #90cdf4; font-size: 0.9em; }
+.rsa-swpred-all {
+    display: flex; flex-wrap: wrap; gap: 3px; margin-top: 4px;
+}
+.rsa-swpred-score {
+    display: inline-flex; flex-direction: column; align-items: center;
+    background: #2d3748; border: 1px solid #4a5568; border-radius: 4px;
+    padding: 2px 4px; font-size: 0.65em; min-width: 32px;
+}
+.rsa-swpred-score.rsa-swpred-best { border-color: #f6e05e; background: #2d3748; }
+.rsa-swpred-mini { width: 24px; height: 24px; image-rendering: pixelated; }
+.rsa-swpred-pos { color: #68d391; font-weight: 700; }
+.rsa-swpred-neg { color: #fc8181; font-weight: 700; }
+
+/* Box slot bait badge */
+.rsa-bait-badge {
+    display: flex; align-items: center; justify-content: center; gap: 1px;
+    font-size: 0.55em; line-height: 1;
+}
+.rsa-bait-mini { width: 18px; height: 18px; image-rendering: pixelated; }
+
+/* Round log KO switch-in prediction */
+.rsa-round-switchpred {
+    display: flex; align-items: center; gap: 5px;
+    padding: 4px 10px; background: #1a365d; border-top: 1px solid #2a4365;
+    font-size: 0.8em; border-radius: 0 0 8px 8px;
+}
+
 /* Drop target highlight */
 .rsa-team-drop.rsa-drag-over {
     background: #2d3748;
