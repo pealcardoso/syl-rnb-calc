@@ -28,6 +28,18 @@
         return window.BattleItems[key] || null;
     }
 
+    function getItemDesc(itemName) {
+        var d = lookupItemData(itemName);
+        return d ? (d.shortDesc || d.desc || '') : '';
+    }
+
+    function getAbilityDesc(abilityName) {
+        if (!abilityName || !window.BattleAbilities) return '';
+        var key = abilityName.toLowerCase().replace(/[\s\-\']+/g, '');
+        var d = window.BattleAbilities[key];
+        return d ? (d.shortDesc || d.desc || '') : '';
+    }
+
     function getItemSpriteUrl(itemName) {
         if (!itemName) return '';
         var slug = itemName.toLowerCase().replace(/\s+/g, '-');
@@ -51,6 +63,10 @@
 
         // Primary effects (non-secondary, inherent to the move)
         var primaryParts = [];
+        if (moveData.priority && moveData.priority !== 0) {
+            var prioSign = moveData.priority > 0 ? '+' : '';
+            primaryParts.push('Priority ' + prioSign + moveData.priority);
+        }
         if (moveData.drain) primaryParts.push('Drains ' + moveData.drain[0] + '/' + moveData.drain[1] + ' HP');
         if (moveData.recoil) primaryParts.push('Recoil ' + moveData.recoil[0] + '/' + moveData.recoil[1]);
         if (moveData.heal) primaryParts.push('Heals ' + moveData.heal[0] + '/' + moveData.heal[1] + ' HP');
@@ -646,6 +662,7 @@
             }
             // Re-inject damage badges now that the new pokemon is loaded
             injectDamageBadges();
+            injectMoveLabelSprites();
         }, 300);
     }
 
@@ -1152,6 +1169,7 @@
                     basePower: p1MoveData.basePower || 0,
                     accuracy: p1MoveData.accuracy || 0,
                     pp: p1MoveData.pp || 0,
+                    priority: p1MoveData.priority || 0,
                     effects: parseMoveEffects(p1MoveData),
                     shortDesc: p1MoveData.shortDesc || ''
                 } : null,
@@ -1180,6 +1198,7 @@
                     basePower: p2MoveData.basePower || 0,
                     accuracy: p2MoveData.accuracy || 0,
                     pp: p2MoveData.pp || 0,
+                    priority: p2MoveData.priority || 0,
                     effects: parseMoveEffects(p2MoveData),
                     shortDesc: p2MoveData.shortDesc || ''
                 } : null,
@@ -1212,7 +1231,11 @@
     function getMoveNames(sideIdx, moveIdx) {
         if (moveIdx === 'none' || moveIdx === -1) return '—';
         var side = sideIdx === 0 ? 'L' : 'R';
-        var label = $('label[for="resultMove' + side + (moveIdx + 1) + '"]').text();
+        var $label = $('label[for="resultMove' + side + (moveIdx + 1) + '"]');
+        // If we injected HTML, use the name span; otherwise fall back to .text()
+        var nameSpan = $label.find('.rsa-btn-move-name').text();
+        if (nameSpan) return nameSpan.trim();
+        var label = $label.text();
         if (label) return label.trim();
         var sel = sideIdx === 0 ? '#p1' : '#p2';
         return $(sel + ' .move' + (moveIdx + 1) + ' .move-selector').val() || '—';
@@ -1367,8 +1390,8 @@
                     '<div class="rsa-team-hp-bar"><div class="rsa-team-hp-fill" style="width:' + pct.toFixed(0) + '%;background:' + col + '"></div>' + teamUncertainBar + '</div>' +
                     '<div class="rsa-team-hp-text">' + e.currentHP + '/' + e.maxHP + ' ' + teamRangeText + '</div>' +
                     (e.status ? '<span class="rsa-status-badge rsa-status-' + e.status.toLowerCase().replace(/\s+/g, '-') + '">' + esc(e.status) + '</span>' : '') +
-                    (e.ability ? '<span class="rsa-ability-badge">' + esc(e.ability) + '</span>' : '') +
-                    (e.item ? '<span class="rsa-item-badge"><img class="rsa-item-sprite" src="' + esc(getItemSpriteUrl(e.item)) + '" alt="" onerror="this.style.display=\'none\'"> ' + esc(e.item) + '</span>' : '') +
+                    (e.ability ? '<span class="rsa-ability-badge" title="' + esc(getAbilityDesc(e.ability)) + '">' + esc(e.ability) + '</span>' : '') +
+                    (e.item ? '<span class="rsa-item-badge" title="' + esc(getItemDesc(e.item)) + '"><img class="rsa-item-sprite" src="' + esc(getItemSpriteUrl(e.item)) + '" alt="" onerror="this.style.display=\'none\'"> ' + esc(e.item) + '</span>' : '') +
                 '</div>' +
                 (side === 'p1' ? '<button class="rsa-team-remove" data-side="' + side + '" data-idx="' + i + '" title="Remove">×</button>' : '') +
             '</div>';
@@ -1496,7 +1519,7 @@
             var typeSprite = md && md.type ? '<img class="rsa-type-sprite" src="' + esc(getTypeSpriteUrl(md.type)) + '" alt="' + esc(md.type) + '" title="' + esc(md.type) + '">' : '';
             var catSprite = md && md.category ? '<img class="rsa-cat-sprite" src="' + esc(getCategorySpriteUrl(md.category)) + '" alt="' + esc(md.category) + '" title="' + esc(md.category) + '">' : '';
 
-            // Move stats line (BP / Acc / PP)
+            // Move stats line (BP / Acc / PP / Priority)
             var moveStats = '';
             if (md) {
                 var statParts = [];
@@ -1504,6 +1527,10 @@
                 if (md.accuracy === true) statParts.push('Acc: —');
                 else if (md.accuracy) statParts.push('Acc: ' + md.accuracy);
                 if (md.pp) statParts.push('PP: ' + md.pp);
+                if (md.priority && md.priority !== 0) {
+                    var prioSign = md.priority > 0 ? '+' : '';
+                    statParts.push('<span class="rsa-prio-tag">Prio ' + prioSign + md.priority + '</span>');
+                }
                 if (statParts.length) moveStats = '<span class="rsa-move-stats">' + statParts.join(' · ') + '</span>';
             }
 
@@ -1621,8 +1648,8 @@
                 '<div class="rsa-actor-info">' +
                     '<div class="rsa-actor-name">' + esc(actor.name) + ' ' + (orderIndicator || '') + '</div>' +
                     '<div class="rsa-actor-tags">' +
-                        '<span class="rsa-tag rsa-item-tag"><img class="rsa-item-sprite-sm" src="' + esc(getItemSpriteUrl(actor.item)) + '" alt="" onerror="this.style.display=\'none\'"> ' + esc(actor.item) + '</span>' +
-                        '<span class="rsa-tag rsa-ability-tag">' + esc(actor.ability) + '</span>' +
+                        '<span class="rsa-tag rsa-item-tag" title="' + esc(getItemDesc(actor.item)) + '"><img class="rsa-item-sprite-sm" src="' + esc(getItemSpriteUrl(actor.item)) + '" alt="" onerror="this.style.display=\'none\'"> ' + esc(actor.item) + '</span>' +
+                        '<span class="rsa-tag rsa-ability-tag" title="' + esc(getAbilityDesc(actor.ability)) + '">' + esc(actor.ability) + '</span>' +
                         (actor.status ? '<span class="rsa-tag rsa-status-tag rsa-status-' + actor.status.toLowerCase().replace(/\s+/g, '-') + '">' + esc(actor.status) + '</span>' : '') +
                         boostHtml +
                     '</div>' +
@@ -1898,6 +1925,36 @@
         }
     }
 
+    function injectMoveLabelSprites() {
+        var sides = [
+            { prefix: 'L', sideIdx: 0 },
+            { prefix: 'R', sideIdx: 1 }
+        ];
+        for (var s = 0; s < sides.length; s++) {
+            var side = sides[s];
+            for (var i = 1; i <= 4; i++) {
+                var $label = $('label[for="resultMove' + side.prefix + i + '"]');
+                if (!$label.length) continue;
+
+                // Get current move name — prefer existing name span, else plain text
+                var moveName = $label.find('.rsa-btn-move-name').text().trim() || $label.text().trim();
+                if (!moveName || moveName === 'Loading...') continue;
+
+                var md = lookupMoveData(moveName);
+                var typeImg = '';
+                var catImg = '';
+                if (md) {
+                    if (md.type) typeImg = '<img class="rsa-btn-type-sprite" src="' + esc(getTypeSpriteUrl(md.type)) + '" alt="' + esc(md.type) + '" title="' + esc(md.type) + '">';
+                    if (md.category) catImg = '<img class="rsa-btn-cat-sprite" src="' + esc(getCategorySpriteUrl(md.category)) + '" alt="' + esc(md.category) + '" title="' + esc(md.category) + '">';
+                }
+                $label.html(
+                    '<span class="rsa-btn-move-sprites">' + typeImg + catImg + '</span>' +
+                    '<span class="rsa-btn-move-name">' + esc(moveName) + '</span>'
+                );
+            }
+        }
+    }
+
     // ════════════════════════════════════════════════════════════
     // POKEMON BOX — available pokemon with color coding
     // ════════════════════════════════════════════════════════════
@@ -2022,6 +2079,7 @@
                 // then inject damage badges using the correct damageResults
                 renderBox('p1');
                 injectDamageBadges();
+                injectMoveLabelSprites();
             }, 200);
         });
 
@@ -2349,6 +2407,7 @@
         setTimeout(function () {
             renderBox('p1');
             injectDamageBadges();
+            injectMoveLabelSprites();
         }, 2500);
     });
 

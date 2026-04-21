@@ -679,6 +679,29 @@ fieldset {
     font-size: 1em;
 }
 
+/* Type/category sprites injected into move selection buttons */
+label.btn .rsa-btn-move-sprites {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    margin-right: 4px;
+    vertical-align: middle;
+}
+label.btn .rsa-btn-type-sprite {
+    height: 14px;
+    width: auto;
+    vertical-align: middle;
+    border-radius: 2px;
+}
+label.btn .rsa-btn-cat-sprite {
+    height: 14px;
+    width: auto;
+    vertical-align: middle;
+}
+label.btn .rsa-btn-move-name {
+    vertical-align: middle;
+}
+
 /* Compact damage badge injected by JS */
 .rsa-dmg-badge {
     display: inline-block;
@@ -777,6 +800,15 @@ fieldset {
     padding: 1px 6px;
     border-radius: 3px;
     white-space: nowrap;
+}
+.rsa-prio-tag {
+    display: inline;
+    background: #d69e2e;
+    color: #1a202c;
+    font-weight: 700;
+    font-size: 0.95em;
+    padding: 0 4px;
+    border-radius: 3px;
 }
 .rsa-move-effects {
     font-size: 0.72em;
