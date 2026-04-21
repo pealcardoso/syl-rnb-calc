@@ -71,6 +71,17 @@
 .rsa-box-name { font-size: 0.6em; color: #a0aec0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 56px; }
 .rsa-box-slot.dragging { opacity: 0.4; }
 
+/* Delete-mode X button on box slots */
+.rsa-box-delete-x {
+    position: absolute; top: -5px; right: -5px;
+    width: 16px; height: 16px; border-radius: 50%;
+    background: #c53030; color: #fff; border: none;
+    font-size: 0.75em; line-height: 16px; text-align: center;
+    cursor: pointer; z-index: 10; padding: 0;
+    display: flex; align-items: center; justify-content: center;
+}
+.rsa-box-delete-x:hover { background: #fc8181; }
+
 /* Box color coding — speed borders */
 .rsa-box-slot.rsa-speed-F { border-color: #7ee1ff; }
 .rsa-box-slot.rsa-speed-T { border-color: #894197; }
@@ -277,6 +288,13 @@
     border-radius: 3px; display: inline-block; margin-top: 2px;
 }
 .rsa-item-badge { background: #2d3748; color: #cbd5e0; }
+/* Item dropdown in P1 team slots */
+.rsa-item-select {
+    background: #2d3748; border: 1px solid #4a5568; color: #cbd5e0;
+    border-radius: 3px; font-size: 0.68em; padding: 1px 3px;
+    max-width: 130px; margin-top: 2px; cursor: pointer; display: block;
+}
+.rsa-item-select:focus { outline: none; border-color: #4299e1; }
 .rsa-ability-badge {
     font-size: 0.65em; font-weight: 700; padding: 1px 5px;
     border-radius: 3px; display: inline-block; margin-top: 2px;

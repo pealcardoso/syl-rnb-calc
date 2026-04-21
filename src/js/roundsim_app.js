@@ -230,6 +230,26 @@
 
     var cachedRankings = [];
     var boxSortMode = 'default'; // 'default', 'offense', 'defense'
+    var boxDeleteMode = false;
+    var boxExcluded = [];
+    try { boxExcluded = JSON.parse(localStorage.getItem('rsa-box-excluded') || '[]'); } catch (ex) {}
+
+    var _itemOptionsHtml = null;
+    function getItemOptionsHtml() {
+        if (_itemOptionsHtml) return _itemOptionsHtml;
+        var items = window.BattleItems || {};
+        var names = [];
+        for (var k in items) {
+            if (items[k] && items[k].name) names.push(items[k].name);
+        }
+        names.sort();
+        var parts = ['<option value="">(no item)</option>'];
+        for (var ii = 0; ii < names.length; ii++) {
+            parts.push('<option value="' + esc(names[ii]) + '">' + esc(names[ii]) + '</option>');
+        }
+        _itemOptionsHtml = parts.join('');
+        return _itemOptionsHtml;
+    }
 
     // ════════════════════════════════════════════════════════════
     // TYPE COVERAGE ANALYSIS
@@ -1649,21 +1669,40 @@
                 teamRangeText = '<span class="rsa-team-hp-range">(' + bestHP + '–' + e.currentHP + ')</span>';
             }
 
+            // Defensive type tooltip for team sprites
+            var teamDefTooltip = e.name;
+            try {
+                var tInfo = getMonTypeInfo(e.name, e.setId);
+                teamDefTooltip = buildDefTooltip(e.name, tInfo.types, tInfo.ability);
+            } catch (ex) {}
+            // Item row: dropdown for P1, static badge for P2
+            var itemHtml = (side === 'p1')
+                ? '<select class="rsa-item-select" data-side="' + side + '" data-idx="' + i + '">' + getItemOptionsHtml() + '</select>'
+                : (e.item ? '<span class="rsa-item-badge" title="' + esc(getItemDesc(e.item)) + '"><img class="rsa-item-sprite" src="' + esc(getItemSpriteUrl(e.item)) + '" alt="" onerror="this.style.display=\'none\'"> ' + esc(e.item) + '</span>' : '');
+
             html += '<div class="rsa-team-slot rsa-team-slot-' + side + active + fainted + statusCls + ccClass + '" data-side="' + side + '" data-idx="' + i + '">' +
-                '<img class="rsa-team-sprite" src="' + esc(e.sprite) + '" alt="' + esc(e.name) + '" title="' + esc(e.name) + '">' +
+                '<img class="rsa-team-sprite" src="' + esc(e.sprite) + '" alt="' + esc(e.name) + '" title="' + esc(teamDefTooltip) + '">' +
                 '<div class="rsa-team-info">' +
                     '<div class="rsa-team-name">' + esc(e.name) + '</div>' +
                     '<div class="rsa-team-hp-bar"><div class="rsa-team-hp-fill" style="width:' + pct.toFixed(0) + '%;background:' + col + '"></div>' + teamUncertainBar + '</div>' +
                     '<div class="rsa-team-hp-text">' + e.currentHP + '/' + e.maxHP + ' ' + teamRangeText + '</div>' +
                     (e.status ? '<span class="rsa-status-badge rsa-status-' + e.status.toLowerCase().replace(/\s+/g, '-') + '">' + esc(e.status) + '</span>' : '') +
                     (e.ability ? '<span class="rsa-ability-badge" title="' + esc(getAbilityDesc(e.ability)) + '">' + esc(e.ability) + '</span>' : '') +
-                    (e.item ? '<span class="rsa-item-badge" title="' + esc(getItemDesc(e.item)) + '"><img class="rsa-item-sprite" src="' + esc(getItemSpriteUrl(e.item)) + '" alt="" onerror="this.style.display=\'none\'"> ' + esc(e.item) + '</span>' : '') +
+                    itemHtml +
                 '</div>' +
                 (side === 'p1' ? '<button class="rsa-team-remove" data-side="' + side + '" data-idx="' + i + '" title="Remove">×</button>' : '') +
             '</div>';
         }
 
         $panel.html(html);
+
+        // Set item select values for P1 (options are cached without 'selected', set via JS)
+        if (side === 'p1') {
+            $panel.find('.rsa-item-select').each(function () {
+                var idx = parseInt($(this).data('idx'));
+                this.value = (team.roster[idx] && team.roster[idx].item) || '';
+            });
+        }
 
         // Update counter badges
         $('#rsa-team-count-' + side).text(team.roster.length);
@@ -2234,6 +2273,8 @@
                 var name = String(setId).split(' (')[0];
                 mons.push({ name: name, setId: setId, sprite: getSprite(name) });
             });
+            // Filter mons hidden via the delete-from-box feature
+            mons = mons.filter(function (m) { return boxExcluded.indexOf(m.setId) === -1; });
         } else {
             // P2: current loaded + opposing trainer list
             var p2Name = getP2Name();
@@ -2405,7 +2446,11 @@
                 rankHtml = '<span class="rsa-rank-badges">' + offBadge + defBadge + '</span>';
             }
 
+            var deleteX = (side === 'p1' && boxDeleteMode)
+                ? '<button class="rsa-box-delete-x" data-set-id="' + esc(m.setId) + '" title="Remove from box">×</button>'
+                : '';
             html += '<div class="rsa-box-slot' + inTeam + ccClass + '" draggable="true" data-side="' + side + '" data-set-id="' + esc(m.setId) + '" data-name="' + esc(m.name) + '">' +
+                deleteX +
                 '<img class="rsa-box-sprite" src="' + esc(m.sprite) + '" alt="' + esc(m.name) + '" title="' + esc(tooltip) + '">' +
                 rankHtml +
                 '<span class="rsa-box-name">' + esc(m.name) + '</span>' +
@@ -2799,6 +2844,39 @@
         // ── Remove all items ──
         $(document).on('click', '#rsa-remove-items-btn', function () {
             removeAllBoxItems();
+        });
+
+        // ── Delete mode toggle ──
+        $(document).on('click', '#rsa-delete-toggle', function () {
+            boxDeleteMode = !boxDeleteMode;
+            $(this).toggleClass('rsa-sort-active', boxDeleteMode);
+            renderBox('p1');
+        });
+
+        // ── Delete specific pokemon from box ──
+        $(document).on('click', '.rsa-box-delete-x', function (e) {
+            e.stopPropagation();
+            var setId = $(this).closest('[data-set-id]').data('set-id');
+            if (!setId) return;
+            if (boxExcluded.indexOf(setId) === -1) boxExcluded.push(setId);
+            localStorage.setItem('rsa-box-excluded', JSON.stringify(boxExcluded));
+            renderBox('p1');
+        });
+
+        // ── Team item select ──
+        $(document).on('change', '.rsa-item-select', function (e) {
+            e.stopPropagation();
+            var side = $(this).data('side');
+            var idx = parseInt($(this).data('idx'));
+            var newItem = $(this).val();
+            var line = curLine();
+            var team = line.teams[side];
+            if (!team || !team.roster[idx]) return;
+            team.roster[idx].item = newItem;
+            // Update calc form live if this is the active pokemon
+            if (idx === team.activeIdx) {
+                $('#' + side + ' .item').val(newItem).trigger('change');
+            }
         });
 
         // ── Sort box ──
