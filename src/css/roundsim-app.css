@@ -489,10 +489,13 @@
 }
 
 /* ── Box import button ────────────────────────────────────── */
+.rsa-box-header-btns {
+    margin-left: auto; display: flex; gap: 4px; align-items: center;
+}
 .rsa-box-import-btn {
     background: #2d3748; border: 1px solid #4a5568; color: #90cdf4;
     padding: 2px 10px; border-radius: 4px; cursor: pointer;
-    font-size: 0.75em; font-weight: 600; margin-left: auto;
+    font-size: 0.75em; font-weight: 600;
     transition: all 0.15s;
 }
 .rsa-box-import-btn:hover { background: #4a5568; color: #fff; }
