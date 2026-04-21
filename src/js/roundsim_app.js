@@ -74,7 +74,8 @@
     /** Get the defensive type multiplier for a single attacking type vs this pokemon.
      *  Takes into account dual typing and ability immunities. */
     function getTypeMultiplier(atkType, defTypes, abilityName) {
-        var chart = calc.TYPE_CHART[gen || 9];
+        var chart;
+        try { chart = calc.TYPE_CHART[gen || 9]; } catch(e) {}
         if (!chart || !chart[atkType]) return 1;
         var mult = 1;
         for (var i = 0; i < defTypes.length; i++) {
@@ -247,8 +248,9 @@
         for (var ii = 0; ii < names.length; ii++) {
             parts.push('<option value="' + esc(names[ii]) + '">' + esc(names[ii]) + '</option>');
         }
-        _itemOptionsHtml = parts.join('');
-        return _itemOptionsHtml;
+        // Only cache once BattleItems is actually loaded (has >1 item)
+        if (names.length > 1) _itemOptionsHtml = parts.join('');
+        return parts.join('');
     }
 
     // ════════════════════════════════════════════════════════════
@@ -2432,8 +2434,11 @@
             }
 
             // Defensive type tooltip
-            var info = getMonTypeInfo(m.name, m.setId);
-            var tooltip = buildDefTooltip(m.name, info.types, info.ability);
+            var tooltip = m.name;
+            try {
+                var info = getMonTypeInfo(m.name, m.setId);
+                tooltip = buildDefTooltip(m.name, info.types, info.ability);
+            } catch(e) {}
 
             // Rank badges (P1 only)
             var rankHtml = '';
