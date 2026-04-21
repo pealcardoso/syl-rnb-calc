@@ -2357,11 +2357,12 @@
     /** Remove items from all box mons and persist */
     function removeAllBoxItems() {
         if (!confirm('Remove items from ALL box Pokémon? This is persistent.')) return;
+
+        // customsets structure: { pokemonName: { setName: { item, moves, ... } } }
         var customSets = {};
         try { customSets = JSON.parse(localStorage.getItem('customsets') || '{}'); } catch (e) {}
-        var sd = window.setdex || window.SETDEX_SV || {};
+        var changed = false;
 
-        // Get all box mons
         var mons = getBoxPokemon('p1');
         for (var i = 0; i < mons.length; i++) {
             var setId = mons[i].setId;
@@ -2370,22 +2371,31 @@
             var pokeName = parts[1];
             var setName = parts[2];
 
-            // Update in setdex (runtime)
-            if (sd[pokeName] && sd[pokeName][setName]) {
-                sd[pokeName][setName].item = '';
+            // Clear item in live setdex (runtime, all gen dexes)
+            var dexes = [window.setdex, window.SETDEX_SV, window.SETDEX_SS,
+                         window.SETDEX_SM, window.SETDEX_XY, window.SETDEX_BW,
+                         window.SETDEX_DPP, window.SETDEX_ADV, window.SETDEX_GSC,
+                         window.SETDEX_RBY];
+            for (var d = 0; d < dexes.length; d++) {
+                if (dexes[d] && dexes[d][pokeName] && dexes[d][pokeName][setName]) {
+                    dexes[d][pokeName][setName].item = '';
+                }
             }
-            // Update in customsets (persistent)
-            if (customSets[pokeName]) {
-                customSets[pokeName].item = '';
+
+            // Clear item in persisted customsets (correct two-level structure)
+            if (customSets[pokeName] && customSets[pokeName][setName]) {
+                customSets[pokeName][setName].item = '';
+                changed = true;
             }
         }
 
-        localStorage.setItem('customsets', JSON.stringify(customSets));
+        if (changed) {
+            localStorage.setItem('customsets', JSON.stringify(customSets));
+        }
 
-        // Clear the currently loaded P1 item in form
+        // Clear the currently loaded P1 item in the calc form
         $('#p1 .item').val('').trigger('change');
 
-        // Refresh box
         renderBox('p1');
     }
 
