@@ -2673,7 +2673,7 @@
             var baitHtml = '';
             if (side === 'p1' && boxBaitMap && boxBaitMap[m.setId]) {
                 var bp = boxBaitMap[m.setId];
-                baitHtml = '<span class="rsa-bait-badge" title="AI sends ' + esc(bp.name) + ' (' + (bp.score > 0 ? '+' : '') + bp.score + ': ' + esc(bp.reason) + ')">🔮' +
+                baitHtml = '<span class="rsa-bait-badge" title="AI sends ' + esc(bp.name) + ' (' + (bp.score > 0 ? '+' : '') + bp.score + ': ' + esc(bp.reason) + ')">' +
                     '<img class="rsa-bait-mini" src="' + esc(bp.sprite) + '" alt=""></span>';
             }
 

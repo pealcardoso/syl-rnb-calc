@@ -203,7 +203,11 @@
     display: flex; align-items: center; gap: 1px;
     font-size: 0.55em; line-height: 1; z-index: 5;
 }
-.rsa-bait-mini { width: 18px; height: 18px; image-rendering: pixelated; }
+.rsa-bait-mini {
+    width: 20px; height: 20px; image-rendering: pixelated;
+    border-radius: 50%; border: 1.5px dashed #f6e05e;
+    background: rgba(0,0,0,0.55);
+}
 
 /* Round log KO switch-in prediction */
 .rsa-round-switchpred {
