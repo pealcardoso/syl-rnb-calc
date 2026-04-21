@@ -1511,12 +1511,14 @@
         // Apply in speed order (worst case)
         // Track whether P1/P2 was blocked from attacking because they "died" going second
         // (needed for Focus Sash correction: if sash fires, the blocked attacker CAN retaliate)
-        var p1AttackBlockedBySash = false;
-        var p2AttackBlockedBySash = false;
+        var p1AttackBlockedBySash = false;  // P1's attack was skipped because P1 "died" going second
+        var p2AttackBlockedBySash = false;  // P2's attack was skipped because P2 "died" going second
         if (speed.faster === 'p1' || speed.faster === 'tie') {
             p2HPAfter = Math.max(0, p2HPAfter - p1DmgToP2Min);
             if (p2HPAfter > 0) {
                 p1HPAfter = Math.max(0, p1HPAfter - p2DmgToP1Max);
+            } else {
+                p2AttackBlockedBySash = true; // P2 "died" — may be un-blocked by Focus Sash
             }
             // Best case
             p2BestAfter = Math.max(0, p2BestAfter - p1DmgToP2Max);
@@ -1534,7 +1536,6 @@
             if (p1BestAfter > 0) {
                 p2BestAfter = Math.max(0, p2BestAfter - p1DmgToP2Max);
             } else {
-                p2AttackBlockedBySash = true; // same for best case
                 p2BestAfter = p2BestBefore;
             }
         }
