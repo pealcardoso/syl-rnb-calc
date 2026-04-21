@@ -114,6 +114,14 @@
                 <span class="rsa-box-title rsa-box-title-p1">Your Box</span>
                 <span class="rsa-box-count" id="rsa-box-count-p1">0</span>
                 <button class="rsa-box-import-btn" id="rsa-import-toggle" title="Import Pokémon sets">📥 Import</button>
+                <button class="rsa-box-import-btn" id="rsa-coverage-btn" title="Type Coverage Analysis">📊 Coverage</button>
+                <button class="rsa-box-import-btn" id="rsa-remove-items-btn" title="Remove all items from box mons (persistent)">🚫 Items</button>
+            </div>
+            <div class="rsa-box-toolbar">
+                <span class="rsa-sort-label">Sort:</span>
+                <button class="rsa-sort-btn rsa-sort-active" id="rsa-sort-default" title="Default order">Default</button>
+                <button class="rsa-sort-btn" id="rsa-sort-offense" title="Sort by offensive rank (best damage vs P2)">⚔ Offense</button>
+                <button class="rsa-sort-btn" id="rsa-sort-defense" title="Sort by defensive rank (least damage taken from P2)">🛡 Defense</button>
             </div>
             <div class="rsa-box-grid" id="rsa-box-p1"></div>
             <div class="rsa-import-panel" id="rsa-import-panel" style="display:none;">
@@ -124,6 +132,17 @@
                     <button class="rsa-btn" id="rsa-import-cancel">Cancel</button>
                 </div>
             </div>
+        </div>
+    </div>
+
+    <!-- ═══ RSA: Coverage Analysis Modal ═══ -->
+    <div class="rsa-modal-overlay" id="rsa-coverage-modal" style="display:none;">
+        <div class="rsa-modal">
+            <div class="rsa-modal-header">
+                <span class="rsa-modal-title">Type Coverage Analysis</span>
+                <button class="rsa-modal-close" id="rsa-coverage-close">×</button>
+            </div>
+            <div class="rsa-modal-body rsa-cov-body"></div>
         </div>
     </div>
 

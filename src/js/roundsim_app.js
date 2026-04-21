@@ -56,6 +56,225 @@
         return CATEGORY_SPRITE_BASE + category + '.png';
     }
 
+    // ════════════════════════════════════════════════════════════
+    // TYPE EFFECTIVENESS ENGINE (ability-aware)
+    // ════════════════════════════════════════════════════════════
+
+    var ALL_TYPES = ['Normal','Fire','Water','Electric','Grass','Ice','Fighting','Poison',
+                     'Ground','Flying','Psychic','Bug','Rock','Ghost','Dragon','Dark','Steel','Fairy'];
+
+    /** Ability-based full type immunities: abilityKey → immuneType */
+    var ABILITY_IMMUNITIES = {
+        levitate: 'Ground', flashfire: 'Fire',
+        lightningrod: 'Electric', voltabsorb: 'Electric', motordrive: 'Electric',
+        waterabsorb: 'Water', stormdrain: 'Water', dryskin: 'Water',
+        sapsipper: 'Grass', eartheater: 'Ground', wellbakedbody: 'Fire'
+    };
+
+    /** Get the defensive type multiplier for a single attacking type vs this pokemon.
+     *  Takes into account dual typing and ability immunities. */
+    function getTypeMultiplier(atkType, defTypes, abilityName) {
+        var chart = calc.TYPE_CHART[gen || 9];
+        if (!chart || !chart[atkType]) return 1;
+        var mult = 1;
+        for (var i = 0; i < defTypes.length; i++) {
+            var x = chart[atkType][defTypes[i]];
+            if (typeof x === 'number') mult *= x;
+        }
+        // Check ability immunity
+        if (abilityName) {
+            var key = abilityName.toLowerCase().replace(/[\s\-\']+/g, '');
+            if (ABILITY_IMMUNITIES[key] && ABILITY_IMMUNITIES[key] === atkType) mult = 0;
+            // Dry Skin: Fire attacks do 1.25x damage
+            if (key === 'dryskin' && atkType === 'Fire') mult *= 1.25;
+            // Wonder Guard: only super-effective moves hit
+            if (key === 'wonderguard' && mult <= 1) mult = 0;
+        }
+        return mult;
+    }
+
+    /** Get full defensive profile: { type: multiplier } for all 18 types */
+    function getDefensiveProfile(types, abilityName) {
+        var profile = {};
+        for (var i = 0; i < ALL_TYPES.length; i++) {
+            profile[ALL_TYPES[i]] = getTypeMultiplier(ALL_TYPES[i], types, abilityName);
+        }
+        return profile;
+    }
+
+    /** Lookup pokemon types and ability from species name + setId */
+    function getMonTypeInfo(name, setId) {
+        var types = [];
+        var ability = '';
+        // Try calc.SPECIES first
+        try {
+            var species = calc.SPECIES[gen || 9][name];
+            if (species && species.types) types = species.types.slice();
+        } catch (e) {}
+        // Fallback to BattlePokedex
+        if (types.length === 0 && window.BattlePokedex) {
+            var key = name.toLowerCase().replace(/[\s\-\']+/g, '');
+            var pd = window.BattlePokedex[key];
+            if (pd && pd.types) types = pd.types.slice();
+        }
+        // Get ability from set
+        if (setId) {
+            var set = lookupSet(setId);
+            if (set && set.ability) ability = set.ability;
+        }
+        if (!ability && window.BattlePokedex) {
+            var key = name.toLowerCase().replace(/[\s\-\']+/g, '');
+            var pd = window.BattlePokedex[key];
+            if (pd && pd.abilities) ability = pd.abilities['0'] || '';
+        }
+        return { types: types, ability: ability };
+    }
+
+    /** Build tooltip text for defensive profile */
+    function buildDefTooltip(name, types, ability) {
+        var profile = getDefensiveProfile(types, ability);
+        var immunes = [], quad = [], resists = [], weak = [], quadWeak = [];
+        for (var t in profile) {
+            var m = profile[t];
+            if (m === 0) immunes.push(t);
+            else if (m <= 0.25) quad.push(t);
+            else if (m < 1 && m > 0.25) resists.push(t);
+            else if (m >= 4) quadWeak.push(t);
+            else if (m > 1 && m < 4) weak.push(t);
+        }
+        var lines = [];
+        if (immunes.length) lines.push('Immune: ' + immunes.join(', '));
+        if (quad.length) lines.push('¼× Resist: ' + quad.join(', '));
+        if (resists.length) lines.push('½× Resist: ' + resists.join(', '));
+        if (quadWeak.length) lines.push('4× Weak: ' + quadWeak.join(', '));
+        if (weak.length) lines.push('2× Weak: ' + weak.join(', '));
+        if (ability) lines.push('Ability: ' + ability);
+        return name + ' (' + types.join('/') + ')\n' + lines.join('\n');
+    }
+
+    // ════════════════════════════════════════════════════════════
+    // BOX RANKING ENGINE
+    // ════════════════════════════════════════════════════════════
+
+    /** Compute offensive (P1→P2) and defensive (P2→P1) damage for each box mon.
+     *  Returns array of { name, setId, offMax, defMax } sorted for ranking. */
+    function computeBoxRankings() {
+        var mons = getBoxPokemon('p1');
+        if (!mons.length) return [];
+        var p2Info = $('#p2');
+        if (!p2Info.length) return [];
+
+        var rankings = [];
+        for (var i = 0; i < mons.length; i++) {
+            var m = mons[i];
+            var offMax = 0, defMax = 0;
+            try {
+                var cc = getColorCode(m.setId);
+                // calculationsColors sets damageResults as a side effect
+                // but getColorCode restores it. We need the raw results.
+                // Recalculate directly:
+                var p1 = createPokemon(m.setId);
+                var p2 = createPokemon(p2Info);
+                var p1field = createField();
+                var p2field = p1field.clone().swap();
+                var results = calculateAllMoves(gen, p1, p1field, p2, p2field);
+
+                var p1hp = results[0][0].attacker.stats.hp;
+                var p2hp = results[1][0].attacker.stats.hp;
+
+                for (var j = 0; j < 4; j++) {
+                    // Offensive: P1 attacking P2
+                    var r0 = results[0][j];
+                    var dmg0 = r0.damage[15] ? r0.damage[15] : r0.damage;
+                    var hits0 = p1.moves[j] ? (p1.moves[j].hits || 1) : 1;
+                    var pct0 = dmg0 * hits0 / p2hp * 100;
+                    if (pct0 > offMax) offMax = pct0;
+
+                    // Defensive: P2 attacking P1
+                    var r1 = results[1][j];
+                    var dmg1 = r1.damage[15] ? r1.damage[15] : r1.damage;
+                    var hits1 = p2.moves[j] ? (p2.moves[j].hits || 1) : 1;
+                    var pct1 = dmg1 * hits1 / p1hp * 100;
+                    if (pct1 > defMax) defMax = pct1;
+                }
+            } catch (e) { /* skip mons that fail to create */ }
+            rankings.push({ name: m.name, setId: m.setId, offMax: offMax, defMax: defMax });
+        }
+
+        // Offensive rank: highest offMax = rank 1
+        rankings.sort(function(a, b) { return b.offMax - a.offMax; });
+        for (var i = 0; i < rankings.length; i++) rankings[i].offRank = i + 1;
+
+        // Defensive rank: lowest defMax (takes least damage) = rank 1
+        rankings.sort(function(a, b) { return a.defMax - b.defMax; });
+        for (var i = 0; i < rankings.length; i++) rankings[i].defRank = i + 1;
+
+        return rankings;
+    }
+
+    var cachedRankings = [];
+    var boxSortMode = 'default'; // 'default', 'offense', 'defense'
+
+    // ════════════════════════════════════════════════════════════
+    // TYPE COVERAGE ANALYSIS
+    // ════════════════════════════════════════════════════════════
+
+    function buildCoverageAnalysis() {
+        var mons = getBoxPokemon('p1');
+        if (!mons.length) return null;
+
+        // For each type, count how many mons have each multiplier bracket
+        var coverage = {};
+        var monProfiles = [];
+        for (var t = 0; t < ALL_TYPES.length; t++) {
+            coverage[ALL_TYPES[t]] = { immune: [], quad_resist: [], resist: [], neutral: [], weak: [], quad_weak: [] };
+        }
+
+        for (var i = 0; i < mons.length; i++) {
+            var info = getMonTypeInfo(mons[i].name, mons[i].setId);
+            var profile = getDefensiveProfile(info.types, info.ability);
+            monProfiles.push({ name: mons[i].name, types: info.types, ability: info.ability, profile: profile });
+
+            for (var t = 0; t < ALL_TYPES.length; t++) {
+                var type = ALL_TYPES[t];
+                var m = profile[type];
+                if (m === 0) coverage[type].immune.push(mons[i].name);
+                else if (m <= 0.25) coverage[type].quad_resist.push(mons[i].name);
+                else if (m < 1) coverage[type].resist.push(mons[i].name);
+                else if (m === 1) coverage[type].neutral.push(mons[i].name);
+                else if (m >= 4) coverage[type].quad_weak.push(mons[i].name);
+                else coverage[type].weak.push(mons[i].name);
+            }
+        }
+
+        // For each type, who's the best physical/special wall?
+        // Use actual damage calc if we have a P2, otherwise use type mult as proxy
+        var bestWalls = {};
+        for (var t = 0; t < ALL_TYPES.length; t++) {
+            var type = ALL_TYPES[t];
+            var bestPhys = null, bestSpec = null;
+            var bestPhysMult = 999, bestSpecMult = 999;
+            for (var i = 0; i < monProfiles.length; i++) {
+                var mp = monProfiles[i];
+                var mult = mp.profile[type];
+                // Physical: prefer lower mult AND higher Def
+                var def = 0, spd = 0;
+                try {
+                    var species = calc.SPECIES[gen || 9][mp.name];
+                    if (species) { def = species.bs.df || 0; spd = species.bs.sd || 0; }
+                } catch (e) {}
+                // Score = mult * 1000 - def (lower is better for physical)
+                var physScore = mult * 1000 - def;
+                var specScore = mult * 1000 - spd;
+                if (physScore < bestPhysMult) { bestPhysMult = physScore; bestPhys = mp.name; }
+                if (specScore < bestSpecMult) { bestSpecMult = specScore; bestSpec = mp.name; }
+            }
+            bestWalls[type] = { physical: bestPhys, special: bestSpec };
+        }
+
+        return { coverage: coverage, bestWalls: bestWalls, monProfiles: monProfiles };
+    }
+
     /** Parse secondary effects from BattleMovedex entry */
     function parseMoveEffects(moveData) {
         if (!moveData) return null;
@@ -2036,6 +2255,79 @@
         return { speed: '', code: '' };
     }
 
+    /** Render the type coverage analysis modal content */
+    function renderCoverageModal() {
+        var data = buildCoverageAnalysis();
+        if (!data) return '<p>No box pokemon to analyse.</p>';
+
+        var html = '<div class="rsa-cov-grid">';
+        html += '<div class="rsa-cov-header">' +
+            '<span class="rsa-cov-th">Type</span>' +
+            '<span class="rsa-cov-th">Immune</span>' +
+            '<span class="rsa-cov-th">¼×</span>' +
+            '<span class="rsa-cov-th">½×</span>' +
+            '<span class="rsa-cov-th">2×</span>' +
+            '<span class="rsa-cov-th">4×</span>' +
+            '<span class="rsa-cov-th">Best Phys Wall</span>' +
+            '<span class="rsa-cov-th">Best Spec Wall</span>' +
+        '</div>';
+
+        for (var t = 0; t < ALL_TYPES.length; t++) {
+            var type = ALL_TYPES[t];
+            var c = data.coverage[type];
+            var w = data.bestWalls[type];
+            var typeImg = '<img class="rsa-cov-type-sprite" src="' + esc(getTypeSpriteUrl(type)) + '" alt="' + type + '">';
+
+            html += '<div class="rsa-cov-row">' +
+                '<span class="rsa-cov-cell rsa-cov-type">' + typeImg + '</span>' +
+                '<span class="rsa-cov-cell rsa-cov-immune" title="' + esc(c.immune.join(', ')) + '">' + c.immune.length + '</span>' +
+                '<span class="rsa-cov-cell rsa-cov-qresist" title="' + esc(c.quad_resist.join(', ')) + '">' + c.quad_resist.length + '</span>' +
+                '<span class="rsa-cov-cell rsa-cov-resist" title="' + esc(c.resist.join(', ')) + '">' + c.resist.length + '</span>' +
+                '<span class="rsa-cov-cell rsa-cov-weak" title="' + esc(c.weak.join(', ')) + '">' + c.weak.length + '</span>' +
+                '<span class="rsa-cov-cell rsa-cov-qweak" title="' + esc(c.quad_weak.join(', ')) + '">' + c.quad_weak.length + '</span>' +
+                '<span class="rsa-cov-cell rsa-cov-wall" title="Best physical wall vs ' + type + '">' + esc(w.physical || '—') + '</span>' +
+                '<span class="rsa-cov-cell rsa-cov-wall" title="Best special wall vs ' + type + '">' + esc(w.special || '—') + '</span>' +
+            '</div>';
+        }
+        html += '</div>';
+        return html;
+    }
+
+    /** Remove items from all box mons and persist */
+    function removeAllBoxItems() {
+        if (!confirm('Remove items from ALL box Pokémon? This is persistent.')) return;
+        var customSets = {};
+        try { customSets = JSON.parse(localStorage.getItem('customsets') || '{}'); } catch (e) {}
+        var sd = window.setdex || window.SETDEX_SV || {};
+
+        // Get all box mons
+        var mons = getBoxPokemon('p1');
+        for (var i = 0; i < mons.length; i++) {
+            var setId = mons[i].setId;
+            var parts = String(setId).match(/^(.+?) \((.+)\)$/);
+            if (!parts) continue;
+            var pokeName = parts[1];
+            var setName = parts[2];
+
+            // Update in setdex (runtime)
+            if (sd[pokeName] && sd[pokeName][setName]) {
+                sd[pokeName][setName].item = '';
+            }
+            // Update in customsets (persistent)
+            if (customSets[pokeName]) {
+                customSets[pokeName].item = '';
+            }
+        }
+
+        localStorage.setItem('customsets', JSON.stringify(customSets));
+
+        // Clear the currently loaded P1 item in form
+        $('#p1 .item').val('').trigger('change');
+
+        // Refresh box
+        renderBox('p1');
+    }
+
     function renderBox(side) {
         var mons = getBoxPokemon(side);
         var $box = $('#rsa-box-' + side);
@@ -2046,6 +2338,27 @@
         var teamNames = {};
         for (var i = 0; i < team.roster.length; i++) {
             teamNames[team.roster[i].name] = true;
+        }
+
+        // Build rank lookup for P1 box
+        var rankMap = {};
+        if (side === 'p1' && cachedRankings.length) {
+            for (var r = 0; r < cachedRankings.length; r++) {
+                rankMap[cachedRankings[r].name] = cachedRankings[r];
+            }
+        }
+
+        // Sort if needed
+        if (side === 'p1' && boxSortMode !== 'default' && cachedRankings.length) {
+            var sorted = mons.slice();
+            sorted.sort(function(a, b) {
+                var ra = rankMap[a.name], rb = rankMap[b.name];
+                if (!ra) return 1; if (!rb) return -1;
+                if (boxSortMode === 'offense') return ra.offRank - rb.offRank;
+                if (boxSortMode === 'defense') return ra.defRank - rb.defRank;
+                return 0;
+            });
+            mons = sorted;
         }
 
         var html = '';
@@ -2061,8 +2374,23 @@
                 if (cc.code) ccClass += ' rsa-dmg-' + cc.code;
             }
 
+            // Defensive type tooltip
+            var info = getMonTypeInfo(m.name, m.setId);
+            var tooltip = buildDefTooltip(m.name, info.types, info.ability);
+
+            // Rank badges (P1 only)
+            var rankHtml = '';
+            if (side === 'p1' && rankMap[m.name]) {
+                var rk = rankMap[m.name];
+                rankHtml = '<span class="rsa-rank-badges">' +
+                    '<span class="rsa-rank-off" title="Offense rank: #' + rk.offRank + ' (' + rk.offMax.toFixed(0) + '% max dmg)">⚔' + rk.offRank + '</span>' +
+                    '<span class="rsa-rank-def" title="Defense rank: #' + rk.defRank + ' (' + rk.defMax.toFixed(0) + '% max taken)">🛡' + rk.defRank + '</span>' +
+                '</span>';
+            }
+
             html += '<div class="rsa-box-slot' + inTeam + ccClass + '" draggable="true" data-side="' + side + '" data-set-id="' + esc(m.setId) + '" data-name="' + esc(m.name) + '">' +
-                '<img class="rsa-box-sprite" src="' + esc(m.sprite) + '" alt="' + esc(m.name) + '">' +
+                '<img class="rsa-box-sprite" src="' + esc(m.sprite) + '" alt="' + esc(m.name) + '" title="' + esc(tooltip) + '">' +
+                rankHtml +
                 '<span class="rsa-box-name">' + esc(m.name) + '</span>' +
             '</div>';
         }
@@ -2434,11 +2762,63 @@
             renderBox('p1');
         });
 
+        // ── Coverage analysis button ──
+        $(document).on('click', '#rsa-coverage-btn', function () {
+            var $modal = $('#rsa-coverage-modal');
+            $modal.find('.rsa-cov-body').html(renderCoverageModal());
+            $modal.show();
+        });
+        $(document).on('click', '#rsa-coverage-close', function () {
+            $('#rsa-coverage-modal').hide();
+        });
+
+        // ── Remove all items ──
+        $(document).on('click', '#rsa-remove-items-btn', function () {
+            removeAllBoxItems();
+        });
+
+        // ── Sort box ──
+        $(document).on('click', '#rsa-sort-default', function () {
+            boxSortMode = 'default';
+            renderBox('p1');
+            $('.rsa-sort-btn').removeClass('rsa-sort-active');
+            $(this).addClass('rsa-sort-active');
+        });
+        $(document).on('click', '#rsa-sort-offense', function () {
+            boxSortMode = 'offense';
+            // Compute rankings if not cached
+            if (!cachedRankings.length) {
+                try { cachedRankings = computeBoxRankings(); } catch (e) {}
+            }
+            renderBox('p1');
+            $('.rsa-sort-btn').removeClass('rsa-sort-active');
+            $(this).addClass('rsa-sort-active');
+        });
+        $(document).on('click', '#rsa-sort-defense', function () {
+            boxSortMode = 'defense';
+            if (!cachedRankings.length) {
+                try { cachedRankings = computeBoxRankings(); } catch (e) {}
+            }
+            renderBox('p1');
+            $('.rsa-sort-btn').removeClass('rsa-sort-active');
+            $(this).addClass('rsa-sort-active');
+        });
+
+        // ── Refresh rankings when P2 changes ──
+        $(document).on('change', '#p2 .set-selector', function () {
+            setTimeout(function () {
+                try { cachedRankings = computeBoxRankings(); } catch (e) { cachedRankings = []; }
+                renderBox('p1');
+            }, 500);
+        });
+
         // ── Inject initial damage badges after calc loads ──
         setTimeout(function () {
             renderBox('p1');
             injectDamageBadges();
             injectMoveLabelSprites();
+            // Try to compute initial rankings
+            try { cachedRankings = computeBoxRankings(); renderBox('p1'); } catch (e) {}
         }, 2500);
     });
 

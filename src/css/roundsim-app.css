@@ -67,7 +67,7 @@
 }
 .rsa-box-slot:hover { background: #2d3748; border-color: #4a5568; }
 .rsa-box-slot.rsa-in-team { opacity: 0.35; cursor: default; }
-.rsa-box-sprite { width: 40px; height: 40px; image-rendering: pixelated; pointer-events: none; }
+.rsa-box-sprite { width: 40px; height: 40px; image-rendering: pixelated; }
 .rsa-box-name { font-size: 0.6em; color: #a0aec0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 56px; }
 .rsa-box-slot.dragging { opacity: 0.4; }
 
@@ -87,6 +87,79 @@
 .rsa-box-slot.rsa-dmg-23 { background: linear-gradient(to bottom, #daff08 50%, #ff7f16 50%); }
 .rsa-box-slot.rsa-dmg-13 { background: linear-gradient(to bottom, #20d408 50%, #ff7f16 50%); }
 .rsa-box-slot.rsa-dmg-24 { background: linear-gradient(to bottom, #daff08 50%, #dd0b0b 50%); }
+
+/* Box toolbar — sort buttons */
+.rsa-box-toolbar {
+    display: flex; align-items: center; gap: 4px; margin-bottom: 6px;
+    flex-wrap: wrap;
+}
+.rsa-sort-label { font-size: 0.7em; color: #a0aec0; font-weight: 600; }
+.rsa-sort-btn {
+    font-size: 0.65em; padding: 2px 6px; border-radius: 4px;
+    background: #2d3748; color: #cbd5e0; border: 1px solid #4a5568;
+    cursor: pointer; transition: all 0.15s;
+}
+.rsa-sort-btn:hover { background: #4a5568; }
+.rsa-sort-btn.rsa-sort-active { background: #4299e1; color: #fff; border-color: #4299e1; }
+
+/* Rank badges inside box slots */
+.rsa-rank-badges {
+    display: flex; gap: 2px; justify-content: center; margin-top: 1px;
+}
+.rsa-rank-off, .rsa-rank-def {
+    font-size: 0.55em; font-weight: 700; padding: 0 3px;
+    border-radius: 3px; line-height: 1.4;
+}
+.rsa-rank-off { background: #c53030; color: #fff; }
+.rsa-rank-def { background: #2b6cb0; color: #fff; }
+
+/* Coverage Analysis Modal */
+.rsa-modal-overlay {
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.7); z-index: 9999;
+    display: flex; align-items: center; justify-content: center;
+}
+.rsa-modal {
+    background: #1a202c; border: 1px solid #4a5568; border-radius: 10px;
+    max-width: 750px; width: 95%; max-height: 85vh; overflow-y: auto;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+}
+.rsa-modal-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 16px; border-bottom: 1px solid #2d3748;
+}
+.rsa-modal-title { font-weight: 700; color: #e2e8f0; font-size: 1.05em; }
+.rsa-modal-close {
+    background: none; border: none; color: #a0aec0; font-size: 1.5em;
+    cursor: pointer; line-height: 1;
+}
+.rsa-modal-close:hover { color: #fc8181; }
+.rsa-modal-body { padding: 12px 16px; }
+
+/* Coverage grid */
+.rsa-cov-grid { display: flex; flex-direction: column; gap: 2px; }
+.rsa-cov-header, .rsa-cov-row {
+    display: grid; grid-template-columns: 50px repeat(5, 1fr) 1fr 1fr;
+    gap: 4px; align-items: center;
+}
+.rsa-cov-header {
+    font-size: 0.7em; font-weight: 700; color: #a0aec0;
+    padding-bottom: 4px; border-bottom: 1px solid #2d3748;
+}
+.rsa-cov-row {
+    padding: 3px 0; border-bottom: 1px solid #1e2533;
+    font-size: 0.75em; color: #e2e8f0;
+}
+.rsa-cov-row:hover { background: #2d3748; }
+.rsa-cov-type-sprite { height: 14px; width: auto; }
+.rsa-cov-cell { text-align: center; }
+.rsa-cov-immune { color: #a0aec0; font-weight: 700; }
+.rsa-cov-qresist { color: #48bb78; }
+.rsa-cov-resist { color: #68d391; }
+.rsa-cov-weak { color: #fc8181; }
+.rsa-cov-qweak { color: #f56565; font-weight: 700; }
+.rsa-cov-wall { font-size: 0.9em; color: #63b3ed; text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rsa-cov-th { text-align: center; }
 
 /* Drop target highlight */
 .rsa-team-drop.rsa-drag-over {
