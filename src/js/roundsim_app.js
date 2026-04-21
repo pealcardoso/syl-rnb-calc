@@ -164,15 +164,14 @@
         var p2Info = $('#p2');
         if (!p2Info.length) return [];
 
+        // Use the currently selected P2 move index (0-3), or -1 for none
+        var p2MoveIdx = (selectedP2Move !== 'none') ? selectedP2Move : -1;
+
         var rankings = [];
         for (var i = 0; i < mons.length; i++) {
             var m = mons[i];
-            var offMax = 0, defMax = 0;
+            var offMax = 0, defDmg = null;
             try {
-                var cc = getColorCode(m.setId);
-                // calculationsColors sets damageResults as a side effect
-                // but getColorCode restores it. We need the raw results.
-                // Recalculate directly:
                 var p1 = createPokemon(m.setId);
                 var p2 = createPokemon(p2Info);
                 var p1field = createField();
@@ -182,32 +181,49 @@
                 var p1hp = results[0][0].attacker.stats.hp;
                 var p2hp = results[1][0].attacker.stats.hp;
 
+                // Offensive rank: best of all P1 moves vs P2
                 for (var j = 0; j < 4; j++) {
-                    // Offensive: P1 attacking P2
                     var r0 = results[0][j];
-                    var dmg0 = r0.damage[15] ? r0.damage[15] : r0.damage;
+                    var dmg0 = Array.isArray(r0.damage) ? r0.damage[r0.damage.length - 1] : r0.damage;
                     var hits0 = p1.moves[j] ? (p1.moves[j].hits || 1) : 1;
                     var pct0 = dmg0 * hits0 / p2hp * 100;
                     if (pct0 > offMax) offMax = pct0;
+                }
 
-                    // Defensive: P2 attacking P1
-                    var r1 = results[1][j];
-                    var dmg1 = r1.damage[15] ? r1.damage[15] : r1.damage;
-                    var hits1 = p2.moves[j] ? (p2.moves[j].hits || 1) : 1;
+                // Defensive rank: only the selected P2 move
+                if (p2MoveIdx >= 0 && results[1][p2MoveIdx]) {
+                    var r1 = results[1][p2MoveIdx];
+                    var dmg1 = Array.isArray(r1.damage) ? r1.damage[r1.damage.length - 1] : r1.damage;
+                    var hits1 = p2.moves[p2MoveIdx] ? (p2.moves[p2MoveIdx].hits || 1) : 1;
                     var pct1 = dmg1 * hits1 / p1hp * 100;
-                    if (pct1 > defMax) defMax = pct1;
+                    // Only set if the move actually deals damage
+                    if (pct1 > 0) defDmg = pct1;
                 }
             } catch (e) { /* skip mons that fail to create */ }
-            rankings.push({ name: m.name, setId: m.setId, offMax: offMax, defMax: defMax });
+            rankings.push({ name: m.name, setId: m.setId, offMax: offMax, defDmg: defDmg });
         }
 
         // Offensive rank: highest offMax = rank 1
-        rankings.sort(function(a, b) { return b.offMax - a.offMax; });
-        for (var i = 0; i < rankings.length; i++) rankings[i].offRank = i + 1;
+        var offSorted = rankings.slice().sort(function(a, b) { return b.offMax - a.offMax; });
+        for (var i = 0; i < offSorted.length; i++) {
+            for (var k = 0; k < rankings.length; k++) {
+                if (rankings[k].name === offSorted[i].name && rankings[k].setId === offSorted[i].setId) {
+                    rankings[k].offRank = i + 1; break;
+                }
+            }
+        }
 
-        // Defensive rank: lowest defMax (takes least damage) = rank 1
-        rankings.sort(function(a, b) { return a.defMax - b.defMax; });
-        for (var i = 0; i < rankings.length; i++) rankings[i].defRank = i + 1;
+        // Defensive rank: lowest defDmg (takes least damage) = rank 1
+        // Only rank mons where defDmg is not null (selected move deals damage)
+        var defRankable = rankings.filter(function(r) { return r.defDmg !== null; });
+        defRankable.sort(function(a, b) { return a.defDmg - b.defDmg; });
+        for (var i = 0; i < defRankable.length; i++) {
+            for (var k = 0; k < rankings.length; k++) {
+                if (rankings[k].name === defRankable[i].name && rankings[k].setId === defRankable[i].setId) {
+                    rankings[k].defRank = i + 1; break;
+                }
+            }
+        }
 
         return rankings;
     }
@@ -2354,8 +2370,8 @@
             sorted.sort(function(a, b) {
                 var ra = rankMap[a.name], rb = rankMap[b.name];
                 if (!ra) return 1; if (!rb) return -1;
-                if (boxSortMode === 'offense') return ra.offRank - rb.offRank;
-                if (boxSortMode === 'defense') return ra.defRank - rb.defRank;
+                if (boxSortMode === 'offense') return (ra.offRank || 999) - (rb.offRank || 999);
+                if (boxSortMode === 'defense') return (ra.defRank || 999) - (rb.defRank || 999);
                 return 0;
             });
             mons = sorted;
@@ -2382,10 +2398,11 @@
             var rankHtml = '';
             if (side === 'p1' && rankMap[m.name]) {
                 var rk = rankMap[m.name];
-                rankHtml = '<span class="rsa-rank-badges">' +
-                    '<span class="rsa-rank-off" title="Offense rank: #' + rk.offRank + ' (' + rk.offMax.toFixed(0) + '% max dmg)">⚔' + rk.offRank + '</span>' +
-                    '<span class="rsa-rank-def" title="Defense rank: #' + rk.defRank + ' (' + rk.defMax.toFixed(0) + '% max taken)">🛡' + rk.defRank + '</span>' +
-                '</span>';
+                var offBadge = '<span class="rsa-rank-off" title="Offense rank: #' + rk.offRank + ' (' + rk.offMax.toFixed(0) + '% max dmg)">⚔' + rk.offRank + '</span>';
+                var defBadge = (rk.defRank != null)
+                    ? '<span class="rsa-rank-def" title="Defense rank: #' + rk.defRank + ' (' + rk.defDmg.toFixed(0) + '% dmg taken)">🛡' + rk.defRank + '</span>'
+                    : '';
+                rankHtml = '<span class="rsa-rank-badges">' + offBadge + defBadge + '</span>';
             }
 
             html += '<div class="rsa-box-slot' + inTeam + ccClass + '" draggable="true" data-side="' + side + '" data-set-id="' + esc(m.setId) + '" data-name="' + esc(m.name) + '">' +
@@ -2428,6 +2445,11 @@
             var idx = parseInt(id.replace('resultMoveR', '')) - 1;
             selectedP2Move = idx;
             updateMovePickDisplay();
+            // Recompute defensive rankings for the newly selected P2 move
+            setTimeout(function () {
+                try { cachedRankings = computeBoxRankings(); } catch (e) { cachedRankings = []; }
+                renderBox('p1');
+            }, 50);
         });
 
         // Update move display when calc recalculates
