@@ -1041,7 +1041,7 @@
                 var maxHP = set ? calcMaxHP(pokeName, set) : 100;
                 var types = [];
                 try {
-                    var species = calc.SPECIES[gen.num][pokeName];
+                    var species = calc.SPECIES[gen || 9][pokeName];
                     if (species && species.types) types = species.types;
                 } catch (e) {}
                 var entry = createRosterEntry(
@@ -2144,7 +2144,7 @@
     function calcMaxHP(pokeName, set) {
         // Use the calc engine to compute HP stat
         try {
-            var species = calc.SPECIES[gen.num][pokeName];
+            var species = calc.SPECIES[gen || 9][pokeName];
             if (!species) return 100;
             var baseHP = species.bs.hp;
             var level = set.level || 100;
@@ -2572,18 +2572,20 @@
             var p1Ready = !!getP1Name();
             var p2Ready = !!getP2Name();
             if (p1Ready || p2Ready) {
-                if (p1Ready) initP1Team();
-                syncP2Team();
-                syncBoostsToCalc();
+                try { if (p1Ready) initP1Team(); } catch (e) { console.error('initP1Team error:', e); }
+                try { syncP2Team(); } catch (e) { console.error('syncP2Team error:', e); }
+                try { syncBoostsToCalc(); } catch (e) {}
                 // Second pass after a short delay to catch any remaining async setup
                 setTimeout(function () {
-                    if (curLine().teams.p1.roster.length === 0 && getP1Name()) {
-                        initP1Team();
-                    }
-                    syncP2Team();
-                    renderBox('p1');
-                    injectDamageBadges();
-                    injectMoveLabelSprites();
+                    try {
+                        if (curLine().teams.p1.roster.length === 0 && getP1Name()) {
+                            initP1Team();
+                        }
+                        syncP2Team();
+                        renderBox('p1');
+                        injectDamageBadges();
+                        injectMoveLabelSprites();
+                    } catch (e) { console.error('Second-pass init error:', e); }
                     try { cachedRankings = computeBoxRankings(); renderBox('p1'); } catch (e) {}
                 }, 800);
             } else if (attempts > 0) {
