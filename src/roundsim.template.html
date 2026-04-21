@@ -99,6 +99,21 @@
     </div>
     <hr />
 
+    <!-- ═══ RSA: Format Selector ═══ -->
+    <div class="rsa-format-bar">
+        <span class="rsa-format-label">Battle Format:</span>
+        <div class="rsa-format-btns">
+            <button class="rsa-format-btn rsa-format-active" data-format="singles">Singles</button>
+            <button class="rsa-format-btn" data-format="doubles-1t">Doubles (1 Trainer)</button>
+            <button class="rsa-format-btn" data-format="doubles-2t">Doubles (2 Trainers)</button>
+        </div>
+        <!-- Team split config for 2-trainer doubles -->
+        <div class="rsa-team-split" id="rsa-team-split" style="display:none;">
+            <label>Left team size: <input type="number" id="rsa-split-left" min="1" max="5" value="3" style="width:50px" /></label>
+            <span class="rsa-split-info">(remaining go to right team)</span>
+        </div>
+    </div>
+
     <!-- ═══ RSA: Lines Bar ═══ -->
     <div class="rsa-lines-bar">
         <span class="rsa-lines-label">Lines:</span>
@@ -157,7 +172,8 @@
                 <span class="rsa-team-title rsa-team-title-p1">Your Team (drag from box)</span>
                 <span class="rsa-team-count" id="rsa-team-count-p1">0</span>
             </div>
-            <div id="rsa-team-p1" class="rsa-team-drop"></div>
+            <div class="rsa-active-field" id="rsa-active-p1"></div>
+            <div id="rsa-team-p1" class="rsa-team-drop rsa-bench-area"></div>
             <div id="rsa-switch-pred" class="rsa-switch-pred"></div>
         </div>
 
@@ -172,6 +188,7 @@
                     <button class="rsa-trainer-btn rsa-trainer-reset" id="rsa-reset-trainer" title="Reset Trainer">🚚</button>
                 </div>
             </div>
+            <div class="rsa-active-field" id="rsa-active-p2"></div>
             <div id="rsa-team-p2"></div>
         </div>
     </div><!-- /.rsa-teams-row -->
@@ -180,8 +197,66 @@
     <div class="rsa-controls">
         <div class="rsa-controls-title">Log Round</div>
 
-        <!-- Move results will be moved here by JS -->
-        <div class="rsa-moves-area" id="rsa-moves-area"></div>
+        <!-- Singles move area (existing calc radio buttons moved here by JS) -->
+        <div class="rsa-moves-area rsa-singles-moves" id="rsa-moves-area"></div>
+
+        <!-- Doubles move area (4 move selectors + targeting) -->
+        <div class="rsa-doubles-moves" id="rsa-doubles-moves" style="display:none;">
+            <div class="rsa-doubles-grid">
+                <!-- P1 Left slot -->
+                <div class="rsa-dbl-slot" id="rsa-dbl-p1a">
+                    <div class="rsa-dbl-slot-header"><span class="rsa-dbl-slot-name" id="rsa-dbl-name-p1a">P1 Left</span></div>
+                    <select class="rsa-dbl-move" id="rsa-dbl-move-p1a"><option value="none">— No Move —</option></select>
+                    <div class="rsa-dbl-target-row">
+                        <label>Target:</label>
+                        <select class="rsa-dbl-target" id="rsa-dbl-target-p1a">
+                            <option value="p2a">P2 Left</option>
+                            <option value="p2b">P2 Right</option>
+                        </select>
+                    </div>
+                    <div class="rsa-dbl-dmg" id="rsa-dbl-dmg-p1a"></div>
+                </div>
+                <!-- P1 Right slot -->
+                <div class="rsa-dbl-slot" id="rsa-dbl-p1b">
+                    <div class="rsa-dbl-slot-header"><span class="rsa-dbl-slot-name" id="rsa-dbl-name-p1b">P1 Right</span></div>
+                    <select class="rsa-dbl-move" id="rsa-dbl-move-p1b"><option value="none">— No Move —</option></select>
+                    <div class="rsa-dbl-target-row">
+                        <label>Target:</label>
+                        <select class="rsa-dbl-target" id="rsa-dbl-target-p1b">
+                            <option value="p2a">P2 Left</option>
+                            <option value="p2b">P2 Right</option>
+                        </select>
+                    </div>
+                    <div class="rsa-dbl-dmg" id="rsa-dbl-dmg-p1b"></div>
+                </div>
+                <!-- P2 Left slot -->
+                <div class="rsa-dbl-slot rsa-dbl-slot-p2" id="rsa-dbl-p2a">
+                    <div class="rsa-dbl-slot-header"><span class="rsa-dbl-slot-name" id="rsa-dbl-name-p2a">P2 Left</span></div>
+                    <select class="rsa-dbl-move" id="rsa-dbl-move-p2a"><option value="none">— No Move —</option></select>
+                    <div class="rsa-dbl-target-row">
+                        <label>Target:</label>
+                        <select class="rsa-dbl-target" id="rsa-dbl-target-p2a">
+                            <option value="p1a">P1 Left</option>
+                            <option value="p1b">P1 Right</option>
+                        </select>
+                    </div>
+                    <div class="rsa-dbl-dmg" id="rsa-dbl-dmg-p2a"></div>
+                </div>
+                <!-- P2 Right slot -->
+                <div class="rsa-dbl-slot rsa-dbl-slot-p2" id="rsa-dbl-p2b">
+                    <div class="rsa-dbl-slot-header"><span class="rsa-dbl-slot-name" id="rsa-dbl-name-p2b">P2 Right</span></div>
+                    <select class="rsa-dbl-move" id="rsa-dbl-move-p2b"><option value="none">— No Move —</option></select>
+                    <div class="rsa-dbl-target-row">
+                        <label>Target:</label>
+                        <select class="rsa-dbl-target" id="rsa-dbl-target-p2b">
+                            <option value="p1a">P1 Left</option>
+                            <option value="p1b">P1 Right</option>
+                        </select>
+                    </div>
+                    <div class="rsa-dbl-dmg" id="rsa-dbl-dmg-p2b"></div>
+                </div>
+            </div>
+        </div>
 
         <!-- Move preview panels -->
         <div class="rsa-move-previews">
@@ -228,11 +303,21 @@
         </div>
         <div class="rsa-btn-row">
             <button class="rsa-btn rsa-btn-primary" id="rsa-log-round">&#9654; Log Round</button>
-            <div class="rsa-switch-group">
+            <div class="rsa-switch-group rsa-singles-switch">
                 <select id="rsa-switch-p1" title="Switch P1 active">
                     <option value="">— Switch P1 —</option>
                 </select>
                 <button class="rsa-btn rsa-btn-switch" id="rsa-do-switch">&#x21C4; Switch In</button>
+            </div>
+            <div class="rsa-switch-group rsa-doubles-switch" style="display:none;">
+                <select id="rsa-switch-p1a" title="Switch P1 Left">
+                    <option value="">— Switch Left —</option>
+                </select>
+                <button class="rsa-btn rsa-btn-switch" id="rsa-do-switch-p1a">⇄ L</button>
+                <select id="rsa-switch-p1b" title="Switch P1 Right">
+                    <option value="">— Switch Right —</option>
+                </select>
+                <button class="rsa-btn rsa-btn-switch" id="rsa-do-switch-p1b">⇄ R</button>
             </div>
             <button class="rsa-btn" id="rsa-export">&#128203; Copy Log</button>
             <button class="rsa-btn rsa-btn-danger" id="rsa-clear-line">Clear Line</button>

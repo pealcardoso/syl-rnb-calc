@@ -657,6 +657,11 @@
     var selectedP2Move = 'none';
     var suppressP2Sync = false;  // Prevent syncP2Team during intentional switches
 
+    // Battle format: 'singles' | 'doubles-1t' | 'doubles-2t'
+    var battleFormat = 'singles';
+
+    function isDoubles() { return battleFormat === 'doubles-1t' || battleFormat === 'doubles-2t'; }
+
     function createLine(name) {
         return {
             id: Date.now() + Math.random(),
@@ -664,10 +669,11 @@
             rounds: [],
             roundCounter: 0,
             teams: {
-                p1: { roster: [], activeIdx: -1 },
-                p2: { roster: [], activeIdx: -1 }
+                p1: { roster: [], activeIdx: -1, activeIdxB: -1 },
+                p2: { roster: [], activeIdx: -1, activeIdxB: -1 }
             },
-            fieldState: {}  // track field conditions per line
+            fieldState: {},  // track field conditions per line
+            teamSplit: null  // for doubles-2t: { left: number } — first N mons are left team
         };
     }
     function curLine() { return lines[currentLineIdx]; }
@@ -707,6 +713,22 @@
             return team.roster[team.activeIdx];
         }
         return null;
+    }
+
+    /** Get the second active entry (B slot) for doubles */
+    function getActiveEntryB(team) {
+        if (team.activeIdxB >= 0 && team.activeIdxB < team.roster.length) {
+            return team.roster[team.activeIdxB];
+        }
+        return null;
+    }
+
+    /** Get both active entries as { a: entry, b: entry } for doubles, or { a: entry, b: null } for singles */
+    function getActiveEntries(team) {
+        return {
+            a: getActiveEntry(team),
+            b: isDoubles() ? getActiveEntryB(team) : null
+        };
     }
 
     // ════════════════════════════════════════════════════════════
@@ -810,6 +832,172 @@
             var rng = res.range();
             return { minDmg: rng[0], maxDmg: rng[1] };
         } catch (e) { return null; }
+    }
+
+    // ════════════════════════════════════════════════════════════
+    // DOUBLES — DAMAGE CALCULATION ENGINE
+    // ════════════════════════════════════════════════════════════
+
+    /** Calculate damage for a specific attacker entry → defender entry using a named move.
+     *  Uses the calc engine directly (no form needed). Returns { minDmg, maxDmg, move } or null. */
+    function calcDamageDirect(atkEntry, defEntry, moveName) {
+        if (!atkEntry || !defEntry || !moveName || moveName === '(No Move)') return null;
+        try {
+            var atk = createPokemon(atkEntry.setId);
+            var def = createPokemon(defEntry.setId);
+            // Apply roster state overrides: current HP, status, boosts, item
+            var atkHP = atkEntry.currentHP || atk.rawStats.hp;
+            atk.originalCurHP = Math.min(atkHP, atk.rawStats.hp);
+            var defHP = defEntry.currentHP || def.rawStats.hp;
+            def.originalCurHP = Math.min(defHP, def.rawStats.hp);
+            if (atkEntry.item !== undefined) atk.item = atkEntry.item;
+            if (defEntry.item !== undefined) def.item = defEntry.item;
+            if (atkEntry.ability) atk.ability = atkEntry.ability;
+            if (defEntry.ability) def.ability = defEntry.ability;
+
+            var field = createField();
+            // Ensure doubles gameType
+            field = new calc.Field({ ...field, gameType: 'Doubles' });
+
+            var mv = new calc.Move(gen || 9, moveName, {
+                ability: atk.ability,
+                item: atk.item
+            });
+
+            var res = calc.calculate(gen || 9, atk, def, mv, field);
+            var rng = res.range();
+            return {
+                desc: res.moveDesc(notation),
+                range: rng,
+                minDmg: rng[0],
+                maxDmg: rng[1],
+                move: res.move
+            };
+        } catch (e) {
+            return null;
+        }
+    }
+
+    /** Get all 4 move names for a roster entry */
+    function getEntryMoves(entry) {
+        return entry && entry.moves ? entry.moves : [];
+    }
+
+    /** Populate a doubles move dropdown from an entry's moves */
+    function populateDblMoveSelect(selectId, entry) {
+        var $sel = $(selectId);
+        var html = '<option value="none">— No Move —</option>';
+        if (entry) {
+            var mvs = getEntryMoves(entry);
+            for (var i = 0; i < mvs.length; i++) {
+                if (mvs[i] && mvs[i] !== '(No Move)') {
+                    html += '<option value="' + esc(mvs[i]) + '">' + esc(mvs[i]) + '</option>';
+                }
+            }
+        }
+        $sel.html(html);
+    }
+
+    /** Update the doubles move UI after team/format changes */
+    function refreshDoublesUI() {
+        if (!isDoubles()) return;
+        var line = curLine();
+        var p1a = getActiveEntry(line.teams.p1);
+        var p1b = getActiveEntryB(line.teams.p1);
+        var p2a = getActiveEntry(line.teams.p2);
+        var p2b = getActiveEntryB(line.teams.p2);
+
+        // Update slot names
+        $('#rsa-dbl-name-p1a').text(p1a ? p1a.name + ' (L)' : 'P1 Left');
+        $('#rsa-dbl-name-p1b').text(p1b ? p1b.name + ' (R)' : 'P1 Right');
+        $('#rsa-dbl-name-p2a').text(p2a ? p2a.name + ' (L)' : 'P2 Left');
+        $('#rsa-dbl-name-p2b').text(p2b ? p2b.name + ' (R)' : 'P2 Right');
+
+        // Populate move dropdowns
+        populateDblMoveSelect('#rsa-dbl-move-p1a', p1a);
+        populateDblMoveSelect('#rsa-dbl-move-p1b', p1b);
+        populateDblMoveSelect('#rsa-dbl-move-p2a', p2a);
+        populateDblMoveSelect('#rsa-dbl-move-p2b', p2b);
+
+        // Update target dropdowns with actual names
+        var targets = {
+            '#rsa-dbl-target-p1a': [
+                { val: 'p2a', label: p2a ? p2a.name + ' (L)' : 'P2 Left' },
+                { val: 'p2b', label: p2b ? p2b.name + ' (R)' : 'P2 Right' }
+            ],
+            '#rsa-dbl-target-p1b': [
+                { val: 'p2a', label: p2a ? p2a.name + ' (L)' : 'P2 Left' },
+                { val: 'p2b', label: p2b ? p2b.name + ' (R)' : 'P2 Right' }
+            ],
+            '#rsa-dbl-target-p2a': [
+                { val: 'p1a', label: p1a ? p1a.name + ' (L)' : 'P1 Left' },
+                { val: 'p1b', label: p1b ? p1b.name + ' (R)' : 'P1 Right' }
+            ],
+            '#rsa-dbl-target-p2b': [
+                { val: 'p1a', label: p1a ? p1a.name + ' (L)' : 'P1 Left' },
+                { val: 'p1b', label: p1b ? p1b.name + ' (R)' : 'P1 Right' }
+            ]
+        };
+        for (var selId in targets) {
+            var $t = $(selId);
+            var curVal = $t.val();
+            var h = '';
+            for (var i = 0; i < targets[selId].length; i++) {
+                h += '<option value="' + targets[selId][i].val + '">' + esc(targets[selId][i].label) + '</option>';
+            }
+            $t.html(h);
+            if (curVal) $t.val(curVal);
+        }
+
+        updateDblDamagePreview();
+    }
+
+    /** Update damage preview text in each doubles slot */
+    function updateDblDamagePreview() {
+        if (!isDoubles()) return;
+        var line = curLine();
+        var entries = {
+            p1a: getActiveEntry(line.teams.p1),
+            p1b: getActiveEntryB(line.teams.p1),
+            p2a: getActiveEntry(line.teams.p2),
+            p2b: getActiveEntryB(line.teams.p2)
+        };
+
+        var slots = [
+            { id: '#rsa-dbl-dmg-p1a', atk: 'p1a', moveId: '#rsa-dbl-move-p1a', targetId: '#rsa-dbl-target-p1a' },
+            { id: '#rsa-dbl-dmg-p1b', atk: 'p1b', moveId: '#rsa-dbl-move-p1b', targetId: '#rsa-dbl-target-p1b' },
+            { id: '#rsa-dbl-dmg-p2a', atk: 'p2a', moveId: '#rsa-dbl-move-p2a', targetId: '#rsa-dbl-target-p2a' },
+            { id: '#rsa-dbl-dmg-p2b', atk: 'p2b', moveId: '#rsa-dbl-move-p2b', targetId: '#rsa-dbl-target-p2b' }
+        ];
+
+        for (var si = 0; si < slots.length; si++) {
+            var s = slots[si];
+            var $el = $(s.id);
+            var moveName = $(s.moveId).val();
+            var targetKey = $(s.targetId).val();
+            var atkEntry = entries[s.atk];
+            var defEntry = entries[targetKey];
+
+            if (!moveName || moveName === 'none' || !atkEntry || !defEntry) {
+                $el.html('');
+                continue;
+            }
+
+            var dmg = calcDamageDirect(atkEntry, defEntry, moveName);
+            if (!dmg) {
+                $el.html('<span class="rsa-dbl-dmg-line">—</span>');
+                continue;
+            }
+
+            var defHP = defEntry.currentHP || defEntry.maxHP;
+            var isKill = dmg.minDmg >= defHP;
+            var killCls = isKill ? ' rsa-dbl-kill' : '';
+            var pctMin = defEntry.maxHP > 0 ? (dmg.minDmg / defEntry.maxHP * 100).toFixed(1) : 0;
+            var pctMax = defEntry.maxHP > 0 ? (dmg.maxDmg / defEntry.maxHP * 100).toFixed(1) : 0;
+            $el.html('<span class="rsa-dbl-dmg-line' + killCls + '">' +
+                dmg.minDmg + '-' + dmg.maxDmg + ' (' + pctMin + '-' + pctMax + '%)' +
+                (isKill ? ' KO!' : '') + '</span>');
+        }
     }
 
     // ════════════════════════════════════════════════════════════
@@ -1216,7 +1404,17 @@
         team.activeIdx = newActiveIdx;
         if (team.activeIdx < 0 && newRoster.length > 0) team.activeIdx = 0;
         if (team.activeIdx >= newRoster.length) team.activeIdx = newRoster.length - 1;
+        // Doubles: auto-set B slot if not set
+        if (isDoubles() && team.roster.length >= 2 && (team.activeIdxB < 0 || team.activeIdxB === team.activeIdx)) {
+            for (var bi = 0; bi < team.roster.length; bi++) {
+                if (bi !== team.activeIdx && team.roster[bi].currentHP > 0) {
+                    team.activeIdxB = bi;
+                    break;
+                }
+            }
+        }
         renderTeamPanel('p2');
+        if (isDoubles()) refreshDoublesUI();
     }
 
     /** Look up a set from SETDEX by its setId string like "Garchomp (Gym Leader Hassel)" */
@@ -1272,6 +1470,31 @@
         if (side === 'p2') {
             setTimeout(function () { suppressP2Sync = false; }, 500);
         }
+    }
+
+    /** Doubles switch: replace the A or B slot with a new mon from the roster */
+    function doDoublesSwitch(side, slot, newIdx) {
+        var line = curLine();
+        var team = line.teams[side];
+        if (newIdx < 0 || newIdx >= team.roster.length) return;
+        var otherSlot = (slot === 'a') ? team.activeIdxB : team.activeIdx;
+        if (newIdx === otherSlot) return; // can't put same mon in both slots
+
+        // Reset boosts on outgoing
+        var outIdx = (slot === 'a') ? team.activeIdx : team.activeIdxB;
+        if (outIdx >= 0 && team.roster[outIdx]) {
+            team.roster[outIdx].boosts = { at: 0, df: 0, sa: 0, sd: 0, sp: 0 };
+        }
+
+        if (slot === 'a') {
+            team.activeIdx = newIdx;
+        } else {
+            team.activeIdxB = newIdx;
+        }
+
+        renderTeamPanel(side);
+        refreshDoublesUI();
+        populateSwitchDropdown();
     }
 
     function saveFormToRoster(side) {
@@ -1775,6 +1998,402 @@
         return rd;
     }
 
+    // ════════════════════════════════════════════════════════════
+    // DOUBLES — CAPTURE ROUND
+    // ════════════════════════════════════════════════════════════
+
+    function captureDoublesRound(comment) {
+        var line = curLine();
+        var p1Team = line.teams.p1;
+        var p2Team = line.teams.p2;
+        var weather = getWeather();
+
+        // Get all 4 active entries
+        var fighters = {
+            p1a: getActiveEntry(p1Team),
+            p1b: getActiveEntryB(p1Team),
+            p2a: getActiveEntry(p2Team),
+            p2b: getActiveEntryB(p2Team)
+        };
+
+        // Get selected moves and targets from the doubles UI
+        var actions = {};
+        var slotIds = ['p1a', 'p1b', 'p2a', 'p2b'];
+        for (var si = 0; si < slotIds.length; si++) {
+            var sid = slotIds[si];
+            var moveName = $('#rsa-dbl-move-' + sid).val();
+            var target = $('#rsa-dbl-target-' + sid).val();
+            var entry = fighters[sid];
+            actions[sid] = {
+                entry: entry,
+                moveName: (moveName && moveName !== 'none') ? moveName : null,
+                target: target,
+                fainted: !entry || entry.currentHP <= 0,
+                side: sid.substring(0, 2), // 'p1' or 'p2'
+                slot: sid
+            };
+        }
+
+        // AI targeting for P2 slots: if no target manually selected, auto-target
+        var p2Slots = ['p2a', 'p2b'];
+        for (var pi = 0; pi < p2Slots.length; pi++) {
+            var ps = p2Slots[pi];
+            var p2act = actions[ps];
+            if (!p2act.entry || p2act.fainted || !p2act.moveName) continue;
+
+            var moveData = lookupMoveData(p2act.moveName);
+            var mt = moveData ? (moveData.target || 'normal') : 'normal';
+            // Spread moves don't need a target — skip AI targeting
+            if (mt === 'allAdjacentFoes' || mt === 'allAdjacent') continue;
+
+            // If a target was manually set and is alive, keep it
+            if (p2act.target && fighters[p2act.target] && fighters[p2act.target].currentHP > 0) continue;
+
+            // Calculate damage on both P1 slots
+            var p1Targets = [];
+            var p1slots = ['p1a', 'p1b'];
+            for (var ti = 0; ti < p1slots.length; ti++) {
+                var tgt = p1slots[ti];
+                var def = fighters[tgt];
+                if (!def || def.currentHP <= 0) continue;
+                var dmg = calcDamageDirect(p2act.entry, def, p2act.moveName);
+                var isKO = dmg && dmg.maxDmg >= def.currentHP;
+                p1Targets.push({ slot: tgt, dmg: dmg, isKO: isKO });
+            }
+
+            if (p1Targets.length === 0) continue;
+            if (p1Targets.length === 1) {
+                p2act.target = p1Targets[0].slot;
+            } else {
+                // Check for guaranteed KO
+                var koTargets = p1Targets.filter(function (t) { return t.isKO; });
+                if (koTargets.length > 0) {
+                    // Prefer KO target; if both KO, pick the one with higher max damage
+                    koTargets.sort(function (a, b) { return (b.dmg ? b.dmg.maxDmg : 0) - (a.dmg ? a.dmg.maxDmg : 0); });
+                    p2act.target = koTargets[0].slot;
+                    p2act.aiNote = 'KO target';
+                } else {
+                    // Coin flip (50/50)
+                    p2act.target = p1Targets[Math.random() < 0.5 ? 0 : 1].slot;
+                    p2act.aiNote = 'random target';
+                }
+            }
+        }
+
+        // Compute speed for all 4 mons and determine turn order
+        var tr = $('#trickroom').is(':checked');
+        var order = [];
+        for (var si = 0; si < slotIds.length; si++) {
+            var sid = slotIds[si];
+            var act = actions[sid];
+            if (!act.entry || act.fainted) continue;
+
+            // Get speed from entry using the calc engine
+            var spd = 0;
+            try {
+                var poke = createPokemon(act.entry.setId);
+                spd = poke.stats.spe || 50;
+                // Apply paralysis
+                if (act.entry.status === 'Paralysis') spd = Math.floor(spd * 0.5);
+                // Apply boost multiplier
+                var spdBoost = (act.entry.boosts && act.entry.boosts.sp) || 0;
+                if (spdBoost > 0) spd = Math.floor(spd * (2 + spdBoost) / 2);
+                else if (spdBoost < 0) spd = Math.floor(spd * 2 / (2 - spdBoost));
+            } catch (e) {}
+
+            // Get move priority
+            var priority = 0;
+            if (act.moveName) {
+                var md = lookupMoveData(act.moveName);
+                if (md && typeof md.priority === 'number') priority = md.priority;
+            }
+
+            order.push({ slot: sid, speed: spd, priority: priority });
+        }
+
+        // Sort by priority (descending) then speed (descending; ascending if Trick Room)
+        order.sort(function (a, b) {
+            if (a.priority !== b.priority) return b.priority - a.priority;
+            if (tr) return a.speed - b.speed; // Trick Room: slower goes first
+            return b.speed - a.speed;
+        });
+
+        // Snapshot HP before
+        var hpBefore = {};
+        for (var sid in fighters) {
+            if (fighters[sid]) {
+                hpBefore[sid] = fighters[sid].currentHP;
+            }
+        }
+
+        // Process each action in turn order
+        var roundActions = [];
+        for (var oi = 0; oi < order.length; oi++) {
+            var sid = order[oi].slot;
+            var act = actions[sid];
+            if (!act.entry || act.entry.currentHP <= 0 || !act.moveName) {
+                roundActions.push({ slot: sid, move: '—', targets: [], dmgInfo: null });
+                continue;
+            }
+
+            var moveData = lookupMoveData(act.moveName);
+            var moveTarget = moveData ? (moveData.target || 'normal') : 'normal';
+
+            // Determine actual targets based on move target type
+            var targets = [];
+            if (moveTarget === 'allAdjacentFoes') {
+                // Hits both enemy mons
+                var enemy = act.side === 'p1' ? ['p2a', 'p2b'] : ['p1a', 'p1b'];
+                for (var ti = 0; ti < enemy.length; ti++) {
+                    if (fighters[enemy[ti]] && fighters[enemy[ti]].currentHP > 0) targets.push(enemy[ti]);
+                }
+            } else if (moveTarget === 'allAdjacent') {
+                // Hits everyone except user (including partner!)
+                for (var ti = 0; ti < slotIds.length; ti++) {
+                    if (slotIds[ti] !== sid && fighters[slotIds[ti]] && fighters[slotIds[ti]].currentHP > 0) {
+                        targets.push(slotIds[ti]);
+                    }
+                }
+            } else {
+                // Single target — use selected target
+                if (act.target && fighters[act.target] && fighters[act.target].currentHP > 0) {
+                    targets.push(act.target);
+                }
+            }
+
+            // Calc damage to each target
+            var dmgResults = [];
+            for (var ti = 0; ti < targets.length; ti++) {
+                var tgt = targets[ti];
+                var defEntry = fighters[tgt];
+                if (!defEntry || defEntry.currentHP <= 0) continue;
+
+                var dmg = calcDamageDirect(act.entry, defEntry, act.moveName);
+                if (!dmg) continue;
+
+                // Apply damage (worst case = max damage)
+                var applied = Math.min(defEntry.currentHP, dmg.maxDmg);
+
+                // Focus Sash check
+                var sashed = false;
+                if (defEntry.item === 'Focus Sash' && defEntry.currentHP >= defEntry.maxHP &&
+                    applied >= defEntry.currentHP && defEntry.currentHP > 0) {
+                    defEntry.currentHP = 1;
+                    defEntry.item = '';
+                    sashed = true;
+                } else {
+                    defEntry.currentHP = Math.max(0, defEntry.currentHP - applied);
+                }
+
+                dmgResults.push({
+                    target: tgt,
+                    targetName: defEntry.name,
+                    minDmg: dmg.minDmg,
+                    maxDmg: dmg.maxDmg,
+                    applied: applied,
+                    sashed: sashed,
+                    ko: defEntry.currentHP <= 0
+                });
+            }
+
+            // Apply recoil/Life Orb/contact damage
+            if (dmgResults.length > 0 && act.entry.currentHP > 0) {
+                var firstDmg = dmgResults[0];
+                var firstDef = fighters[firstDmg.target];
+                // Use the first target's entry for extras
+                var dummyMoveInfo = { minDmg: firstDmg.minDmg, maxDmg: firstDmg.maxDmg, move: moveData || {} };
+                var extras = calcExtraDamage(act.entry, firstDef || act.entry, dummyMoveInfo, weather);
+                for (var ei = 0; ei < extras.length; ei++) {
+                    if (extras[ei].target === 'attacker') {
+                        if (extras[ei].type === 'drain') {
+                            act.entry.currentHP = Math.min(act.entry.maxHP, act.entry.currentHP - extras[ei].damage);
+                        } else {
+                            act.entry.currentHP = Math.max(0, act.entry.currentHP - extras[ei].damage);
+                        }
+                    }
+                }
+            }
+
+            roundActions.push({
+                slot: sid,
+                name: act.entry.name,
+                move: act.moveName,
+                moveData: moveData,
+                targets: dmgResults,
+                speed: order[oi].speed,
+                priority: order[oi].priority
+            });
+        }
+
+        // EOT for all mons
+        var eotAll = {};
+        for (var si = 0; si < slotIds.length; si++) {
+            var sid = slotIds[si];
+            var e = fighters[sid];
+            if (!e || e.currentHP <= 0) continue;
+            var eot = calcEndOfTurnDamage(e, weather);
+            for (var ei = 0; ei < eot.length; ei++) {
+                e.currentHP = Math.max(0, Math.min(e.maxHP, e.currentHP - eot[ei].damage));
+            }
+            eotAll[sid] = eot;
+
+            // Toxic counter
+            if (e.status === 'Badly Poisoned') e.toxicCounter = (e.toxicCounter || 0) + 1;
+        }
+
+        // HP after
+        var hpAfter = {};
+        for (var sid in fighters) {
+            if (fighters[sid]) hpAfter[sid] = fighters[sid].currentHP;
+        }
+
+        // Build round data
+        var rd = {
+            roundNum: ++line.roundCounter,
+            isDoubles: true,
+            weather: weather,
+            terrain: getTerrain(),
+            trickRoom: tr,
+            comment: comment || '',
+            order: order,
+            actions: roundActions,
+            fighters: {},
+            eot: eotAll
+        };
+
+        // Snapshot fighter state
+        for (var sid in fighters) {
+            var e = fighters[sid];
+            if (!e) continue;
+            rd.fighters[sid] = {
+                name: e.name,
+                sprite: e.sprite,
+                item: e.item,
+                ability: e.ability,
+                status: e.status,
+                hpBefore: hpBefore[sid] || 0,
+                hpAfter: hpAfter[sid] || 0,
+                maxHP: e.maxHP
+            };
+        }
+
+        // AI: predict switch-ins for fainted P2 mons (position-based: across the field)
+        rd.switchPreds = {};
+        if (fighters.p2a && fighters.p2a.currentHP <= 0) {
+            // Left P2 fainted — predict using P1 right (across the field)
+            try {
+                var acrossEntry = fighters.p1b;
+                rd.switchPreds.p2a = acrossEntry ? predictSwitchIn(acrossEntry.setId) : predictSwitchIn('$p1');
+            } catch (e) {}
+        }
+        if (fighters.p2b && fighters.p2b.currentHP <= 0) {
+            // Right P2 fainted — predict using P1 left (across the field)
+            try {
+                var acrossEntry = fighters.p1a;
+                rd.switchPreds.p2b = acrossEntry ? predictSwitchIn(acrossEntry.setId) : predictSwitchIn('$p1');
+            } catch (e) {}
+        }
+
+        return rd;
+    }
+
+    // ════════════════════════════════════════════════════════════
+    // DOUBLES — ROUND LOG RENDERING
+    // ════════════════════════════════════════════════════════════
+
+    function renderDoublesRoundCard(rd) {
+        var tags = '';
+        if (rd.weather !== 'None') tags += '<span class="rsa-tag rsa-weather">' + esc(rd.weather) + '</span>';
+        if (rd.terrain !== 'None') tags += '<span class="rsa-tag rsa-terrain">' + esc(rd.terrain) + '</span>';
+        if (rd.trickRoom) tags += '<span class="rsa-tag rsa-trickroom">Trick Room</span>';
+
+        // Speed order display
+        var orderStr = rd.order.map(function (o) { 
+            var f = rd.fighters[o.slot];
+            return f ? f.name : o.slot; 
+        }).join(' → ');
+
+        // Actions HTML
+        var actionsHtml = '';
+        for (var ai = 0; ai < rd.actions.length; ai++) {
+            var act = rd.actions[ai];
+            if (!act.move || act.move === '—') continue;
+            var f = rd.fighters[act.slot];
+            var isP1 = act.slot.indexOf('p1') === 0;
+            var cls = isP1 ? 'rsa-p1' : 'rsa-p2';
+            var slotLabel = act.slot.indexOf('a') > 0 ? 'L' : 'R';
+
+            var tgtHtml = '';
+            if (act.targets && act.targets.length > 0) {
+                for (var ti = 0; ti < act.targets.length; ti++) {
+                    var t = act.targets[ti];
+                    var killBadge = t.ko ? ' <span class="rsa-tag rsa-ko-tag">KO</span>' : '';
+                    var sashBadge = t.sashed ? ' <span class="rsa-tag rsa-sash-tag">Sash!</span>' : '';
+                    tgtHtml += '<div class="rsa-dbl-act-target">' +
+                        '→ ' + esc(t.targetName) + ': ' + t.minDmg + '-' + t.maxDmg + ' dmg' +
+                        killBadge + sashBadge + '</div>';
+                }
+            }
+
+            actionsHtml += '<div class="rsa-dbl-act ' + cls + '">' +
+                '<span class="rsa-dbl-act-who">' + esc(f ? f.name : act.slot) + ' [' + slotLabel + ']</span>' +
+                '<span class="rsa-dbl-act-move">' + esc(act.move) + '</span>' +
+                (act.priority ? '<span class="rsa-tag" style="font-size:0.7em">P+' + act.priority + '</span>' : '') +
+                tgtHtml +
+            '</div>';
+        }
+
+        // HP summary after
+        var hpHtml = '<div class="rsa-dbl-hp-summary">';
+        var sids = ['p1a', 'p1b', 'p2a', 'p2b'];
+        for (var si = 0; si < sids.length; si++) {
+            var sid = sids[si];
+            var f = rd.fighters[sid];
+            if (!f) continue;
+            var pct = f.maxHP > 0 ? (f.hpAfter / f.maxHP * 100) : 0;
+            var col = hpColor(pct);
+            var diff = f.hpBefore - f.hpAfter;
+            var isP1 = sid.indexOf('p1') === 0;
+            var slotLabel = sid.indexOf('a') > 0 ? 'L' : 'R';
+            hpHtml += '<div class="rsa-dbl-hp-entry">' +
+                '<span style="color:' + (isP1 ? '#63b3ed' : '#fc8181') + '">' + esc(f.name) + ' [' + slotLabel + ']</span> ' +
+                f.hpAfter + '/' + f.maxHP +
+                (diff > 0 ? ' <span class="rsa-hp-diff">-' + diff + '</span>' : '') +
+                (f.hpAfter <= 0 ? ' <span class="rsa-tag rsa-ko-tag">KO</span>' : '') +
+            '</div>';
+        }
+        hpHtml += '</div>';
+
+        var cmnt = rd.comment ? '<div class="rsa-comment">' + esc(rd.comment) + '</div>' : '';
+
+        // Switch prediction for fainted P2 mons
+        var switchPredHtml = '';
+        if (rd.switchPreds) {
+            for (var spSlot in rd.switchPreds) {
+                var sp = rd.switchPreds[spSlot];
+                if (!sp) continue;
+                var slotLabel = spSlot === 'p2a' ? 'Left' : 'Right';
+                switchPredHtml += '<div class="rsa-round-switchpred">' +
+                    '<span class="rsa-swpred-label">🔮 AI sends (' + slotLabel + '):</span>' +
+                    '<img class="rsa-swpred-sprite" src="' + esc(sp.sprite) + '" alt="">' +
+                    '<span class="rsa-swpred-name">' + esc(sp.name) + '</span>' +
+                    '<span class="rsa-swpred-detail">(' + (sp.score > 0 ? '+' : '') + sp.score + ' — ' + esc(sp.reason) + ')</span>' +
+                '</div>';
+            }
+        }
+
+        return '<div class="rsa-round-card rsa-round-card-doubles" data-round="' + rd.roundNum + '">' +
+            '<div class="rsa-round-header">' +
+                '<span class="rsa-round-num">Round ' + rd.roundNum + ' (Doubles)</span>' +
+                '<span class="rsa-speed" style="font-size:0.75em">⚡ ' + esc(orderStr) + '</span>' +
+                tags +
+                '<button class="rsa-delete-round" data-round="' + rd.roundNum + '" title="Delete round">×</button>' +
+            '</div>' +
+            '<div class="rsa-dbl-actions">' + actionsHtml + '</div>' +
+            hpHtml + switchPredHtml + cmnt +
+        '</div>';
+    }
+
     function getMoveNames(sideIdx, moveIdx) {
         if (moveIdx === 'none' || moveIdx === -1) return '—';
         var side = sideIdx === 0 ? 'L' : 'R';
@@ -1834,26 +2453,48 @@
         // Replay rounds to reconstruct HP/status/boosts/items
         for (var i = 0; i < line.rounds.length; i++) {
             var rd = line.rounds[i];
-            // P1
-            var p1i = findInRoster(line.teams.p1, rd.p1.name);
-            if (p1i >= 0) {
-                line.teams.p1.roster[p1i].currentHP = rd.p1.hpAfter.current;
-                line.teams.p1.roster[p1i].bestCaseHP = rd.p1.hpAfter.bestCase != null ? rd.p1.hpAfter.bestCase : rd.p1.hpAfter.current;
-                if (rd.p1.status) line.teams.p1.roster[p1i].status = rd.p1.status;
-                if (rd.p1.boosts) line.teams.p1.roster[p1i].boosts = $.extend({}, rd.p1.boosts);
-                // Replay item consumption: rd.p1.item stores the item state AFTER the round
-                if (rd.p1.item !== undefined) line.teams.p1.roster[p1i].item = rd.p1.item;
-                line.teams.p1.activeIdx = p1i;
-            }
-            // P2
-            var p2i = findInRoster(line.teams.p2, rd.p2.name);
-            if (p2i >= 0) {
-                line.teams.p2.roster[p2i].currentHP = rd.p2.hpAfter.current;
-                line.teams.p2.roster[p2i].bestCaseHP = rd.p2.hpAfter.bestCase != null ? rd.p2.hpAfter.bestCase : rd.p2.hpAfter.current;
-                if (rd.p2.status) line.teams.p2.roster[p2i].status = rd.p2.status;
-                if (rd.p2.boosts) line.teams.p2.roster[p2i].boosts = $.extend({}, rd.p2.boosts);
-                if (rd.p2.item !== undefined) line.teams.p2.roster[p2i].item = rd.p2.item;
-                line.teams.p2.activeIdx = p2i;
+
+            if (rd.isDoubles && rd.fighters) {
+                // Doubles round: each fighter slot has hpAfter, item, status
+                var slotToTeam = {
+                    p1a: { team: line.teams.p1, idxKey: 'activeIdx' },
+                    p1b: { team: line.teams.p1, idxKey: 'activeIdxB' },
+                    p2a: { team: line.teams.p2, idxKey: 'activeIdx' },
+                    p2b: { team: line.teams.p2, idxKey: 'activeIdxB' }
+                };
+                for (var sid in rd.fighters) {
+                    var f = rd.fighters[sid];
+                    var mapping = slotToTeam[sid];
+                    if (!f || !mapping) continue;
+                    var ri = findInRoster(mapping.team, f.name);
+                    if (ri >= 0) {
+                        mapping.team.roster[ri].currentHP = f.hpAfter;
+                        mapping.team.roster[ri].bestCaseHP = f.hpAfter;
+                        if (f.item !== undefined) mapping.team.roster[ri].item = f.item;
+                        if (f.status !== undefined) mapping.team.roster[ri].status = f.status;
+                        mapping.team[mapping.idxKey] = ri;
+                    }
+                }
+            } else {
+                // Singles round
+                var p1i = findInRoster(line.teams.p1, rd.p1.name);
+                if (p1i >= 0) {
+                    line.teams.p1.roster[p1i].currentHP = rd.p1.hpAfter.current;
+                    line.teams.p1.roster[p1i].bestCaseHP = rd.p1.hpAfter.bestCase != null ? rd.p1.hpAfter.bestCase : rd.p1.hpAfter.current;
+                    if (rd.p1.status) line.teams.p1.roster[p1i].status = rd.p1.status;
+                    if (rd.p1.boosts) line.teams.p1.roster[p1i].boosts = $.extend({}, rd.p1.boosts);
+                    if (rd.p1.item !== undefined) line.teams.p1.roster[p1i].item = rd.p1.item;
+                    line.teams.p1.activeIdx = p1i;
+                }
+                var p2i = findInRoster(line.teams.p2, rd.p2.name);
+                if (p2i >= 0) {
+                    line.teams.p2.roster[p2i].currentHP = rd.p2.hpAfter.current;
+                    line.teams.p2.roster[p2i].bestCaseHP = rd.p2.hpAfter.bestCase != null ? rd.p2.hpAfter.bestCase : rd.p2.hpAfter.current;
+                    if (rd.p2.status) line.teams.p2.roster[p2i].status = rd.p2.status;
+                    if (rd.p2.boosts) line.teams.p2.roster[p2i].boosts = $.extend({}, rd.p2.boosts);
+                    if (rd.p2.item !== undefined) line.teams.p2.roster[p2i].item = rd.p2.item;
+                    line.teams.p2.activeIdx = p2i;
+                }
             }
         }
         // Renumber remaining rounds sequentially
@@ -1901,15 +2542,51 @@
         var line = curLine();
         var team = line.teams[side];
         var $panel = $('#rsa-team-' + side);
+        var $active = $('#rsa-active-' + side);
         if (!$panel.length) return;
 
+        // In doubles, render the active field slots
+        if (isDoubles() && $active.length) {
+            var activeHtml = '';
+            var slots = [
+                { idx: team.activeIdx, label: 'Left', cls: 'rsa-slot-left' },
+                { idx: team.activeIdxB, label: 'Right', cls: 'rsa-slot-right' }
+            ];
+            for (var si = 0; si < slots.length; si++) {
+                var s = slots[si];
+                var e = (s.idx >= 0 && s.idx < team.roster.length) ? team.roster[s.idx] : null;
+                if (e) {
+                    var pct = hpPct(e.currentHP, e.maxHP);
+                    var col = hpColor(pct);
+                    var faintCls = e.currentHP <= 0 ? ' rsa-fainted' : '';
+                    activeHtml += '<div class="rsa-active-slot ' + s.cls + faintCls + '" data-side="' + side + '" data-idx="' + s.idx + '">' +
+                        '<div class="rsa-field-label">' + s.label + '</div>' +
+                        '<img class="rsa-team-sprite" src="' + esc(e.sprite) + '" alt="' + esc(e.name) + '">' +
+                        '<div class="rsa-team-name">' + esc(e.name) + '</div>' +
+                        '<div class="rsa-team-hp-bar"><div class="rsa-team-hp-fill" style="width:' + pct.toFixed(0) + '%;background:' + col + '"></div></div>' +
+                        '<div class="rsa-team-hp-text" style="font-size:0.7em">' + e.currentHP + '/' + e.maxHP + '</div>' +
+                        (e.status ? '<span class="rsa-status-badge rsa-status-' + e.status.toLowerCase().replace(/\s+/g, '-') + '" style="font-size:0.65em">' + esc(e.status) + '</span>' : '') +
+                    '</div>';
+                } else {
+                    activeHtml += '<div class="rsa-active-slot ' + s.cls + '"><div class="rsa-field-label">' + s.label + '</div><span style="color:#718096;font-size:0.8em">Empty</span></div>';
+                }
+            }
+            $active.html(activeHtml);
+        }
+
+        // Render roster (bench in doubles, full roster in singles)
         var html = '';
+        if (isDoubles()) {
+            html += '<div class="rsa-bench-label">Bench</div>';
+        }
         for (var i = 0; i < team.roster.length; i++) {
             try {
             var e = team.roster[i];
+            var isActiveA = (i === team.activeIdx);
+            var isActiveB = (isDoubles() && i === team.activeIdxB);
+            var active = isActiveA ? ' rsa-active' : (isActiveB ? ' rsa-active rsa-active-b' : '');
             var pct = hpPct(e.currentHP, e.maxHP);
             var col = hpColor(pct);
-            var active = i === team.activeIdx ? ' rsa-active' : '';
             var fainted = e.currentHP <= 0 ? ' rsa-fainted' : '';
             var statusCls = e.status ? ' rsa-has-status' : '';
 
@@ -2041,7 +2718,8 @@
         }
         var html = '';
         for (var i = 0; i < line.rounds.length; i++) {
-            html += renderRoundCard(line.rounds[i]);
+            var rd = line.rounds[i];
+            html += rd.isDoubles ? renderDoublesRoundCard(rd) : renderRoundCard(rd);
         }
         $log.html(html);
         // Update round counter badge
@@ -2298,16 +2976,44 @@
     }
 
     function populateSwitchDropdown() {
-        var $sel = $('#rsa-switch-p1');
         var line = curLine();
         var team = line.teams.p1;
-        var html = '<option value="">— Switch P1 —</option>';
-        for (var i = 0; i < team.roster.length; i++) {
-            if (i === team.activeIdx) continue; // can't switch to current
-            if (team.roster[i].currentHP <= 0) continue; // can't switch to fainted
-            html += '<option value="' + i + '">' + esc(team.roster[i].name) + '</option>';
+
+        if (isDoubles()) {
+            // Doubles: populate per-slot switch dropdowns
+            var activeA = team.activeIdx;
+            var activeB = team.activeIdxB;
+            var htmlA = '<option value=\"\">— Switch Left —</option>';
+            var htmlB = '<option value=\"\">— Switch Right —</option>';
+            for (var i = 0; i < team.roster.length; i++) {
+                if (i === activeA || i === activeB) continue;
+                if (team.roster[i].currentHP <= 0) continue;
+                // In 2-trainer mode, check team split
+                if (battleFormat === 'doubles-2t' && line.teamSplit) {
+                    var leftMax = line.teamSplit.left || 3;
+                    var isLeft = i < leftMax;
+                    var isRight = i >= leftMax;
+                    if (isLeft) htmlA += '<option value=\"' + i + '\">' + esc(team.roster[i].name) + '</option>';
+                    if (isRight) htmlB += '<option value=\"' + i + '\">' + esc(team.roster[i].name) + '</option>';
+                } else {
+                    var opt = '<option value=\"' + i + '\">' + esc(team.roster[i].name) + '</option>';
+                    htmlA += opt;
+                    htmlB += opt;
+                }
+            }
+            $('#rsa-switch-p1a').html(htmlA);
+            $('#rsa-switch-p1b').html(htmlB);
+        } else {
+            // Singles: existing logic
+            var $sel = $('#rsa-switch-p1');
+            var html = '<option value=\"\">— Switch P1 —</option>';
+            for (var i = 0; i < team.roster.length; i++) {
+                if (i === team.activeIdx) continue;
+                if (team.roster[i].currentHP <= 0) continue;
+                html += '<option value=\"' + i + '\">' + esc(team.roster[i].name) + '</option>';
+            }
+            $sel.html(html);
         }
-        $sel.html(html);
     }
 
     // ════════════════════════════════════════════════════════════
@@ -2821,6 +3527,72 @@
     $(document).ready(function () {
         renderAll();
 
+        // ── Format selector ──
+        $(document).on('click', '.rsa-format-btn', function () {
+            var fmt = $(this).data('format');
+            if (fmt === battleFormat) return;
+            battleFormat = fmt;
+            $('.rsa-format-btn').removeClass('rsa-format-active');
+            $(this).addClass('rsa-format-active');
+
+            // Sync calc format radio
+            if (isDoubles()) {
+                $('#doubles-format').prop('checked', true).trigger('change');
+                $('body').addClass('rsa-format-doubles');
+                $('#rsa-doubles-moves').show();
+                $('.rsa-active-field').addClass('rsa-show');
+                $('.rsa-doubles-switch').show();
+                // Hide singles switch controls
+                $('#rsa-switch-p1').closest('.rsa-switch-group').not('.rsa-doubles-switch').hide();
+            } else {
+                $('#singles-format').prop('checked', true).trigger('change');
+                $('body').removeClass('rsa-format-doubles');
+                $('#rsa-doubles-moves').hide();
+                $('.rsa-active-field').removeClass('rsa-show');
+                $('.rsa-doubles-switch').hide();
+                $('#rsa-switch-p1').closest('.rsa-switch-group').not('.rsa-doubles-switch').show();
+            }
+            // Show/hide team split for 2-trainer
+            $('#rsa-team-split').toggle(fmt === 'doubles-2t');
+
+            // Initialize B slots for doubles if needed
+            if (isDoubles()) {
+                var line = curLine();
+                ['p1', 'p2'].forEach(function (side) {
+                    var team = line.teams[side];
+                    if (team.activeIdxB < 0 && team.roster.length >= 2) {
+                        // Set second mon as B slot
+                        team.activeIdxB = (team.activeIdx === 0) ? 1 : 0;
+                    }
+                });
+                refreshDoublesUI();
+            }
+            renderAll();
+        });
+
+        // ── Doubles move/target change → update damage preview ──
+        $(document).on('change', '.rsa-dbl-move, .rsa-dbl-target', function () {
+            updateDblDamagePreview();
+        });
+
+        // ── Doubles switch buttons ──
+        $(document).on('click', '#rsa-do-switch-p1a', function () {
+            var idx = parseInt($('#rsa-switch-p1a').val());
+            if (!isNaN(idx)) doDoublesSwitch('p1', 'a', idx);
+        });
+        $(document).on('click', '#rsa-do-switch-p1b', function () {
+            var idx = parseInt($('#rsa-switch-p1b').val());
+            if (!isNaN(idx)) doDoublesSwitch('p1', 'b', idx);
+        });
+
+        // ── Team split (doubles-2t) ──
+        $(document).on('change', '#rsa-split-left', function () {
+            var val = parseInt($(this).val()) || 3;
+            var line = curLine();
+            line.teamSplit = { left: val };
+            populateSwitchDropdown();
+        });
+
         // ── Move the move-result-group into the controls area ──
         var moveGroup = document.querySelector('.move-result-group');
         var movesArea = document.getElementById('rsa-moves-area');
@@ -2995,26 +3767,36 @@
 
         // ── Log round ──
         $('#rsa-log-round').on('click', function () {
-            var p1MoveIdx = selectedP1Move;
-            var p2MoveIdx = selectedP2Move;
-            var p2Crit = $('#rsa-p2-crit').is(':checked');
-            var p1PreDmg = parseInt($('#rsa-p1-predmg').val()) || 0;
-            var p1PreStatus = $('#rsa-p1-prestatus').val();
             var comment = $('#rsa-comment').val().trim();
-            var p1ApplySec = $('#rsa-p1-apply-secondary').is(':checked');
-            var p2ApplySec = $('#rsa-p2-apply-secondary').is(':checked');
+            var rd;
 
-            var rd = captureRound(p1MoveIdx, p2MoveIdx, p2Crit, p1PreDmg, p1PreStatus, comment, p1ApplySec, p2ApplySec);
-            if (!rd) return;
+            if (isDoubles()) {
+                rd = captureDoublesRound(comment);
+                if (!rd) return;
+            } else {
+                var p1MoveIdx = selectedP1Move;
+                var p2MoveIdx = selectedP2Move;
+                var p2Crit = $('#rsa-p2-crit').is(':checked');
+                var p1PreDmg = parseInt($('#rsa-p1-predmg').val()) || 0;
+                var p1PreStatus = $('#rsa-p1-prestatus').val();
+                var p1ApplySec = $('#rsa-p1-apply-secondary').is(':checked');
+                var p2ApplySec = $('#rsa-p2-apply-secondary').is(':checked');
+
+                rd = captureRound(p1MoveIdx, p2MoveIdx, p2Crit, p1PreDmg, p1PreStatus, comment, p1ApplySec, p2ApplySec);
+                if (!rd) return;
+            }
 
             curLine().rounds.push(rd);
             renderAll();
+            if (isDoubles()) refreshDoublesUI();
 
             // Reset controls (keep P2 crit and P2 effect persistent across rounds)
             $('#rsa-comment').val('');
-            $('#rsa-p1-predmg').val(0);
-            $('#rsa-p1-prestatus').val('');
-            $('#rsa-p1-apply-secondary').prop('checked', false);
+            if (!isDoubles()) {
+                $('#rsa-p1-predmg').val(0);
+                $('#rsa-p1-prestatus').val('');
+                $('#rsa-p1-apply-secondary').prop('checked', false);
+            }
         });
 
         // ── Switch P1 in (takes the P2 move) ──
