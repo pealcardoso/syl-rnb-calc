@@ -544,7 +544,7 @@ fieldset {
 }
 
 .rsa-moves-area .result-move-header { color: #a0aec0; }
-.rsa-moves-area .btn-xxxwide { font-size: 0.8em; width: auto; min-width: 10em; }
+.rsa-moves-area .btn-xxxwide { font-size: 0.8em; width: 15.5em; }
 
 /* Selected move highlight for round sim */
 .rsa-move-selected label.btn-xxxwide {
@@ -681,9 +681,6 @@ fieldset {
 
 /* Type/category sprites injected into move selection buttons */
 .rsa-moves-area label.btn.btn-xxxwide {
-    width: auto;
-    min-width: 10em;
-    max-width: 100%;
     display: flex;
     align-items: center;
     white-space: nowrap;
