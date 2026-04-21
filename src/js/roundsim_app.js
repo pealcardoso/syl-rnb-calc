@@ -682,6 +682,7 @@
             setId: setId,       // full set ID like "Garchomp (Gym Leader Hassel)"
             sprite: sprite,
             item: item,
+            initialItem: item,  // preserved for round-deletion rebuild (consumed items are restored)
             ability: ability,
             moves: moves || [],
             types: types || [],
@@ -1508,20 +1509,34 @@
         var p1DmgToP2Max = (p1Dmg && !p1Flinched) ? p1Dmg.maxDmg : 0;
 
         // Apply in speed order (worst case)
+        // Track whether P1/P2 was blocked from attacking because they "died" going second
+        // (needed for Focus Sash correction: if sash fires, the blocked attacker CAN retaliate)
+        var p1AttackBlockedBySash = false;
+        var p2AttackBlockedBySash = false;
         if (speed.faster === 'p1' || speed.faster === 'tie') {
             p2HPAfter = Math.max(0, p2HPAfter - p1DmgToP2Min);
-            if (p2HPAfter > 0) p1HPAfter = Math.max(0, p1HPAfter - p2DmgToP1Max);
+            if (p2HPAfter > 0) {
+                p1HPAfter = Math.max(0, p1HPAfter - p2DmgToP1Max);
+            }
             // Best case
             p2BestAfter = Math.max(0, p2BestAfter - p1DmgToP2Max);
             if (p2BestAfter > 0) p1BestAfter = Math.max(0, p1BestAfter - p2DmgToP1Min);
             else p1BestAfter = p1BestBefore; // P2 KO'd, P1 takes no damage in best case
         } else {
             p1HPAfter = Math.max(0, p1HPAfter - p2DmgToP1Max);
-            if (p1HPAfter > 0) p2HPAfter = Math.max(0, p2HPAfter - p1DmgToP2Min);
+            if (p1HPAfter > 0) {
+                p2HPAfter = Math.max(0, p2HPAfter - p1DmgToP2Min);
+            } else {
+                p1AttackBlockedBySash = true; // P1 "died" — may be un-blocked by Focus Sash
+            }
             // Best case
             p1BestAfter = Math.max(0, p1BestAfter - p2DmgToP1Min);
-            if (p1BestAfter > 0) p2BestAfter = Math.max(0, p2BestAfter - p1DmgToP2Max);
-            else p2BestAfter = p2BestBefore; // P1 KO'd in best case, but that's not best...
+            if (p1BestAfter > 0) {
+                p2BestAfter = Math.max(0, p2BestAfter - p1DmgToP2Max);
+            } else {
+                p2AttackBlockedBySash = true; // same for best case
+                p2BestAfter = p2BestBefore;
+            }
         }
 
         // ── Focus Sash: survive a one-hit KO from full HP (consumed) ──
@@ -1529,12 +1544,22 @@
         if (p1Entry.item === 'Focus Sash' && p1HPBefore >= p1Entry.maxHP && p1HPAfter <= 0 && p1HPBefore > 0) {
             p1HPAfter = 1;
             if (p1BestAfter <= 0 && p1BestBefore >= p1Entry.maxHP) p1BestAfter = 1;
+            // P1 survived — apply P1's counterattack if it was blocked by the speed-order death check
+            if (p1AttackBlockedBySash && p1DmgToP2Min > 0) {
+                p2HPAfter = Math.max(0, p2HPAfter - p1DmgToP2Min);
+                p2BestAfter = Math.max(0, p2BestAfter - p1DmgToP2Max);
+            }
             p1Entry.item = '';
             $('#p1 .item').val('').trigger('change');
         }
         if (p2Entry.item === 'Focus Sash' && p2HPBefore >= p2Entry.maxHP && p2HPAfter <= 0 && p2HPBefore > 0) {
             p2HPAfter = 1;
             if (p2BestAfter <= 0 && p2BestBefore >= p2Entry.maxHP) p2BestAfter = 1;
+            // P2 survived — apply P2's counterattack if it was blocked
+            if (p2AttackBlockedBySash && p2DmgToP1Min > 0) {
+                p1HPAfter = Math.max(0, p1HPAfter - p2DmgToP1Min);
+                p1BestAfter = Math.max(0, p1BestAfter - p2DmgToP1Max);
+            }
             p2Entry.item = '';
             $('#p2 .item').val('').trigger('change');
         }
@@ -1737,9 +1762,9 @@
         // Sync boosts to calc form so next round's damage uses updated boosts
         syncBoostsToCalc();
 
-        // Update form HP
-        $('#p1 .current-hp').val(p1HPAfter);
-        $('#p2 .current-hp').val(p2HPAfter);
+        // Update form HP (trigger input so calc display/percentages update too)
+        $('#p1 .current-hp').val(p1HPAfter).trigger('input');
+        $('#p2 .current-hp').val(p2HPAfter).trigger('input');
 
         // If P2 is KO'd, predict who switches in next
         if (p2HPAfter <= 0) {
@@ -1790,19 +1815,24 @@
     // ════════════════════════════════════════════════════════════
 
     function rebuildLineTeams(line) {
-        // Reset all roster HP/status to initial
+        // Reset all roster HP/status/items to initial state
         for (var s = 0; s < 2; s++) {
             var side = s === 0 ? 'p1' : 'p2';
             var team = line.teams[side];
             for (var i = 0; i < team.roster.length; i++) {
-                team.roster[i].currentHP = team.roster[i].maxHP;
-                team.roster[i].bestCaseHP = team.roster[i].maxHP;
-                team.roster[i].status = '';
-                team.roster[i].toxicCounter = 0;
-                team.roster[i].boosts = { at: 0, df: 0, sa: 0, sd: 0, sp: 0 };
+                var entry = team.roster[i];
+                entry.currentHP = entry.maxHP;
+                entry.bestCaseHP = entry.maxHP;
+                entry.status = '';
+                entry.toxicCounter = 0;
+                entry.boosts = { at: 0, df: 0, sa: 0, sd: 0, sp: 0 };
+                // Restore consumed items (Focus Sash, berries, etc.) to their initial value
+                if (entry.initialItem !== undefined) {
+                    entry.item = entry.initialItem;
+                }
             }
         }
-        // Replay rounds to reconstruct HP/status/boosts
+        // Replay rounds to reconstruct HP/status/boosts/items
         for (var i = 0; i < line.rounds.length; i++) {
             var rd = line.rounds[i];
             // P1
@@ -1812,6 +1842,8 @@
                 line.teams.p1.roster[p1i].bestCaseHP = rd.p1.hpAfter.bestCase != null ? rd.p1.hpAfter.bestCase : rd.p1.hpAfter.current;
                 if (rd.p1.status) line.teams.p1.roster[p1i].status = rd.p1.status;
                 if (rd.p1.boosts) line.teams.p1.roster[p1i].boosts = $.extend({}, rd.p1.boosts);
+                // Replay item consumption: rd.p1.item stores the item state AFTER the round
+                if (rd.p1.item !== undefined) line.teams.p1.roster[p1i].item = rd.p1.item;
                 line.teams.p1.activeIdx = p1i;
             }
             // P2
@@ -1821,6 +1853,7 @@
                 line.teams.p2.roster[p2i].bestCaseHP = rd.p2.hpAfter.bestCase != null ? rd.p2.hpAfter.bestCase : rd.p2.hpAfter.current;
                 if (rd.p2.status) line.teams.p2.roster[p2i].status = rd.p2.status;
                 if (rd.p2.boosts) line.teams.p2.roster[p2i].boosts = $.extend({}, rd.p2.boosts);
+                if (rd.p2.item !== undefined) line.teams.p2.roster[p2i].item = rd.p2.item;
                 line.teams.p2.activeIdx = p2i;
             }
         }
@@ -1829,14 +1862,16 @@
         for (var i = 0; i < line.rounds.length; i++) {
             line.rounds[i].roundNum = ++line.roundCounter;
         }
-        // Sync the updated HP to calc form
+        // Sync the updated HP and item to calc form
         var p1Active = getActiveEntry(line.teams.p1);
         var p2Active = getActiveEntry(line.teams.p2);
         if (p1Active) {
             $('#p1 .current-hp').val(p1Active.currentHP);
+            $('#p1 .item').val(p1Active.item || '').trigger('change');
         }
         if (p2Active) {
             $('#p2 .current-hp').val(p2Active.currentHP);
+            $('#p2 .item').val(p2Active.item || '').trigger('change');
         }
         // Sync boosts to calc form
         syncBoostsToCalc();
@@ -3213,6 +3248,7 @@
             var team = line.teams[side];
             if (!team || !team.roster[idx]) return;
             team.roster[idx].item = newItem;
+            team.roster[idx].initialItem = newItem; // persist manual item changes across rebuilds
             // Update calc form live if this is the active pokemon
             if (idx === team.activeIdx) {
                 $('#' + side + ' .item').val(newItem).trigger('change');
