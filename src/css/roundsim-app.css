@@ -544,7 +544,7 @@ fieldset {
 }
 
 .rsa-moves-area .result-move-header { color: #a0aec0; }
-.rsa-moves-area .btn-xxxwide { font-size: 0.8em; }
+.rsa-moves-area .btn-xxxwide { font-size: 0.8em; width: auto; min-width: 10em; }
 
 /* Selected move highlight for round sim */
 .rsa-move-selected label.btn-xxxwide {
@@ -680,26 +680,41 @@ fieldset {
 }
 
 /* Type/category sprites injected into move selection buttons */
-label.btn .rsa-btn-move-sprites {
+.rsa-moves-area label.btn.btn-xxxwide {
+    width: auto;
+    min-width: 10em;
+    max-width: 100%;
+    display: flex;
+    align-items: center;
+    white-space: nowrap;
+    overflow: hidden;
+    gap: 4px;
+    padding-left: 6px;
+    padding-right: 6px;
+    box-sizing: border-box;
+}
+.rsa-moves-area label.btn .rsa-btn-move-sprites {
     display: inline-flex;
     align-items: center;
     gap: 2px;
-    margin-right: 4px;
-    vertical-align: middle;
+    flex-shrink: 0;
 }
-label.btn .rsa-btn-type-sprite {
-    height: 14px;
+.rsa-moves-area label.btn .rsa-btn-type-sprite {
+    height: 13px;
     width: auto;
-    vertical-align: middle;
     border-radius: 2px;
+    display: block;
 }
-label.btn .rsa-btn-cat-sprite {
-    height: 14px;
+.rsa-moves-area label.btn .rsa-btn-cat-sprite {
+    height: 13px;
     width: auto;
-    vertical-align: middle;
+    display: block;
 }
-label.btn .rsa-btn-move-name {
-    vertical-align: middle;
+.rsa-moves-area label.btn .rsa-btn-move-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1 1 auto;
 }
 
 /* Compact damage badge injected by JS */
