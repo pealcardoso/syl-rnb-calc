@@ -837,8 +837,9 @@
             });
         }
 
-        // --- Move recoil (blocked by Magic Guard) ---
-        if (move.recoil && moveInfo.maxDmg > 0 && !atkMagicGuard) {
+        // --- Move recoil (blocked by Magic Guard / Rock Head) ---
+        var atkRockHead = attacker.ability === 'Rock Head';
+        if (move.recoil && moveInfo.maxDmg > 0 && !atkMagicGuard && !atkRockHead) {
             var recoilMin = Math.max(1, Math.floor(moveInfo.minDmg * move.recoil[0] / move.recoil[1]));
             var recoilMax = Math.max(1, Math.floor(moveInfo.maxDmg * move.recoil[0] / move.recoil[1]));
             extras.push({
