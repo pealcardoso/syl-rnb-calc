@@ -714,16 +714,32 @@
         var p2SetId = getSetId('p2');
         var p2Name = getP2Name();
 
-        // Build ordered list from the trainer's pokemon list (preserves trainer's team order)
+        // Use window.CURRENT_TRAINER_POKS (global from shared_controls) as the primary source
+        // of truth — it holds ALL trainer pokemon in the correct [N] sorted order, including
+        // the currently-loaded one which is intentionally absent from .trainer-pok-list-opposing.
         var trainerOrder = [];
-        $('.trainer-pok-list-opposing img.trainer-pok').each(function () {
-            var setId = $(this).data('id');
-            if (!setId) return;
-            var pokeName = String(setId).split(' (')[0];
-            if (pokeName) trainerOrder.push({ name: pokeName, setId: setId });
-        });
+        if (window.CURRENT_TRAINER_POKS && window.CURRENT_TRAINER_POKS.length) {
+            for (var t = 0; t < window.CURRENT_TRAINER_POKS.length; t++) {
+                var raw = window.CURRENT_TRAINER_POKS[t];
+                // Format: "[N]PokeName (TrainerSet)"  — setId is everything after the first "]"
+                var setId = raw.indexOf(']') !== -1 ? raw.slice(raw.indexOf(']') + 1) : raw;
+                var pokeName = String(setId).split(' (')[0];
+                if (pokeName) trainerOrder.push({ name: pokeName, setId: setId });
+            }
+        }
 
-        // If trainer list is empty fall back to just the loaded pokemon
+        // Fallback: build from DOM list + currently loaded pokemon
+        if (trainerOrder.length === 0) {
+            if (p2Name) trainerOrder.push({ name: p2Name, setId: p2SetId });
+            $('.trainer-pok-list-opposing img.trainer-pok').each(function () {
+                var sid = $(this).data('id');
+                if (!sid) return;
+                var pName = String(sid).split(' (')[0];
+                if (pName && pName !== p2Name) trainerOrder.push({ name: pName, setId: sid });
+            });
+        }
+
+        // If still empty just use the loaded pokemon
         if (trainerOrder.length === 0 && p2Name) {
             trainerOrder.push({ name: p2Name, setId: p2SetId });
         }
@@ -781,16 +797,6 @@
                 );
                 newRoster.push(entry);
             }
-        }
-
-        // Edge case: currently loaded pokemon not in trainer list at all
-        if (p2Name && newRoster.every(function (e) { return e.name !== p2Name; })) {
-            var hp = getCurrentHP('p2');
-            var maxHP = hp.max || 100;
-            var entry = createRosterEntry(p2Name, p2SetId, getSprite(p2Name), getItem('p2'), getAbility('p2'), getMoves('p2'), maxHP, getTypes('p2'));
-            entry.currentHP = maxHP;
-            newRoster.unshift(entry);
-            newActiveIdx = 0;
         }
 
         team.roster = newRoster;
