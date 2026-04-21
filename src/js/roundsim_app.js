@@ -711,44 +711,58 @@
 
         var newRoster = [];
 
-        // The currently loaded P2 pokemon
         var p2SetId = getSetId('p2');
         var p2Name = getP2Name();
-        if (p2Name) {
-            if (oldEntries[p2Name] && line.rounds.length > 0) {
-                // Preserve HP from rounds
-                newRoster.push(oldEntries[p2Name]);
-            } else {
+
+        // Build ordered list from the trainer's pokemon list (preserves trainer's team order)
+        var trainerOrder = [];
+        $('.trainer-pok-list-opposing img.trainer-pok').each(function () {
+            var setId = $(this).data('id');
+            if (!setId) return;
+            var pokeName = String(setId).split(' (')[0];
+            if (pokeName) trainerOrder.push({ name: pokeName, setId: setId });
+        });
+
+        // If trainer list is empty fall back to just the loaded pokemon
+        if (trainerOrder.length === 0 && p2Name) {
+            trainerOrder.push({ name: p2Name, setId: p2SetId });
+        }
+
+        var newActiveIdx = 0;
+        for (var k = 0; k < trainerOrder.length; k++) {
+            var pok = trainerOrder[k];
+            var pokeName = pok.name;
+            var setId = pok.setId;
+
+            // Track which index is the currently active (loaded) pokemon
+            if (pokeName === p2Name) newActiveIdx = k;
+
+            if (oldEntries[pokeName] && line.rounds.length > 0) {
+                if (pokeName === p2Name) {
+                    // Refresh live data (item/ability/moves may have changed) but keep tracked HP
+                    var preserved = oldEntries[pokeName];
+                    preserved.item = getItem('p2') || preserved.item;
+                    preserved.ability = getAbility('p2') || preserved.ability;
+                    preserved.moves = getMoves('p2') || preserved.moves;
+                    newRoster.push(preserved);
+                } else {
+                    newRoster.push(oldEntries[pokeName]);
+                }
+            } else if (pokeName === p2Name) {
+                // Use live calc form data for the currently loaded pokemon
                 var hp = getCurrentHP('p2');
                 var maxHP = hp.max || 100;
                 var entry = createRosterEntry(
-                    p2Name, p2SetId,
-                    getSprite(p2Name),
+                    pokeName, setId,
+                    getSprite(pokeName),
                     getItem('p2'),
                     getAbility('p2'),
                     getMoves('p2'),
                     maxHP,
                     getTypes('p2')
                 );
-                // Always start at full HP if no rounds logged
                 entry.currentHP = maxHP;
                 newRoster.push(entry);
-            }
-        }
-
-        // Other opposing team pokemon (from trainer set)
-        $('.trainer-pok-list-opposing img.trainer-pok').each(function () {
-            var setId = $(this).data('id');
-            if (!setId) return;
-            var pokeName = String(setId).split(' (')[0];
-            if (!pokeName) return;
-            // Skip if already added (the currently loaded P2)
-            for (var j = 0; j < newRoster.length; j++) {
-                if (newRoster[j].name === pokeName) return;
-            }
-
-            if (oldEntries[pokeName] && line.rounds.length > 0) {
-                newRoster.push(oldEntries[pokeName]);
             } else {
                 var set = lookupSet(setId);
                 var maxHP = set ? calcMaxHP(pokeName, set) : 100;
@@ -767,9 +781,20 @@
                 );
                 newRoster.push(entry);
             }
-        });
+        }
+
+        // Edge case: currently loaded pokemon not in trainer list at all
+        if (p2Name && newRoster.every(function (e) { return e.name !== p2Name; })) {
+            var hp = getCurrentHP('p2');
+            var maxHP = hp.max || 100;
+            var entry = createRosterEntry(p2Name, p2SetId, getSprite(p2Name), getItem('p2'), getAbility('p2'), getMoves('p2'), maxHP, getTypes('p2'));
+            entry.currentHP = maxHP;
+            newRoster.unshift(entry);
+            newActiveIdx = 0;
+        }
 
         team.roster = newRoster;
+        team.activeIdx = newActiveIdx;
         if (team.activeIdx < 0 && newRoster.length > 0) team.activeIdx = 0;
         if (team.activeIdx >= newRoster.length) team.activeIdx = newRoster.length - 1;
         renderTeamPanel('p2');
