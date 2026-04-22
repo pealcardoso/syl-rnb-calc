@@ -4316,19 +4316,74 @@
     }
 
     function getColorCode(setId) {
-        // Reuse the existing calculationsColors function from index_randoms_controls
-        // Save and restore damageResults since calculationsColors overwrites it
-        if (typeof calculationsColors === 'function') {
-            var savedResults = (typeof damageResults !== 'undefined') ? damageResults : null;
-            try {
-                var result = calculationsColors(setId);
-                damageResults = savedResults;
-                return result;
-            } catch (e) {
-                damageResults = savedResults;
+        // Compute color code with boxCalcSettings applied
+        // (replaces external calculationsColors which ignores our settings)
+        try {
+            var p1 = createPokemon(setId);
+            var p2Info = $('#p2');
+            var p2 = createPokemon(p2Info);
+            var p1field = createField();
+            var p2field = p1field.clone().swap();
+            var results = calculateAllMoves(gen, p1, p1field, p2, p2field);
+
+            var p1hp = results[0][0].attacker.stats.hp;
+            var p2hp = results[1][0].attacker.stats.hp;
+            var p1s = p1.stats ? p1.stats.spe : 0;
+            var p2s = p2.stats ? p2.stats.spe : 0;
+            var p1AbilityToggle = $('#p1').find('.abilityToggle').is(':checked');
+            if (p1.ability === 'Unburden' && !p1AbilityToggle) p1s = Math.floor(p1s / 2);
+            var fastest = p1s > p2s ? 'F' : p1s < p2s ? 'S' : 'T';
+
+            var p1KO = 0, p2KO = 0, p1HD = 0, p2HD = 0;
+            for (var i = 0; i < 4; i++) {
+                // --- P1 offense ---
+                var r0 = results[0][i];
+                // Skip selfdestruct moves if setting enabled
+                if (boxCalcSettings.ignoreSelfdestruct && p1.moves[i]) {
+                    var mn0 = p1.moves[i].name || '';
+                    var md0 = lookupMoveData(mn0);
+                    if (md0 && md0.selfdestruct) continue;
+                }
+                var lo0 = Array.isArray(r0.damage) ? (r0.damage[0] || r0.damage) : r0.damage;
+                var hi0 = Array.isArray(r0.damage) ? (r0.damage[r0.damage.length - 1] || r0.damage) : r0.damage;
+                var hits0 = p1.moves[i] ? (p1.moves[i].hits || 1) : 1;
+                var loPct0 = lo0 * hits0 / p2hp * 100;
+                var hiPct0 = hi0 * hits0 / p2hp * 100;
+                // Apply sim item multiplier
+                loPct0 = applySimItemMultiplier(loPct0);
+                hiPct0 = applySimItemMultiplier(hiPct0);
+                // Apply Guts burn boost
+                if (boxCalcSettings.burnGuts && p1.ability === 'Guts') {
+                    var cat0 = p1.moves[i] ? (p1.moves[i].category || '') : '';
+                    if (cat0 === 'Physical') { loPct0 *= 1.5; hiPct0 *= 1.5; }
+                }
+                if (hiPct0 > p1HD) p1HD = hiPct0;
+                if (loPct0 >= 100) { p1KO = 1; }
+                else if (hiPct0 >= 100 && p1KO === 0) { p1KO = 2; }
+
+                // --- P2 offense ---
+                var r1 = results[1][i];
+                var lo1 = Array.isArray(r1.damage) ? (r1.damage[0] || r1.damage) : r1.damage;
+                var hi1 = Array.isArray(r1.damage) ? (r1.damage[r1.damage.length - 1] || r1.damage) : r1.damage;
+                var hits1 = p2.moves[i] ? (p2.moves[i].hits || 1) : 1;
+                var loPct1 = lo1 * hits1 / p1hp * 100;
+                var hiPct1 = hi1 * hits1 / p1hp * 100;
+                if (hiPct1 > p2HD) p2HD = hiPct1;
+                if (loPct1 >= 100) { p2KO = 4; }
+                else if (hiPct1 >= 100 && p2KO < 3) { p2KO = 3; }
             }
+
+            // Wall check: if P2 can't 3-shot us and we outdamage them
+            if (Math.round(p2HD * 3) < 100 && p1HD > p2HD) {
+                if (p1HD > 100) return { speed: fastest, code: 'WMO' };
+                return { speed: fastest, code: 'W' };
+            }
+
+            var code = (p1KO > 0 ? p1KO.toString() : '') + (p2KO > 0 ? p2KO.toString() : '');
+            return { speed: fastest, code: code };
+        } catch (e) {
+            return { speed: '', code: '' };
         }
-        return { speed: '', code: '' };
     }
 
     /** Render the type coverage analysis modal content */
