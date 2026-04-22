@@ -171,7 +171,7 @@
         var rankings = [];
         for (var i = 0; i < mons.length; i++) {
             var m = mons[i];
-            var offMax = 0, defDmg = null;
+            var offMax = 0, defDmg = null, defAllMax = null, speed = 0, isImmune = false, isImmuneAll = false;
             try {
                 var p1 = createPokemon(m.setId);
                 var p2 = createPokemon(p2Info);
@@ -181,6 +181,7 @@
 
                 var p1hp = results[0][0].attacker.stats.hp;
                 var p2hp = results[1][0].attacker.stats.hp;
+                speed = p1.stats ? p1.stats.spe : 0;
 
                 // Offensive rank: best of all P1 moves vs P2
                 for (var j = 0; j < 4; j++) {
@@ -191,17 +192,31 @@
                     if (pct0 > offMax) offMax = pct0;
                 }
 
-                // Defensive rank: only the selected P2 move
+                // Defensive rank (selected move): only the selected P2 move
                 if (p2MoveIdx >= 0 && results[1][p2MoveIdx]) {
                     var r1 = results[1][p2MoveIdx];
                     var dmg1 = Array.isArray(r1.damage) ? r1.damage[r1.damage.length - 1] : r1.damage;
                     var hits1 = p2.moves[p2MoveIdx] ? (p2.moves[p2MoveIdx].hits || 1) : 1;
                     var pct1 = dmg1 * hits1 / p1hp * 100;
-                    // Only set if the move actually deals damage
                     if (pct1 > 0) defDmg = pct1;
+                    else isImmune = true; // 0 damage = immune
                 }
+
+                // Defensive rank (all moves): worst P2 move (highest damage)
+                var allMovesMax = 0;
+                var anyDamageAll = false;
+                for (var j = 0; j < 4; j++) {
+                    var ra = results[1][j];
+                    var dmga = Array.isArray(ra.damage) ? ra.damage[ra.damage.length - 1] : ra.damage;
+                    var hitsa = p2.moves[j] ? (p2.moves[j].hits || 1) : 1;
+                    var pcta = dmga * hitsa / p1hp * 100;
+                    if (pcta > allMovesMax) allMovesMax = pcta;
+                    if (pcta > 0) anyDamageAll = true;
+                }
+                if (anyDamageAll) defAllMax = allMovesMax;
+                else isImmuneAll = true; // immune to all P2 moves
             } catch (e) { /* skip mons that fail to create */ }
-            rankings.push({ name: m.name, setId: m.setId, offMax: offMax, defDmg: defDmg });
+            rankings.push({ name: m.name, setId: m.setId, offMax: offMax, defDmg: defDmg, defAllMax: defAllMax, speed: speed, isImmune: isImmune, isImmuneAll: isImmuneAll });
         }
 
         // Offensive rank: highest offMax = rank 1
@@ -214,8 +229,10 @@
             }
         }
 
-        // Defensive rank: lowest defDmg (takes least damage) = rank 1
-        // Only rank mons where defDmg is not null (selected move deals damage)
+        // Defensive rank (selected move): lowest defDmg = rank 1; immune mons = rank 0
+        for (var k = 0; k < rankings.length; k++) {
+            if (rankings[k].isImmune) rankings[k].defRank = 0;
+        }
         var defRankable = rankings.filter(function(r) { return r.defDmg !== null; });
         defRankable.sort(function(a, b) { return a.defDmg - b.defDmg; });
         for (var i = 0; i < defRankable.length; i++) {
@@ -226,11 +243,25 @@
             }
         }
 
+        // Defensive rank (all moves): lowest defAllMax = rank 1; immune to all = rank 0
+        for (var k = 0; k < rankings.length; k++) {
+            if (rankings[k].isImmuneAll) rankings[k].defAllRank = 0;
+        }
+        var defAllRankable = rankings.filter(function(r) { return r.defAllMax !== null; });
+        defAllRankable.sort(function(a, b) { return a.defAllMax - b.defAllMax; });
+        for (var i = 0; i < defAllRankable.length; i++) {
+            for (var k = 0; k < rankings.length; k++) {
+                if (rankings[k].name === defAllRankable[i].name && rankings[k].setId === defAllRankable[i].setId) {
+                    rankings[k].defAllRank = i + 1; break;
+                }
+            }
+        }
+
         return rankings;
     }
 
     var cachedRankings = [];
-    var boxSortMode = 'default'; // 'default', 'offense', 'defense'
+    var boxSortMode = 'default'; // 'default', 'offense', 'defense', 'defenseAll'
 
     // ════════════════════════════════════════════════════════════
     // AI SWITCH-IN PREDICTION ENGINE
@@ -1469,6 +1500,8 @@
 
         if (side === 'p2') {
             setTimeout(function () { suppressP2Sync = false; }, 500);
+            // Auto-select the most probable P2 move after calc recalculates
+            setTimeout(function () { autoSelectP2MostProbable(); }, 600);
         }
     }
 
@@ -2624,6 +2657,16 @@
                 var tInfo = getMonTypeInfo(e.name, e.setId);
                 teamDefTooltip = buildDefTooltip(e.name, tInfo.types, tInfo.ability);
             } catch (ex) {}
+
+            // Speed stat lookup
+            var speedText = '';
+            try {
+                var tmpPoke = createPokemon(e.setId);
+                if (tmpPoke && tmpPoke.stats && tmpPoke.stats.spe) {
+                    speedText = '<span class="rsa-team-speed" title="Speed: ' + tmpPoke.stats.spe + '">⚡' + tmpPoke.stats.spe + '</span>';
+                }
+            } catch (ex) {}
+
             // Item row: dropdown for P1, static badge for P2
             var itemHtml = (side === 'p1')
                 ? '<select class="rsa-item-select" data-side="' + side + '" data-idx="' + i + '">' + getItemOptionsHtml() + '</select>'
@@ -2632,7 +2675,7 @@
             html += '<div class="rsa-team-slot rsa-team-slot-' + side + active + fainted + statusCls + ccClass + '" data-side="' + side + '" data-idx="' + i + '">' +
                 '<img class="rsa-team-sprite" src="' + esc(e.sprite) + '" alt="' + esc(e.name) + '" title="' + esc(teamDefTooltip) + '">' +
                 '<div class="rsa-team-info">' +
-                    '<div class="rsa-team-name">' + esc(e.name) + '</div>' +
+                    '<div class="rsa-team-name">' + esc(e.name) + ' ' + speedText + '</div>' +
                     '<div class="rsa-team-hp-bar"><div class="rsa-team-hp-fill" style="width:' + pct.toFixed(0) + '%;background:' + col + '"></div>' + teamUncertainBar + '</div>' +
                     '<div class="rsa-team-hp-text">' + e.currentHP + '/' + e.maxHP + ' ' + teamRangeText + '</div>' +
                     (e.status ? '<span class="rsa-status-badge rsa-status-' + e.status.toLowerCase().replace(/\s+/g, '-') + '">' + esc(e.status) + '</span>' : '') +
@@ -3053,6 +3096,34 @@
         updateMovePreview('p2', selectedP2Move);
     }
 
+    /** Auto-select the most probable P2 move based on AI percentages */
+    function autoSelectP2MostProbable() {
+        var maxPct = 0;
+        var maxIdx = -1;
+        for (var i = 1; i <= 4; i++) {
+            var pctText = $('#resultMoveRateR' + i).text();
+            if (pctText) {
+                var pctVal = parseFloat(pctText);
+                if (!isNaN(pctVal) && pctVal > maxPct) {
+                    maxPct = pctVal;
+                    maxIdx = i;
+                }
+            }
+        }
+        if (maxIdx > 0 && maxPct > 0) {
+            selectedP2Move = maxIdx - 1; // 0-indexed
+            // Programmatically check the radio button
+            var radioId = '#resultMoveR' + maxIdx;
+            $(radioId).prop('checked', true);
+            updateMovePickDisplay();
+            // Recompute defensive rankings for the auto-selected P2 move
+            setTimeout(function () {
+                try { cachedRankings = computeBoxRankings(); } catch (e) { cachedRankings = []; }
+                renderBox('p1');
+            }, 50);
+        }
+    }
+
     function updateMovePreview(side, moveIdx) {
         var $panel = $('#rsa-move-preview-' + side);
         if (!$panel.length) return;
@@ -3448,7 +3519,8 @@
                 var ra = rankMap[a.name], rb = rankMap[b.name];
                 if (!ra) return 1; if (!rb) return -1;
                 if (boxSortMode === 'offense') return (ra.offRank || 999) - (rb.offRank || 999);
-                if (boxSortMode === 'defense') return (ra.defRank || 999) - (rb.defRank || 999);
+                if (boxSortMode === 'defense') return (ra.defRank != null ? ra.defRank : 999) - (rb.defRank != null ? rb.defRank : 999);
+                if (boxSortMode === 'defenseAll') return (ra.defAllRank != null ? ra.defAllRank : 999) - (rb.defAllRank != null ? rb.defAllRank : 999);
                 return 0;
             });
             mons = sorted;
@@ -3488,13 +3560,27 @@
 
             // Rank badges (P1 only)
             var rankHtml = '';
+            var speedHtml = '';
             if (side === 'p1' && rankMap[m.name]) {
                 var rk = rankMap[m.name];
                 var offBadge = '<span class="rsa-rank-off" title="Offense rank: #' + rk.offRank + ' (' + rk.offMax.toFixed(0) + '% max dmg)">⚔' + rk.offRank + '</span>';
                 var defBadge = (rk.defRank != null)
-                    ? '<span class="rsa-rank-def" title="Defense rank: #' + rk.defRank + ' (' + rk.defDmg.toFixed(0) + '% dmg taken)">🛡' + rk.defRank + '</span>'
+                    ? '<span class="rsa-rank-def" title="Move defense rank: #' + rk.defRank + (rk.isImmune ? ' (IMMUNE)' : ' (' + (rk.defDmg != null ? rk.defDmg.toFixed(0) : '0') + '% dmg taken)') + '">' + (rk.defRank === 0 ? '🛡✦' : '🛡' + rk.defRank) + '</span>'
                     : '';
-                rankHtml = '<span class="rsa-rank-badges">' + offBadge + defBadge + '</span>';
+                var defAllBadge = (rk.defAllRank != null)
+                    ? '<span class="rsa-rank-def-all" title="All-moves defense rank: #' + rk.defAllRank + (rk.isImmuneAll ? ' (IMMUNE TO ALL)' : ' (' + (rk.defAllMax != null ? rk.defAllMax.toFixed(0) : '0') + '% worst move)') + '">' + (rk.defAllRank === 0 ? '🛡A✦' : '🛡A' + rk.defAllRank) + '</span>'
+                    : '';
+                rankHtml = '<span class="rsa-rank-badges">' + offBadge + defBadge + defAllBadge + '</span>';
+                if (rk.speed) speedHtml = '<span class="rsa-box-speed" title="Speed: ' + rk.speed + '">' + rk.speed + '</span>';
+            }
+            // Speed fallback: compute if no ranking but we can create the mon
+            if (!speedHtml && side === 'p1') {
+                try {
+                    var tmpMon = createPokemon(m.setId);
+                    if (tmpMon && tmpMon.stats && tmpMon.stats.spe) {
+                        speedHtml = '<span class="rsa-box-speed" title="Speed: ' + tmpMon.stats.spe + '">' + tmpMon.stats.spe + '</span>';
+                    }
+                } catch (ex) {}
             }
 
             // Bait prediction (what P2 mon switches in if this box mon is out)
@@ -3510,6 +3596,7 @@
                 : '';
             html += '<div class="rsa-box-slot' + inTeam + ccClass + '" draggable="true" data-side="' + side + '" data-set-id="' + esc(m.setId) + '" data-name="' + esc(m.name) + '">' +
                 deleteX +
+                speedHtml +
                 '<img class="rsa-box-sprite" src="' + esc(m.sprite) + '" alt="' + esc(m.name) + '" title="' + esc(tooltip) + '">' +
                 rankHtml +
                 baitHtml +
@@ -3649,11 +3736,18 @@
 
         var oppList = document.querySelector('.trainer-pok-list-opposing');
         if (oppList) {
-            new MutationObserver(function () { syncP2Team(); }).observe(oppList, { childList: true, subtree: true });
+            new MutationObserver(function () {
+                syncP2Team();
+                setTimeout(autoSelectP2MostProbable, 500);
+            }).observe(oppList, { childList: true, subtree: true });
         }
 
         $(document).on('change', '#p2 .set-selector', function () {
-            setTimeout(syncP2Team, 300);
+            setTimeout(function () {
+                syncP2Team();
+                // Auto-select most probable P2 move after calc recalculates
+                setTimeout(autoSelectP2MostProbable, 400);
+            }, 300);
         });
 
         // ── Intercept trainer switch (next/previous) to offer saving the line ──
@@ -3683,6 +3777,8 @@
                 setTimeout(function () {
                     initP1Team();
                     syncP2Team();
+                    // Auto-select most probable P2 move after new trainer loads
+                    setTimeout(autoSelectP2MostProbable, 500);
                 }, 500);
             }
         });
@@ -3707,6 +3803,8 @@
                         injectMoveLabelSprites();
                     } catch (e) { console.error('Second-pass init error:', e); }
                     try { cachedRankings = computeBoxRankings(); renderBox('p1'); } catch (e) {}
+                    // Auto-select most probable P2 move on initial load
+                    try { autoSelectP2MostProbable(); } catch (e) {}
                 }, 800);
             } else if (attempts > 0) {
                 setTimeout(function () { pollUntilReady(attempts - 1); }, 500);
@@ -3953,7 +4051,11 @@
                     maxHP, []
                 );
                 team.roster.push(entry);
+                var newIdx = team.roster.length - 1;
                 if (team.activeIdx < 0) team.activeIdx = 0;
+                // Auto-select the newly added mon into the calc form
+                team.activeIdx = newIdx;
+                loadPokemonIntoForm('p1', entry);
                 renderTeamPanel(side);
                 renderBox(side);
             } catch (ex) { /* ignore bad data */ }
@@ -3982,7 +4084,11 @@
                 maxHP, []
             );
             team.roster.push(entry);
+            var newIdx = team.roster.length - 1;
             if (team.activeIdx < 0) team.activeIdx = 0;
+            // Auto-select the newly added mon into the calc form
+            team.activeIdx = newIdx;
+            loadPokemonIntoForm('p1', entry);
             renderTeamPanel('p1');
             renderBox('p1');
         });
@@ -4055,6 +4161,15 @@
         });
         $(document).on('click', '#rsa-sort-defense', function () {
             boxSortMode = 'defense';
+            if (!cachedRankings.length) {
+                try { cachedRankings = computeBoxRankings(); } catch (e) {}
+            }
+            renderBox('p1');
+            $('.rsa-sort-btn').removeClass('rsa-sort-active');
+            $(this).addClass('rsa-sort-active');
+        });
+        $(document).on('click', '#rsa-sort-defense-all', function () {
+            boxSortMode = 'defenseAll';
             if (!cachedRankings.length) {
                 try { cachedRankings = computeBoxRankings(); } catch (e) {}
             }

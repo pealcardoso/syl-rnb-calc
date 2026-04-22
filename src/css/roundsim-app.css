@@ -115,14 +115,22 @@
 
 /* Rank badges inside box slots */
 .rsa-rank-badges {
-    display: flex; gap: 2px; justify-content: center; margin-top: 1px;
+    display: flex; gap: 2px; justify-content: center; margin-top: 1px; flex-wrap: wrap;
 }
-.rsa-rank-off, .rsa-rank-def {
+.rsa-rank-off, .rsa-rank-def, .rsa-rank-def-all {
     font-size: 0.55em; font-weight: 700; padding: 0 3px;
     border-radius: 3px; line-height: 1.4;
 }
 .rsa-rank-off { background: #c53030; color: #fff; }
 .rsa-rank-def { background: #2b6cb0; color: #fff; }
+.rsa-rank-def-all { background: #2c7a7b; color: #fff; }
+
+/* Speed badge (top-right of box card) */
+.rsa-box-speed {
+    position: absolute; top: 1px; right: 2px;
+    font-size: 0.5em; font-weight: 700; color: #a0aec0;
+    line-height: 1; pointer-events: none;
+}
 
 /* Coverage Analysis Modal */
 .rsa-modal-overlay {
@@ -304,7 +312,8 @@
 .rsa-team-slot-p2.rsa-active { border-color: #fc8181; border-left-width: 3px; box-shadow: 0 0 0 1px #fc8181; }
 .rsa-team-sprite { width: 40px; height: 40px; image-rendering: pixelated; }
 .rsa-team-info { flex: 1; min-width: 0; }
-.rsa-team-name { font-size: 0.85em; font-weight: 600; color: #e2e8f0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rsa-team-name { font-size: 0.85em; font-weight: 600; color: #e2e8f0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; gap: 4px; }
+.rsa-team-speed { font-size: 0.75em; font-weight: 400; color: #a0aec0; white-space: nowrap; flex-shrink: 0; }
 .rsa-team-hp-bar { height: 4px; background: #2d3748; border-radius: 2px; overflow: hidden; margin: 2px 0; position: relative; }
 .rsa-team-hp-fill { height: 100%; border-radius: 2px; transition: width 0.3s; position: relative; z-index: 1; }
 .rsa-team-hp-uncertain {
