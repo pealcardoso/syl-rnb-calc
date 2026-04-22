@@ -2866,7 +2866,7 @@
 
         // HP summary after round (4 mini cards with HP bars)
         var hpHtml = '<div class="rsa-dbl-hp-summary">';
-        var sids = ['p1a', 'p1b', 'p2a', 'p2b'];
+        var sids = ['p2a', 'p2b', 'p1a', 'p1b'];
         for (var si = 0; si < sids.length; si++) {
             var sid = sids[si];
             var f = rd.fighters[sid];
