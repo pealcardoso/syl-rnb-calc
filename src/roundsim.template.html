@@ -201,62 +201,9 @@
         <!-- Singles move area (existing calc radio buttons moved here by JS) -->
         <div class="rsa-moves-area rsa-singles-moves" id="rsa-moves-area"></div>
 
-        <!-- Doubles move area (4 move selectors + targeting) -->
+        <!-- Doubles move area (dynamically rendered — 4 panels showing all moves × all targets) -->
         <div class="rsa-doubles-moves" id="rsa-doubles-moves" style="display:none;">
-            <div class="rsa-doubles-grid">
-                <!-- P1 Left slot -->
-                <div class="rsa-dbl-slot" id="rsa-dbl-p1a">
-                    <div class="rsa-dbl-slot-header"><span class="rsa-dbl-slot-name" id="rsa-dbl-name-p1a">P1 Left</span></div>
-                    <select class="rsa-dbl-move" id="rsa-dbl-move-p1a"><option value="none">— No Move —</option></select>
-                    <div class="rsa-dbl-target-row">
-                        <label>Target:</label>
-                        <select class="rsa-dbl-target" id="rsa-dbl-target-p1a">
-                            <option value="p2a">P2 Left</option>
-                            <option value="p2b">P2 Right</option>
-                        </select>
-                    </div>
-                    <div class="rsa-dbl-dmg" id="rsa-dbl-dmg-p1a"></div>
-                </div>
-                <!-- P1 Right slot -->
-                <div class="rsa-dbl-slot" id="rsa-dbl-p1b">
-                    <div class="rsa-dbl-slot-header"><span class="rsa-dbl-slot-name" id="rsa-dbl-name-p1b">P1 Right</span></div>
-                    <select class="rsa-dbl-move" id="rsa-dbl-move-p1b"><option value="none">— No Move —</option></select>
-                    <div class="rsa-dbl-target-row">
-                        <label>Target:</label>
-                        <select class="rsa-dbl-target" id="rsa-dbl-target-p1b">
-                            <option value="p2a">P2 Left</option>
-                            <option value="p2b">P2 Right</option>
-                        </select>
-                    </div>
-                    <div class="rsa-dbl-dmg" id="rsa-dbl-dmg-p1b"></div>
-                </div>
-                <!-- P2 Left slot -->
-                <div class="rsa-dbl-slot rsa-dbl-slot-p2" id="rsa-dbl-p2a">
-                    <div class="rsa-dbl-slot-header"><span class="rsa-dbl-slot-name" id="rsa-dbl-name-p2a">P2 Left</span></div>
-                    <select class="rsa-dbl-move" id="rsa-dbl-move-p2a"><option value="none">— No Move —</option></select>
-                    <div class="rsa-dbl-target-row">
-                        <label>Target:</label>
-                        <select class="rsa-dbl-target" id="rsa-dbl-target-p2a">
-                            <option value="p1a">P1 Left</option>
-                            <option value="p1b">P1 Right</option>
-                        </select>
-                    </div>
-                    <div class="rsa-dbl-dmg" id="rsa-dbl-dmg-p2a"></div>
-                </div>
-                <!-- P2 Right slot -->
-                <div class="rsa-dbl-slot rsa-dbl-slot-p2" id="rsa-dbl-p2b">
-                    <div class="rsa-dbl-slot-header"><span class="rsa-dbl-slot-name" id="rsa-dbl-name-p2b">P2 Right</span></div>
-                    <select class="rsa-dbl-move" id="rsa-dbl-move-p2b"><option value="none">— No Move —</option></select>
-                    <div class="rsa-dbl-target-row">
-                        <label>Target:</label>
-                        <select class="rsa-dbl-target" id="rsa-dbl-target-p2b">
-                            <option value="p1a">P1 Left</option>
-                            <option value="p1b">P1 Right</option>
-                        </select>
-                    </div>
-                    <div class="rsa-dbl-dmg" id="rsa-dbl-dmg-p2b"></div>
-                </div>
-            </div>
+            <div class="rsa-dbl-grid" id="rsa-dbl-grid"></div>
         </div>
 
         <!-- Move preview panels -->

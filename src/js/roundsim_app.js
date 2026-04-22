@@ -914,77 +914,12 @@
         return entry && entry.moves ? entry.moves : [];
     }
 
-    /** Populate a doubles move dropdown from an entry's moves */
-    function populateDblMoveSelect(selectId, entry) {
-        var $sel = $(selectId);
-        var html = '<option value="none">— No Move —</option>';
-        if (entry) {
-            var mvs = getEntryMoves(entry);
-            for (var i = 0; i < mvs.length; i++) {
-                if (mvs[i] && mvs[i] !== '(No Move)') {
-                    html += '<option value="' + esc(mvs[i]) + '">' + esc(mvs[i]) + '</option>';
-                }
-            }
-        }
-        $sel.html(html);
-    }
+    // ── Doubles selection state: tracks which move+target each slot picked ──
+    var dblSelections = { p1a: { move: null, target: null }, p1b: { move: null, target: null },
+                          p2a: { move: null, target: null }, p2b: { move: null, target: null } };
 
-    /** Update the doubles move UI after team/format changes */
+    /** Build the full doubles move grid — 4 panels, each showing all moves × all targets with damage */
     function refreshDoublesUI() {
-        if (!isDoubles()) return;
-        var line = curLine();
-        var p1a = getActiveEntry(line.teams.p1);
-        var p1b = getActiveEntryB(line.teams.p1);
-        var p2a = getActiveEntry(line.teams.p2);
-        var p2b = getActiveEntryB(line.teams.p2);
-
-        // Update slot names
-        $('#rsa-dbl-name-p1a').text(p1a ? p1a.name + ' (L)' : 'P1 Left');
-        $('#rsa-dbl-name-p1b').text(p1b ? p1b.name + ' (R)' : 'P1 Right');
-        $('#rsa-dbl-name-p2a').text(p2a ? p2a.name + ' (L)' : 'P2 Left');
-        $('#rsa-dbl-name-p2b').text(p2b ? p2b.name + ' (R)' : 'P2 Right');
-
-        // Populate move dropdowns
-        populateDblMoveSelect('#rsa-dbl-move-p1a', p1a);
-        populateDblMoveSelect('#rsa-dbl-move-p1b', p1b);
-        populateDblMoveSelect('#rsa-dbl-move-p2a', p2a);
-        populateDblMoveSelect('#rsa-dbl-move-p2b', p2b);
-
-        // Update target dropdowns with actual names
-        var targets = {
-            '#rsa-dbl-target-p1a': [
-                { val: 'p2a', label: p2a ? p2a.name + ' (L)' : 'P2 Left' },
-                { val: 'p2b', label: p2b ? p2b.name + ' (R)' : 'P2 Right' }
-            ],
-            '#rsa-dbl-target-p1b': [
-                { val: 'p2a', label: p2a ? p2a.name + ' (L)' : 'P2 Left' },
-                { val: 'p2b', label: p2b ? p2b.name + ' (R)' : 'P2 Right' }
-            ],
-            '#rsa-dbl-target-p2a': [
-                { val: 'p1a', label: p1a ? p1a.name + ' (L)' : 'P1 Left' },
-                { val: 'p1b', label: p1b ? p1b.name + ' (R)' : 'P1 Right' }
-            ],
-            '#rsa-dbl-target-p2b': [
-                { val: 'p1a', label: p1a ? p1a.name + ' (L)' : 'P1 Left' },
-                { val: 'p1b', label: p1b ? p1b.name + ' (R)' : 'P1 Right' }
-            ]
-        };
-        for (var selId in targets) {
-            var $t = $(selId);
-            var curVal = $t.val();
-            var h = '';
-            for (var i = 0; i < targets[selId].length; i++) {
-                h += '<option value="' + targets[selId][i].val + '">' + esc(targets[selId][i].label) + '</option>';
-            }
-            $t.html(h);
-            if (curVal) $t.val(curVal);
-        }
-
-        updateDblDamagePreview();
-    }
-
-    /** Update damage preview text in each doubles slot */
-    function updateDblDamagePreview() {
         if (!isDoubles()) return;
         var line = curLine();
         var entries = {
@@ -993,43 +928,129 @@
             p2a: getActiveEntry(line.teams.p2),
             p2b: getActiveEntryB(line.teams.p2)
         };
+        var slotIds = ['p1a', 'p1b', 'p2a', 'p2b'];
+        var slotLabels = { p1a: 'Left', p1b: 'Right', p2a: 'Left', p2b: 'Right' };
 
-        var slots = [
-            { id: '#rsa-dbl-dmg-p1a', atk: 'p1a', moveId: '#rsa-dbl-move-p1a', targetId: '#rsa-dbl-target-p1a' },
-            { id: '#rsa-dbl-dmg-p1b', atk: 'p1b', moveId: '#rsa-dbl-move-p1b', targetId: '#rsa-dbl-target-p1b' },
-            { id: '#rsa-dbl-dmg-p2a', atk: 'p2a', moveId: '#rsa-dbl-move-p2a', targetId: '#rsa-dbl-target-p2a' },
-            { id: '#rsa-dbl-dmg-p2b', atk: 'p2b', moveId: '#rsa-dbl-move-p2b', targetId: '#rsa-dbl-target-p2b' }
-        ];
+        var html = '';
+        for (var si = 0; si < slotIds.length; si++) {
+            var sid = slotIds[si];
+            var entry = entries[sid];
+            var isP2 = sid.indexOf('p2') === 0;
+            var panelCls = isP2 ? ' rsa-dbl-panel-p2' : '';
+            var nameCls = isP2 ? 'rsa-dbl-panel-name-p2' : 'rsa-dbl-panel-name-p1';
+            var lblCls = slotLabels[sid] === 'Left' ? 'rsa-dbl-panel-slot-label-left' : 'rsa-dbl-panel-slot-label-right';
 
-        for (var si = 0; si < slots.length; si++) {
-            var s = slots[si];
-            var $el = $(s.id);
-            var moveName = $(s.moveId).val();
-            var targetKey = $(s.targetId).val();
-            var atkEntry = entries[s.atk];
-            var defEntry = entries[targetKey];
+            html += '<div class="rsa-dbl-panel' + panelCls + '" data-slot="' + sid + '">';
 
-            if (!moveName || moveName === 'none' || !atkEntry || !defEntry) {
-                $el.html('');
+            // Header
+            if (entry) {
+                html += '<div class="rsa-dbl-panel-header">' +
+                    '<img class="rsa-dbl-panel-sprite" src="' + esc(entry.sprite) + '" alt="">' +
+                    '<span class="rsa-dbl-panel-name ' + nameCls + '">' + esc(entry.name) + '</span>' +
+                    '<span class="rsa-dbl-panel-slot-label ' + lblCls + '">' + slotLabels[sid] + '</span>' +
+                '</div>';
+            } else {
+                html += '<div class="rsa-dbl-panel-header"><span class="rsa-dbl-panel-name ' + nameCls + '">Empty</span></div>';
+                html += '<div class="rsa-dbl-no-move">No Pokémon in this slot</div></div>';
                 continue;
             }
 
-            var dmg = calcDamageDirect(atkEntry, defEntry, moveName);
-            if (!dmg) {
-                $el.html('<span class="rsa-dbl-dmg-line">—</span>');
+            if (entry.currentHP <= 0) {
+                html += '<div class="rsa-dbl-no-move">Fainted</div></div>';
                 continue;
             }
 
-            var defHP = defEntry.currentHP || defEntry.maxHP;
-            var isKill = dmg.minDmg >= defHP;
-            var killCls = isKill ? ' rsa-dbl-kill' : '';
-            var pctMin = defEntry.maxHP > 0 ? (dmg.minDmg / defEntry.maxHP * 100).toFixed(1) : 0;
-            var pctMax = defEntry.maxHP > 0 ? (dmg.maxDmg / defEntry.maxHP * 100).toFixed(1) : 0;
-            $el.html('<span class="rsa-dbl-dmg-line' + killCls + '">' +
-                dmg.minDmg + '-' + dmg.maxDmg + ' (' + pctMin + '-' + pctMax + '%)' +
-                (isKill ? ' KO!' : '') + '</span>');
+            // Determine target slots (the other 3 mons)
+            var targets = [];
+            for (var ti = 0; ti < slotIds.length; ti++) {
+                if (slotIds[ti] !== sid) targets.push(slotIds[ti]);
+            }
+
+            // Target header row
+            html += '<div class="rsa-dbl-target-headers">';
+            html += '<div class="rsa-dbl-target-hdr">Move</div>';
+            for (var ti = 0; ti < targets.length; ti++) {
+                var tgt = targets[ti];
+                var tEntry = entries[tgt];
+                var tLabel = tEntry ? tEntry.name : tgt;
+                var tSlotTag = slotLabels[tgt] === 'Left' ? 'L' : 'R';
+                var tSide = tgt.indexOf('p1') === 0 ? 'P1' : 'P2';
+                html += '<div class="rsa-dbl-target-hdr">' + esc(tLabel) + ' <small>(' + tSide + tSlotTag + ')</small></div>';
+            }
+            html += '</div>';
+
+            // Move rows
+            var moves = getEntryMoves(entry);
+            var hasMoves = false;
+            for (var mi = 0; mi < moves.length; mi++) {
+                var moveName = moves[mi];
+                if (!moveName || moveName === '(No Move)') continue;
+                hasMoves = true;
+
+                var md = lookupMoveData(moveName);
+                var typeSprite = md && md.type ? '<img class="rsa-type-sprite" src="' + esc(getTypeSpriteUrl(md.type)) + '" alt="" title="' + esc(md.type) + '">' : '';
+                var catSprite = md && md.category ? '<img class="rsa-cat-sprite" src="' + esc(getCategorySpriteUrl(md.category)) + '" alt="" title="' + esc(md.category) + '">' : '';
+
+                var sel = dblSelections[sid];
+                var isSelectedMove = sel && sel.move === moveName;
+                var rowCls = isSelectedMove ? ' rsa-dbl-selected' : '';
+
+                html += '<div class="rsa-dbl-move-row' + rowCls + '" data-slot="' + sid + '" data-move="' + esc(moveName) + '">';
+                html += '<div class="rsa-dbl-move-name">' + typeSprite + catSprite + ' ' + esc(moveName) + '</div>';
+
+                // Damage cell for each target
+                for (var ti = 0; ti < targets.length; ti++) {
+                    var tgt = targets[ti];
+                    var defEntry = entries[tgt];
+                    var isSelectedTarget = isSelectedMove && sel.target === tgt;
+                    var cellCls = isSelectedTarget ? ' rsa-dbl-target-selected' : '';
+
+                    if (!defEntry || defEntry.currentHP <= 0) {
+                        html += '<div class="rsa-dbl-dmg-cell rsa-dbl-dmg-immune' + cellCls + '" data-slot="' + sid + '" data-move="' + esc(moveName) + '" data-target="' + tgt + '">—</div>';
+                        continue;
+                    }
+
+                    var dmg = calcDamageDirect(entry, defEntry, moveName);
+                    if (!dmg || (dmg.minDmg === 0 && dmg.maxDmg === 0)) {
+                        html += '<div class="rsa-dbl-dmg-cell rsa-dbl-dmg-immune' + cellCls + '" data-slot="' + sid + '" data-move="' + esc(moveName) + '" data-target="' + tgt + '">immune</div>';
+                        continue;
+                    }
+
+                    var defHP = defEntry.currentHP || defEntry.maxHP;
+                    var isKO = dmg.minDmg >= defHP;
+                    var pctMin = defEntry.maxHP > 0 ? (dmg.minDmg / defEntry.maxHP * 100).toFixed(0) : 0;
+                    var pctMax = defEntry.maxHP > 0 ? (dmg.maxDmg / defEntry.maxHP * 100).toFixed(0) : 0;
+                    var koCls = isKO ? ' rsa-dbl-dmg-ko' : '';
+
+                    html += '<div class="rsa-dbl-dmg-cell' + koCls + cellCls + '" data-slot="' + sid + '" data-move="' + esc(moveName) + '" data-target="' + tgt + '">' +
+                        dmg.minDmg + '-' + dmg.maxDmg +
+                        '<br><small>' + pctMin + '-' + pctMax + '%' + (isKO ? ' KO!' : '') + '</small>' +
+                    '</div>';
+                }
+                html += '</div>';
+            }
+
+            if (!hasMoves) {
+                html += '<div class="rsa-dbl-no-move">No moves available</div>';
+            }
+
+            // "No move" option row
+            var noMoveSelected = sel && sel.move === null;
+            html += '<div class="rsa-dbl-move-row' + (noMoveSelected ? ' rsa-dbl-selected' : '') + '" data-slot="' + sid + '" data-move="none">';
+            html += '<div class="rsa-dbl-move-name" style="color:#718096;font-style:italic">— No Move —</div>';
+            for (var ti = 0; ti < targets.length; ti++) {
+                html += '<div class="rsa-dbl-dmg-cell"></div>';
+            }
+            html += '</div>';
+
+            html += '</div>'; // close panel
         }
+
+        $('#rsa-dbl-grid').html(html);
     }
+
+    // Alias for backward compat
+    function updateDblDamagePreview() { refreshDoublesUI(); }
 
     // ════════════════════════════════════════════════════════════
     // EXTRA DAMAGE SOURCES
@@ -1435,12 +1456,31 @@
         team.activeIdx = newActiveIdx;
         if (team.activeIdx < 0 && newRoster.length > 0) team.activeIdx = 0;
         if (team.activeIdx >= newRoster.length) team.activeIdx = newRoster.length - 1;
-        // Doubles: auto-set B slot if not set
-        if (isDoubles() && team.roster.length >= 2 && (team.activeIdxB < 0 || team.activeIdxB === team.activeIdx)) {
-            for (var bi = 0; bi < team.roster.length; bi++) {
-                if (bi !== team.activeIdx && team.roster[bi].currentHP > 0) {
-                    team.activeIdxB = bi;
-                    break;
+        // Doubles: auto-set A and B slots
+        if (isDoubles() && team.roster.length >= 2) {
+            if (battleFormat === 'doubles-2t' && line.teamSplit) {
+                // 2-trainer: left team mon 0 → slot A, right team mon 0 → slot B
+                var leftMax = line.teamSplit.left || 3;
+                // A slot = first alive mon in left group (indices 0..leftMax-1)
+                var foundA = false;
+                for (var li = 0; li < Math.min(leftMax, team.roster.length); li++) {
+                    if (team.roster[li].currentHP > 0) { team.activeIdx = li; foundA = true; break; }
+                }
+                if (!foundA) team.activeIdx = 0;
+                // B slot = first alive mon in right group (indices leftMax..)
+                var foundB = false;
+                for (var ri = leftMax; ri < team.roster.length; ri++) {
+                    if (team.roster[ri].currentHP > 0) { team.activeIdxB = ri; foundB = true; break; }
+                }
+                if (!foundB && team.roster.length > leftMax) team.activeIdxB = leftMax;
+                else if (!foundB) team.activeIdxB = team.activeIdx === 0 ? 1 : 0;
+            } else if (team.activeIdxB < 0 || team.activeIdxB === team.activeIdx) {
+                // 1-trainer: first non-active alive mon
+                for (var bi = 0; bi < team.roster.length; bi++) {
+                    if (bi !== team.activeIdx && team.roster[bi].currentHP > 0) {
+                        team.activeIdxB = bi;
+                        break;
+                    }
                 }
             }
         }
@@ -1524,6 +1564,10 @@
         } else {
             team.activeIdxB = newIdx;
         }
+
+        // Reset selection for the switched slot
+        var slotKey = (side === 'p1' ? 'p1' : 'p2') + (slot === 'a' ? 'a' : 'b');
+        dblSelections[slotKey] = { move: null, target: null };
 
         renderTeamPanel(side);
         refreshDoublesUI();
@@ -2049,17 +2093,18 @@
             p2b: getActiveEntryB(p2Team)
         };
 
-        // Get selected moves and targets from the doubles UI
+        // Get selected moves and targets from the doubles selection state
         var actions = {};
         var slotIds = ['p1a', 'p1b', 'p2a', 'p2b'];
         for (var si = 0; si < slotIds.length; si++) {
             var sid = slotIds[si];
-            var moveName = $('#rsa-dbl-move-' + sid).val();
-            var target = $('#rsa-dbl-target-' + sid).val();
+            var sel = dblSelections[sid];
+            var moveName = sel ? sel.move : null;
+            var target = sel ? sel.target : null;
             var entry = fighters[sid];
             actions[sid] = {
                 entry: entry,
-                moveName: (moveName && moveName !== 'none') ? moveName : null,
+                moveName: moveName,
                 target: target,
                 fainted: !entry || entry.currentHP <= 0,
                 side: sid.substring(0, 2), // 'p1' or 'p2'
@@ -2672,7 +2717,8 @@
                 ? '<select class="rsa-item-select" data-side="' + side + '" data-idx="' + i + '">' + getItemOptionsHtml() + '</select>'
                 : (e.item ? '<span class="rsa-item-badge" title="' + esc(getItemDesc(e.item)) + '"><img class="rsa-item-sprite" src="' + esc(getItemSpriteUrl(e.item)) + '" alt="" onerror="this.style.display=\'none\'"> ' + esc(e.item) + '</span>' : '');
 
-            html += '<div class="rsa-team-slot rsa-team-slot-' + side + active + fainted + statusCls + ccClass + '" data-side="' + side + '" data-idx="' + i + '">' +
+            var dragAttr = isDoubles() ? ' draggable="true"' : '';
+            html += '<div class="rsa-team-slot rsa-team-slot-' + side + active + fainted + statusCls + ccClass + '"' + dragAttr + ' data-side="' + side + '" data-idx="' + i + '">' +
                 '<img class="rsa-team-sprite" src="' + esc(e.sprite) + '" alt="' + esc(e.name) + '" title="' + esc(teamDefTooltip) + '">' +
                 '<div class="rsa-team-info">' +
                     '<div class="rsa-team-name">' + esc(e.name) + ' ' + speedText + '</div>' +
@@ -3644,6 +3690,8 @@
 
             // Initialize B slots for doubles if needed
             if (isDoubles()) {
+                dblSelections = { p1a: { move: null, target: null }, p1b: { move: null, target: null },
+                                  p2a: { move: null, target: null }, p2b: { move: null, target: null } };
                 var line = curLine();
                 ['p1', 'p2'].forEach(function (side) {
                     var team = line.teams[side];
@@ -3657,9 +3705,32 @@
             renderAll();
         });
 
-        // ── Doubles move/target change → update damage preview ──
-        $(document).on('change', '.rsa-dbl-move, .rsa-dbl-target', function () {
-            updateDblDamagePreview();
+        // ── Doubles move grid: click a damage cell to select move + target ──
+        $(document).on('click', '.rsa-dbl-dmg-cell', function (e) {
+            e.stopPropagation();
+            var slot = $(this).data('slot');
+            var move = $(this).data('move');
+            var target = $(this).data('target');
+            if (!slot || !move || !target) return;
+            dblSelections[slot] = { move: move, target: target };
+            refreshDoublesUI();
+        });
+        // Click a move row to select the move (first valid target auto-selected)
+        $(document).on('click', '.rsa-dbl-move-row', function () {
+            var slot = $(this).data('slot');
+            var move = $(this).data('move');
+            if (!slot) return;
+            if (move === 'none') {
+                dblSelections[slot] = { move: null, target: null };
+            } else {
+                // Auto-select first valid target if not clicking a specific cell
+                var existing = dblSelections[slot];
+                if (!existing || existing.move !== move) {
+                    var firstTarget = $(this).find('.rsa-dbl-dmg-cell[data-target]').first().data('target');
+                    dblSelections[slot] = { move: move, target: firstTarget || null };
+                }
+            }
+            refreshDoublesUI();
         });
 
         // ── Doubles switch buttons ──
@@ -3677,7 +3748,22 @@
             var val = parseInt($(this).val()) || 3;
             var line = curLine();
             line.teamSplit = { left: val };
+            // Re-assign P2 active slots based on new split
+            var team = line.teams.p2;
+            if (team.roster.length >= 2) {
+                var leftMax = val;
+                // A = first alive in left group
+                for (var li = 0; li < Math.min(leftMax, team.roster.length); li++) {
+                    if (team.roster[li].currentHP > 0) { team.activeIdx = li; break; }
+                }
+                // B = first alive in right group
+                for (var ri = leftMax; ri < team.roster.length; ri++) {
+                    if (team.roster[ri].currentHP > 0) { team.activeIdxB = ri; break; }
+                }
+            }
+            renderTeamPanel('p2');
             populateSwitchDropdown();
+            refreshDoublesUI();
         });
 
         // ── Move the move-result-group into the controls area ──
@@ -4012,6 +4098,7 @@
         $(document).on('dragend', '.rsa-box-slot', function () {
             $(this).removeClass('dragging');
             $('.rsa-team-drop').removeClass('rsa-drag-over');
+            $('.rsa-active-slot').removeClass('rsa-drag-over');
         });
 
         $(document).on('dragover', '.rsa-team-drop', function (e) {
@@ -4058,7 +4145,45 @@
                 loadPokemonIntoForm('p1', entry);
                 renderTeamPanel(side);
                 renderBox(side);
+                if (isDoubles()) refreshDoublesUI();
             } catch (ex) { /* ignore bad data */ }
+        });
+
+        // ── Drag team roster mons to active field slots (doubles) ──
+        $(document).on('dragstart', '.rsa-team-slot[draggable]', function (e) {
+            var side = $(this).data('side');
+            var idx = parseInt($(this).data('idx'));
+            $(this).addClass('dragging');
+            e.originalEvent.dataTransfer.setData('text/plain', JSON.stringify({
+                type: 'team-slot', side: side, idx: idx
+            }));
+            e.originalEvent.dataTransfer.effectAllowed = 'move';
+        });
+        $(document).on('dragend', '.rsa-team-slot', function () {
+            $(this).removeClass('dragging');
+            $('.rsa-active-slot').removeClass('rsa-drag-over');
+        });
+        $(document).on('dragover', '.rsa-active-slot', function (e) {
+            e.preventDefault();
+            e.originalEvent.dataTransfer.dropEffect = 'move';
+            $(this).addClass('rsa-drag-over');
+        });
+        $(document).on('dragleave', '.rsa-active-slot', function () {
+            $(this).removeClass('rsa-drag-over');
+        });
+        $(document).on('drop', '.rsa-active-slot', function (e) {
+            e.preventDefault();
+            $(this).removeClass('rsa-drag-over');
+            try {
+                var data = JSON.parse(e.originalEvent.dataTransfer.getData('text/plain'));
+                if (!data || data.type !== 'team-slot') return;
+                var side = $(this).data('side');
+                if (data.side !== side) return; // can only drop to same side
+                var newIdx = data.idx;
+                var isLeft = $(this).hasClass('rsa-slot-left');
+                var slot = isLeft ? 'a' : 'b';
+                doDoublesSwitch(side, slot, newIdx);
+            } catch (ex) {}
         });
 
         // Click box slot to add to P1 team (alternative to drag)
@@ -4091,6 +4216,7 @@
             loadPokemonIntoForm('p1', entry);
             renderTeamPanel('p1');
             renderBox('p1');
+            if (isDoubles()) refreshDoublesUI();
         });
 
         // ── Coverage analysis button ──

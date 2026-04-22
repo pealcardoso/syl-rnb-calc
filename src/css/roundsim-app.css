@@ -1111,6 +1111,13 @@ fieldset {
 .rsa-active-slot .rsa-team-sprite { width: 40px; height: 40px; }
 .rsa-active-slot .rsa-team-name { font-size: 0.8em; color: #e2e8f0; }
 .rsa-active-slot.rsa-fainted { opacity: 0.4; }
+.rsa-active-slot.rsa-drag-over {
+    background: rgba(66,153,225,0.15);
+    border-color: #4299e1 !important;
+    outline: 2px dashed #4299e1;
+}
+.rsa-team-slot[draggable] { cursor: grab; }
+.rsa-team-slot.dragging { opacity: 0.4; }
 
 /* ── Bench area label ───────────────────────────────────── */
 .rsa-bench-label {
@@ -1118,50 +1125,90 @@ fieldset {
     letter-spacing: 0.5px; margin: 4px 0 2px 0;
 }
 
-/* ── Doubles move grid ──────────────────────────────────── */
-.rsa-doubles-grid {
+/* ── Doubles move grid (new: 4 panels with full move × target matrix) ── */
+.rsa-dbl-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 8px;
 }
-.rsa-dbl-slot {
+.rsa-dbl-panel {
     border: 1px solid #4a5568;
     border-radius: 6px;
-    padding: 8px;
+    padding: 6px 8px;
     background: #1e2a3a;
 }
-.rsa-dbl-slot-p2 { background: #2a1e1e; }
-.rsa-dbl-slot-header { 
-    margin-bottom: 4px;
-    font-weight: 600;
-    font-size: 0.85em;
-    color: #e2e8f0;
-}
-.rsa-dbl-slot-header .rsa-dbl-slot-name { color: #63b3ed; }
-.rsa-dbl-slot-p2 .rsa-dbl-slot-header .rsa-dbl-slot-name { color: #fc8181; }
-.rsa-dbl-move {
-    width: 100%;
-    background: #2d3748; color: #e2e8f0; border: 1px solid #4a5568;
-    border-radius: 3px; padding: 4px; font-size: 0.85em;
-}
-.rsa-dbl-target-row {
+.rsa-dbl-panel-p2 { background: #2a1e1e; }
+.rsa-dbl-panel-header {
     display: flex; align-items: center; gap: 6px;
-    margin-top: 4px; font-size: 0.8em; color: #a0aec0;
+    margin-bottom: 4px; padding-bottom: 4px;
+    border-bottom: 1px solid #2d3748;
 }
-.rsa-dbl-target {
-    background: #2d3748; color: #e2e8f0; border: 1px solid #4a5568;
-    border-radius: 3px; padding: 2px 6px; font-size: 0.9em;
+.rsa-dbl-panel-sprite { width: 32px; height: 32px; image-rendering: pixelated; }
+.rsa-dbl-panel-name { font-weight: 600; font-size: 0.85em; }
+.rsa-dbl-panel-name-p1 { color: #63b3ed; }
+.rsa-dbl-panel-name-p2 { color: #fc8181; }
+.rsa-dbl-panel-slot-label {
+    font-size: 0.6em; font-weight: 700; text-transform: uppercase;
+    padding: 1px 5px; border-radius: 3px; color: #fff;
 }
-.rsa-dbl-dmg {
-    margin-top: 4px;
-    font-size: 0.75em;
-    color: #a0aec0;
-    min-height: 16px;
+.rsa-dbl-panel-slot-label-left { background: #dd6b20; }
+.rsa-dbl-panel-slot-label-right { background: #805ad5; }
+
+/* Target header row */
+.rsa-dbl-target-headers {
+    display: grid;
+    grid-template-columns: minmax(100px, 1.5fr) repeat(3, 1fr);
+    gap: 2px;
+    margin-bottom: 2px;
+    padding: 2px 0;
 }
-.rsa-dbl-dmg .rsa-dbl-dmg-line {
-    padding: 1px 0;
+.rsa-dbl-target-hdr {
+    font-size: 0.6em; font-weight: 600; color: #718096;
+    text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.rsa-dbl-dmg .rsa-dbl-kill { color: #fc8181; font-weight: 700; }
+.rsa-dbl-target-hdr:first-child { text-align: left; }
+
+/* Move row (1 move × 3 targets) */
+.rsa-dbl-move-row {
+    display: grid;
+    grid-template-columns: minmax(100px, 1.5fr) repeat(3, 1fr);
+    gap: 2px;
+    padding: 2px 0;
+    border-bottom: 1px solid rgba(74,85,104,0.3);
+    cursor: pointer;
+}
+.rsa-dbl-move-row:last-child { border-bottom: none; }
+.rsa-dbl-move-row:hover { background: rgba(255,255,255,0.04); }
+.rsa-dbl-move-row.rsa-dbl-selected { background: rgba(66,153,225,0.15); }
+.rsa-dbl-panel-p2 .rsa-dbl-move-row.rsa-dbl-selected { background: rgba(252,129,129,0.12); }
+
+/* Move name cell */
+.rsa-dbl-move-name {
+    font-size: 0.75em; font-weight: 600; color: #e2e8f0;
+    padding: 2px 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    display: flex; align-items: center; gap: 3px;
+}
+.rsa-dbl-move-name .rsa-type-sprite { width: 14px; height: 14px; }
+.rsa-dbl-move-name .rsa-cat-sprite { width: 14px; height: 14px; }
+
+/* Damage cell (per target) */
+.rsa-dbl-dmg-cell {
+    font-size: 0.65em; color: #a0aec0; text-align: center;
+    padding: 2px; border-radius: 3px; cursor: pointer; position: relative;
+}
+.rsa-dbl-dmg-cell:hover { background: rgba(255,255,255,0.06); }
+.rsa-dbl-dmg-cell.rsa-dbl-target-selected {
+    outline: 2px solid #4299e1; background: rgba(66,153,225,0.12);
+}
+.rsa-dbl-panel-p2 .rsa-dbl-dmg-cell.rsa-dbl-target-selected {
+    outline-color: #fc8181; background: rgba(252,129,129,0.12);
+}
+.rsa-dbl-dmg-ko { color: #fc8181; font-weight: 700; }
+.rsa-dbl-dmg-immune { color: #718096; font-style: italic; }
+.rsa-dbl-no-move {
+    font-size: 0.7em; color: #718096; font-style: italic;
+    padding: 4px; text-align: center;
+}
 
 /* ── Doubles round card layout ──────────────────────────── */
 .rsa-round-body.rsa-round-body-doubles {
