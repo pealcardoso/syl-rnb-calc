@@ -2422,7 +2422,6 @@
                     p2act.target = Math.random() < tgtProb0 ? p1Targets[0].slot : p1Targets[1].slot;
                     p2act.aiNote = Math.abs(tgtProb0 - 0.5) < 0.01 ? 'random target' : 'weighted target';
                 }
-                }
             }
         }
 
