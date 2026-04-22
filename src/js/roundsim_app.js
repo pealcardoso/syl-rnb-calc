@@ -748,6 +748,54 @@
     var lines = [createLine('Line A')];
     var currentLineIdx = 0;
 
+    // ════════════════════════════════════════════════════════════
+    // SESSION SAVE / LOAD
+    // ════════════════════════════════════════════════════════════
+
+    var RSA_STORAGE_KEY = 'rsa-session-v1';
+
+    function serializeSession() {
+        return JSON.stringify({
+            v: 1,
+            battleFormat: battleFormat,
+            currentLineIdx: currentLineIdx,
+            lines: lines
+        });
+    }
+
+    function deserializeSession(json) {
+        var data = JSON.parse(json);
+        if (!data || !Array.isArray(data.lines) || data.lines.length === 0) return false;
+        lines = data.lines;
+        battleFormat = data.battleFormat || 'singles';
+        currentLineIdx = Math.min(data.currentLineIdx || 0, lines.length - 1);
+        return true;
+    }
+
+    function autoSave() {
+        try { localStorage.setItem(RSA_STORAGE_KEY, serializeSession()); } catch (e) {}
+    }
+
+    function hasSavedSession() {
+        return !!localStorage.getItem(RSA_STORAGE_KEY);
+    }
+
+    function showSaveToast(msg, duration) {
+        var toast = document.getElementById('rsa-save-toast');
+        if (!toast) {
+            toast = document.createElement('div');
+            toast.id = 'rsa-save-toast';
+            toast.style.cssText = 'position:fixed;bottom:22px;right:22px;background:var(--bg-card,#23272f);' +
+                'color:var(--text,#e8eaf0);border:1px solid #4caf50;border-radius:8px;padding:9px 18px;' +
+                'font-size:0.9em;z-index:10000;box-shadow:0 4px 16px rgba(0,0,0,0.35);transition:opacity 0.4s;pointer-events:none';
+            document.body.appendChild(toast);
+        }
+        toast.textContent = msg;
+        toast.style.opacity = '1';
+        clearTimeout(toast._t);
+        toast._t = setTimeout(function () { toast.style.opacity = '0'; }, duration || 2000);
+    }
+
     // Track selected moves from calc radio buttons (independent for P1 and P2)
     var selectedP1Move = 'none';  // 0-3 or 'none'
     var selectedP2Move = 'none';
@@ -4425,6 +4473,21 @@
     // ════════════════════════════════════════════════════════════
 
     $(document).ready(function () {
+        // ── Auto-restore saved session on page load ──
+        var _savedSession = localStorage.getItem(RSA_STORAGE_KEY);
+        if (_savedSession) {
+            try {
+                deserializeSession(_savedSession);
+                // Restore format UI after deserializing
+                if (isDoubles()) {
+                    $('body').addClass('rsa-format-doubles');
+                    $('[data-format="' + battleFormat + '"]').addClass('rsa-format-active');
+                    $('#rsa-doubles-moves').show();
+                }
+            } catch (ex) {
+                console.warn('RSA: failed to restore session', ex);
+            }
+        }
         renderAll();
 
         // ── Format selector ──
@@ -4671,6 +4734,7 @@
             lines.push(createLine(name));
             currentLineIdx = lines.length - 1;
             renderAll();
+            autoSave();
         });
 
         $('#rsa-delete-line').on('click', function () {
@@ -4679,6 +4743,46 @@
             lines.splice(currentLineIdx, 1);
             currentLineIdx = Math.min(currentLineIdx, lines.length - 1);
             renderAll();
+            autoSave();
+        });
+
+        // ── Session save / load / clear ──
+        $('#rsa-save-session').on('click', function () {
+            autoSave();
+            showSaveToast('✅ Session saved!');
+        });
+
+        $('#rsa-load-session').on('click', function () {
+            var saved = localStorage.getItem(RSA_STORAGE_KEY);
+            if (!saved) { alert('No saved session found.'); return; }
+            if (!confirm('Load saved session? Unsaved current work will be overwritten.')) return;
+            try {
+                if (deserializeSession(saved)) {
+                    // Restore format UI
+                    $('.rsa-format-btn').removeClass('rsa-format-active');
+                    $('[data-format="' + battleFormat + '"]').addClass('rsa-format-active');
+                    if (isDoubles()) {
+                        $('body').addClass('rsa-format-doubles');
+                        $('#rsa-doubles-moves').show();
+                        $('.rsa-active-field').addClass('rsa-show');
+                        $('.rsa-doubles-switch').show();
+                    } else {
+                        $('body').removeClass('rsa-format-doubles');
+                        $('#rsa-doubles-moves').hide();
+                        $('.rsa-active-field').removeClass('rsa-show');
+                        $('.rsa-doubles-switch').hide();
+                    }
+                    renderAll();
+                    showSaveToast('📂 Session loaded!');
+                }
+            } catch (ex) { alert('Failed to load session: ' + ex.message); }
+        });
+
+        $('#rsa-clear-session').on('click', function () {
+            if (!hasSavedSession()) { alert('No saved session to clear.'); return; }
+            if (!confirm('Delete the saved session from browser storage?')) return;
+            localStorage.removeItem(RSA_STORAGE_KEY);
+            showSaveToast('🗑️ Saved session cleared.');
         });
 
         $('#rsa-line-tabs').on('click', '.rsa-tab', function () {
@@ -4725,6 +4829,7 @@
                 if (!rd) return;
                 curLine().rounds.push(rd);
                 renderAll();
+                autoSave();
                 if (isDoubles()) refreshDoublesUI();
                 $('#rsa-comment').val('');
                 if (!isDoubles()) {
@@ -4856,6 +4961,7 @@
             line.rounds = line.rounds.filter(function (r) { return r.roundNum !== num; });
             rebuildLineTeams(line);
             renderAll();
+            autoSave();
         });
 
         // ── Clear line ──
@@ -4867,6 +4973,7 @@
             line.roundCounter = 0;
             rebuildLineTeams(line);
             renderAll();
+            autoSave();
         });
 
         // ── Import panel toggle ──

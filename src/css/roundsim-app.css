@@ -260,6 +260,10 @@
 .rsa-line-btn:hover { background: #4a5568; color: #fff; }
 .rsa-line-btn-danger { border-color: #e53e3e; color: #fc8181; }
 .rsa-line-btn-danger:hover { background: #e53e3e; color: #fff; }
+.rsa-line-btn-save { border-color: #38a169; color: #68d391; }
+.rsa-line-btn-save:hover { background: #38a169; color: #fff; }
+.rsa-line-btn-load { border-color: #3182ce; color: #63b3ed; }
+.rsa-line-btn-load:hover { background: #3182ce; color: #fff; }
 
 /* ── Team Panels ──────────────────────────────────────────── */
 .rsa-team-panel {
