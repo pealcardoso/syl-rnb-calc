@@ -1887,6 +1887,16 @@
     function captureRound(p1MoveIdx, p2MoveIdx, p2Crit, p1PreDmg, p1PreStatus, comment, p1ApplySecondary, p2ApplySecondary) {
         var line = curLine();
 
+        // Decrement trick room counter at the start of each singles round
+        var fldSR = line.fieldState;
+        if ($('#trickroom').is(':checked') && fldSR.trickRoomTurns > 0) {
+            fldSR.trickRoomTurns--;
+            if (fldSR.trickRoomTurns <= 0) {
+                fldSR.trickRoomTurns = 0;
+                $('#trickroom').prop('checked', false).trigger('change');
+            }
+        }
+
         // Save current form state to roster
         saveFormToRoster('p1');
         saveFormToRoster('p2');
@@ -2228,6 +2238,27 @@
         // P2 bestCase (from P1's perspective): best for P1 = P2 has LESS HP, so bestCase <= worst
         p2BestAfter = Math.min(p2BestAfter, p2HPAfter);
 
+        // Selfdestruct moves KO the user if they dealt damage
+        if (p1MoveData && p1MoveData.selfdestruct && !p1Flinched && p1DmgToP2Max > 0) {
+            p1HPAfter = 0; p1BestAfter = 0;
+        }
+        if (p2MoveData && p2MoveData.selfdestruct && !p2Flinched && p2DmgToP1Max > 0) {
+            p2HPAfter = 0; p2BestAfter = 0;
+        }
+
+        // Trick Room: if either side used Trick Room, toggle the checkbox and counter
+        if ((p1MoveData && p1MoveData.pseudoWeather === 'trickroom') ||
+            (p2MoveData && p2MoveData.pseudoWeather === 'trickroom')) {
+            var fldS = curLine().fieldState;
+            if (fldS.trickRoomTurns > 0) {
+                fldS.trickRoomTurns = 0;
+                $('#trickroom').prop('checked', false).trigger('change');
+            } else {
+                fldS.trickRoomTurns = 5;
+                $('#trickroom').prop('checked', true).trigger('change');
+            }
+        }
+
         // Update roster HP
         p1Entry.currentHP = p1HPAfter;
         p1Entry.bestCaseHP = p1BestAfter;
@@ -2427,6 +2458,16 @@
 
         // Compute speed for all 4 mons and determine turn order
         var tr = $('#trickroom').is(':checked');
+        // Decrement trick room counter at start of round (after previous round set it)
+        var fld2 = curLine().fieldState;
+        if (tr && fld2.trickRoomTurns != null && fld2.trickRoomTurns > 0) {
+            fld2.trickRoomTurns--;
+            if (fld2.trickRoomTurns <= 0) {
+                fld2.trickRoomTurns = 0;
+                $('#trickroom').prop('checked', false).trigger('change');
+                tr = false;
+            }
+        }
         var order = [];
         for (var si = 0; si < slotIds.length; si++) {
             var sid = slotIds[si];
@@ -2724,6 +2765,32 @@
                 }
             }
 
+            // Selfdestruct moves (Explosion, Self-Destruct) KO the user
+            if (moveData && moveData.selfdestruct && dmgResults.length > 0) {
+                // Only KO if at least one target was actually hit (not all protected)
+                var hitAny = false;
+                for (var di = 0; di < dmgResults.length; di++) {
+                    if (!dmgResults[di].blocked) { hitAny = true; break; }
+                }
+                if (hitAny) {
+                    act.entry.currentHP = 0;
+                    if (act.entry.bestCaseHP != null) act.entry.bestCaseHP = 0;
+                }
+            }
+
+            // Trick Room: detect and set counter on the line
+            if (moveData && moveData.pseudoWeather === 'trickroom') {
+                var fld = curLine().fieldState;
+                if (fld.trickRoomTurns > 0) {
+                    // Second TR cancels the first
+                    fld.trickRoomTurns = 0;
+                    $('#trickroom').prop('checked', false).trigger('change');
+                } else {
+                    fld.trickRoomTurns = 5;
+                    $('#trickroom').prop('checked', true).trigger('change');
+                }
+            }
+
             roundActions.push({
                 slot: sid,
                 name: act.entry.name,
@@ -2793,6 +2860,8 @@
                 maxHP: e.maxHP
             };
         }
+        // Store trick room turns remaining in round data for display
+        rd.trickRoomTurns = curLine().fieldState.trickRoomTurns || 0;
 
         // AI: predict switch-ins for fainted P2 mons (position-based: across the field)
         rd.switchPreds = {};
@@ -2822,7 +2891,10 @@
         var tags = '';
         if (rd.weather !== 'None') tags += '<span class="rsa-tag rsa-weather">' + esc(rd.weather) + '</span>';
         if (rd.terrain !== 'None') tags += '<span class="rsa-tag rsa-terrain">' + esc(rd.terrain) + '</span>';
-        if (rd.trickRoom) tags += '<span class="rsa-tag rsa-trickroom">Trick Room</span>';
+        if (rd.trickRoom) {
+            var trTurns = rd.trickRoomTurns > 0 ? ' (' + rd.trickRoomTurns + ' left)' : '';
+            tags += '<span class="rsa-tag rsa-trickroom">Trick Room' + trTurns + '</span>';
+        }
 
         // Speed order display with sprites
         var orderHtml = '';
@@ -3274,12 +3346,28 @@
                 teamDefTooltip = buildDefTooltip(e.name, tInfo.types, tInfo.ability);
             } catch (ex) {}
 
-            // Speed stat lookup
+            // Speed stat lookup (apply item/status modifiers for accurate display)
             var speedText = '';
             try {
                 var tmpPoke = createPokemon(e.setId);
                 if (tmpPoke && tmpPoke.stats && tmpPoke.stats.spe) {
-                    speedText = '<span class="rsa-team-speed" title="Speed: ' + tmpPoke.stats.spe + '">⚡' + tmpPoke.stats.spe + '</span>';
+                    var dispSpd = tmpPoke.stats.spe;
+                    // Item modifiers
+                    if (e.item === 'Iron Ball' || e.item === 'Macho Brace' || e.item === 'Power Weight' ||
+                        e.item === 'Power Bracer' || e.item === 'Power Belt' || e.item === 'Power Lens' ||
+                        e.item === 'Power Band' || e.item === 'Power Anklet') {
+                        dispSpd = Math.floor(dispSpd * 0.5);
+                    } else if (e.item === 'Choice Scarf') {
+                        dispSpd = Math.floor(dispSpd * 1.5);
+                    } else if (e.item === 'Quick Powder' && e.name === 'Ditto') {
+                        dispSpd = dispSpd * 2;
+                    }
+                    // Ability modifiers
+                    if (e.ability === 'Quick Feet' && e.status) dispSpd = Math.floor(dispSpd * 1.5);
+                    if (e.ability === 'Slow Start') dispSpd = Math.floor(dispSpd * 0.5);
+                    // Status modifiers
+                    if (e.status === 'Paralysis' && e.ability !== 'Quick Feet') dispSpd = Math.floor(dispSpd * 0.5);
+                    speedText = '<span class="rsa-team-speed" title="Speed: ' + dispSpd + '">⚡' + dispSpd + '</span>';
                 }
             } catch (ex) {}
 
