@@ -351,7 +351,13 @@
      * p1SetIdOrCalc = setId string for full-HP box mode, or '$p1' for live form
      * Returns { name, sprite, score, reason, scores[] } or null
      */
-    function predictSwitchIn(p1SetIdOrCalc) {
+    /**
+     * Predict the best P2 switch-in against a given P1 reference pokemon.
+     * @param {string} p1SetIdOrCalc  setId of P1's relevant mon, or '$p1' to read the form.
+     * @param {string} [forSlot]      'p2a' or 'p2b' — used in doubles-2t to restrict candidates
+     *                                to only the trainer whose slot fainted.
+     */
+    function predictSwitchIn(p1SetIdOrCalc, forSlot) {
         var line = curLine();
         var team = line.teams.p2;
         if (team.roster.length < 2) return null;
@@ -368,9 +374,22 @@
 
         var activeP2 = getActiveEntry(team);
         var activeP2B = getActiveEntryB(team); // in doubles, second active slot must also be excluded
+
+        // In doubles-2t, restrict candidates to the same trainer's mons.
+        // Left trainer owns indices 0..leftMax-1; right trainer owns leftMax..end.
+        var idxMin = 0, idxMax = team.roster.length - 1;
+        if (battleFormat === 'doubles-2t' && line.teamSplit && forSlot) {
+            var leftMax2t = line.teamSplit.left || 3;
+            if (forSlot === 'p2a') {
+                idxMax = leftMax2t - 1;
+            } else if (forSlot === 'p2b') {
+                idxMin = leftMax2t;
+            }
+        }
+
         var candidates = [];
 
-        for (var i = 0; i < team.roster.length; i++) {
+        for (var i = idxMin; i <= Math.min(idxMax, team.roster.length - 1); i++) {
             var e = team.roster[i];
             // Skip both active P2 slots and fainted mons
             if (activeP2 && e.name === activeP2.name) continue;
@@ -2950,17 +2969,21 @@
         // AI: predict switch-ins for fainted P2 mons (position-based: across the field)
         rd.switchPreds = {};
         if (fighters.p2a && fighters.p2a.currentHP <= 0) {
-            // Left P2 fainted — predict using P1 right (across the field)
+            // Left P2 fainted — predict using P1 left (same-side reference)
             try {
-                var acrossEntry = fighters.p1b;
-                rd.switchPreds.p2a = acrossEntry ? predictSwitchIn(acrossEntry.setId) : predictSwitchIn('$p1');
+                var acrossEntry2a = fighters.p1a;
+                rd.switchPreds.p2a = acrossEntry2a
+                    ? predictSwitchIn(acrossEntry2a.setId, 'p2a')
+                    : predictSwitchIn('$p1', 'p2a');
             } catch (e) {}
         }
         if (fighters.p2b && fighters.p2b.currentHP <= 0) {
-            // Right P2 fainted — predict using P1 left (across the field)
+            // Right P2 fainted — predict using P1 right (same-side reference)
             try {
-                var acrossEntry = fighters.p1a;
-                rd.switchPreds.p2b = acrossEntry ? predictSwitchIn(acrossEntry.setId) : predictSwitchIn('$p1');
+                var acrossEntry2b = fighters.p1b;
+                rd.switchPreds.p2b = acrossEntry2b
+                    ? predictSwitchIn(acrossEntry2b.setId, 'p2b')
+                    : predictSwitchIn('$p1', 'p2b');
             } catch (e) {}
         }
 
