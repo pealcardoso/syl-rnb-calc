@@ -112,6 +112,17 @@
 }
 .rsa-sort-btn:hover { background: #4a5568; }
 .rsa-sort-btn.rsa-sort-active { background: #4299e1; color: #fff; border-color: #4299e1; }
+/* Box calc settings panel */
+.rsa-box-settings {
+    background: #1a202c; border: 1px solid #4a5568; border-radius: 6px;
+    padding: 8px 12px; margin-bottom: 8px; font-size: 0.8em;
+}
+.rsa-settings-row { margin: 4px 0; color: #cbd5e0; }
+.rsa-settings-row label { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+.rsa-settings-row select {
+    background: #2d3748; border: 1px solid #4a5568; color: #cbd5e0;
+    border-radius: 4px; padding: 2px 6px; font-size: 0.95em;
+}
 
 /* Rank badges inside box slots */
 .rsa-rank-badges {
@@ -462,8 +473,18 @@
 #rsa-round-log.rsa-all-collapsed .rsa-dbl-order,
 #rsa-round-log.rsa-all-collapsed .rsa-round-switchpred,
 #rsa-round-log.rsa-all-collapsed .rsa-comment { display: none; }
+/* Individual card collapse */
+.rsa-round-card.rsa-collapsed .rsa-round-body,
+.rsa-round-card.rsa-collapsed .rsa-round-body-doubles,
+.rsa-round-card.rsa-collapsed .rsa-dbl-hp-summary,
+.rsa-round-card.rsa-collapsed .rsa-hp-summary,
+.rsa-round-card.rsa-collapsed .rsa-dbl-order,
+.rsa-round-card.rsa-collapsed .rsa-round-switchpred,
+.rsa-round-card.rsa-collapsed .rsa-comment { display: none; }
+.rsa-round-header { cursor: pointer; }
 .rsa-round-card { border-bottom-left-radius: 8px; border-bottom-right-radius: 8px; }
-#rsa-round-log.rsa-all-collapsed .rsa-round-card { border-radius: 6px; }
+#rsa-round-log.rsa-all-collapsed .rsa-round-card,
+.rsa-round-card.rsa-collapsed { border-radius: 6px; }
 
 
 /* ── Round Card ───────────────────────────────────────────── */

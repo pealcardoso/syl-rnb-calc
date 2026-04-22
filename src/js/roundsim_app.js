@@ -159,6 +159,17 @@
 
     /** Compute offensive (P1→P2) and defensive (P2→P1) damage for each box mon.
      *  Returns array of { name, setId, offMax, defMax } sorted for ranking. */
+    /** Apply simulated item multiplier from boxCalcSettings to a damage % */
+    function applySimItemMultiplier(pct) {
+        switch (boxCalcSettings.simItem) {
+            case 'choice': return pct * 1.5;
+            case 'lifeorb': return pct * 1.3;
+            case 'typeenhance': return pct * 1.2;
+            case 'band': return pct * 1.1;
+            default: return pct;
+        }
+    }
+
     function computeBoxRankings() {
         var mons = getBoxPokemon('p1');
         if (!mons.length) return [];
@@ -186,9 +197,22 @@
                 // Offensive rank: best of all P1 moves vs P2
                 for (var j = 0; j < 4; j++) {
                     var r0 = results[0][j];
+                    // Skip Explosion / Self-Destruct if setting enabled
+                    if (boxCalcSettings.ignoreSelfdestruct && p1.moves[j]) {
+                        var mvName0 = p1.moves[j].name || '';
+                        var mvData0 = lookupMoveData(mvName0);
+                        if (mvData0 && mvData0.selfdestruct) continue;
+                    }
                     var dmg0 = Array.isArray(r0.damage) ? r0.damage[r0.damage.length - 1] : r0.damage;
                     var hits0 = p1.moves[j] ? (p1.moves[j].hits || 1) : 1;
                     var pct0 = dmg0 * hits0 / p2hp * 100;
+                    // Apply simulated item multiplier
+                    pct0 = applySimItemMultiplier(pct0);
+                    // Apply Guts boost if applicable
+                    if (boxCalcSettings.burnGuts && p1.ability === 'Guts') {
+                        var cat0 = p1.moves[j] ? p1.moves[j].category : '';
+                        if (cat0 === 'Physical') pct0 *= 1.5;
+                    }
                     if (pct0 > offMax) offMax = pct0;
                 }
 
@@ -262,6 +286,21 @@
 
     var cachedRankings = [];
     var boxSortMode = 'default'; // 'default', 'offense', 'defense', 'defenseAll'
+
+    // Box calc settings — affect color coding and offense/defense rankings
+    var boxCalcSettings = {
+        ignoreSelfdestruct: false,  // skip Explosion / Self-Destruct in offense calcs
+        burnGuts: false,            // apply 1.5× Atk multiplier for Guts mons
+        simItem: ''                 // '', 'choice', 'lifeorb', 'typeenhance', 'band'
+    };
+    // Attempt to restore from localStorage
+    try {
+        var _bcs = JSON.parse(localStorage.getItem('rsa-box-calc-settings'));
+        if (_bcs) boxCalcSettings = _bcs;
+    } catch (e) {}
+    function saveBoxCalcSettings() {
+        try { localStorage.setItem('rsa-box-calc-settings', JSON.stringify(boxCalcSettings)); } catch (e) {}
+    }
 
     // ════════════════════════════════════════════════════════════
     // AI SWITCH-IN PREDICTION ENGINE
@@ -4980,6 +5019,13 @@
             $(this).text(collapsed ? '\u229e Expand All' : '\u2296 Collapse All');
         });
 
+        // ── Click header to toggle individual round card collapse ──
+        $(document).on('click', '.rsa-round-header', function (e) {
+            // Don't toggle when clicking the delete button
+            if ($(e.target).hasClass('rsa-delete-round')) return;
+            $(this).closest('.rsa-round-card').toggleClass('rsa-collapsed');
+        });
+
         // ── Delete round ──
         $(document).on('click', '.rsa-delete-round', function (e) {
             e.stopPropagation();
@@ -5327,6 +5373,34 @@
             renderBox('p1');
             $('.rsa-sort-btn').removeClass('rsa-sort-active');
             $(this).addClass('rsa-sort-active');
+        });
+
+        // ── Box calc settings panel ──
+        $('#rsa-box-settings-toggle').on('click', function () {
+            $('#rsa-box-settings').toggle();
+        });
+        // Restore checkbox/select state from settings
+        $('#rsa-set-ignore-sd').prop('checked', boxCalcSettings.ignoreSelfdestruct);
+        $('#rsa-set-burn-guts').prop('checked', boxCalcSettings.burnGuts);
+        $('#rsa-set-sim-item').val(boxCalcSettings.simItem || '');
+        // On setting change: persist, recompute rankings, re-render
+        $('#rsa-set-ignore-sd').on('change', function () {
+            boxCalcSettings.ignoreSelfdestruct = $(this).is(':checked');
+            saveBoxCalcSettings();
+            cachedRankings = []; try { cachedRankings = computeBoxRankings(); } catch (e) {}
+            renderBox('p1');
+        });
+        $('#rsa-set-burn-guts').on('change', function () {
+            boxCalcSettings.burnGuts = $(this).is(':checked');
+            saveBoxCalcSettings();
+            cachedRankings = []; try { cachedRankings = computeBoxRankings(); } catch (e) {}
+            renderBox('p1');
+        });
+        $('#rsa-set-sim-item').on('change', function () {
+            boxCalcSettings.simItem = $(this).val();
+            saveBoxCalcSettings();
+            cachedRankings = []; try { cachedRankings = computeBoxRankings(); } catch (e) {}
+            renderBox('p1');
         });
 
         // ── Refresh rankings when P2 changes ──

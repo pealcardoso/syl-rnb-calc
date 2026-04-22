@@ -144,6 +144,26 @@
                 <button class="rsa-sort-btn" id="rsa-sort-offense" title="Sort by offensive rank (best damage vs P2)">⚔ Offense</button>
                 <button class="rsa-sort-btn" id="rsa-sort-defense" title="Sort by move defense rank (least damage taken from selected P2 move)">🛡 Move Def</button>
                 <button class="rsa-sort-btn" id="rsa-sort-defense-all" title="Sort by all-moves defense rank (least max damage from any P2 move)">🛡 All Def</button>
+                <button class="rsa-sort-btn" id="rsa-box-settings-toggle" title="Calc settings">⚙ Settings</button>
+            </div>
+            <div class="rsa-box-settings" id="rsa-box-settings" style="display:none;">
+                <div class="rsa-settings-row">
+                    <label><input type="checkbox" id="rsa-set-ignore-sd" /> Ignore Explosion / Self-Destruct</label>
+                </div>
+                <div class="rsa-settings-row">
+                    <label><input type="checkbox" id="rsa-set-burn-guts" /> Burn Guts mons (1.5× Atk)</label>
+                </div>
+                <div class="rsa-settings-row">
+                    <label>Sim item boost:
+                        <select id="rsa-set-sim-item">
+                            <option value="">— None —</option>
+                            <option value="choice">Choice Item (+50% Atk/SpA)</option>
+                            <option value="lifeorb">Life Orb (+30% damage)</option>
+                            <option value="typeenhance">Type-enhancing item (+20%)</option>
+                            <option value="band">Muscle Band / Wise Glasses (+10%)</option>
+                        </select>
+                    </label>
+                </div>
             </div>
             <div class="rsa-box-grid" id="rsa-box-p1"></div>
             <div class="rsa-import-panel" id="rsa-import-panel" style="display:none;">
