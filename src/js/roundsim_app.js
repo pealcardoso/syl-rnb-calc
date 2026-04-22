@@ -876,6 +876,7 @@
     var selectedP1Move = 'none';  // 0-3 or 'none'
     var selectedP2Move = 'none';
     var suppressP2Sync = false;  // Prevent syncP2Team during intentional switches
+    var _loadingForm = false;      // Suppress calc-trigger handler during batch form loads
 
     // Battle format: 'singles' | 'doubles-1t' | 'doubles-2t'
     var battleFormat = 'singles';
@@ -1735,24 +1736,34 @@
         // Update the Select2 display text to match
         $('#' + side + ' .set-selector').closest('.select2-container').find('.select2-chosen').text(entry.setId);
 
-        // After the calc form has fully loaded, set the tracked HP, status, boosts, item, and ability
+        // After the calc form has fully loaded, batch-set tracked values
+        // with NO_CALC + _loadingForm to prevent cascading recalculations
         setTimeout(function () {
+            window.NO_CALC = true;
+            _loadingForm = true;
+
             if (entry.currentHP !== undefined) {
-                $('#' + side + ' .current-hp').val(entry.currentHP).trigger('input');
+                $('#' + side + ' .current-hp').val(entry.currentHP);
             }
             if (entry.status) {
                 var calcStatus = RS_TO_CALC[entry.status] || 'Healthy';
-                $('#' + side + ' .status').val(calcStatus).trigger('change');
-                if (entry.status === 'Badly Poisoned' && entry.toxicCounter) {
-                    $('#' + side + ' .toxic-counter').val(entry.toxicCounter);
+                $('#' + side + ' .status').val(calcStatus);
+                // Manually toggle toxic counter visibility (mirrors shared_controls handler)
+                if (calcStatus === 'Badly Poisoned') {
+                    $('#' + side + ' .toxic-counter').show();
+                    if (entry.toxicCounter) {
+                        $('#' + side + ' .toxic-counter').val(entry.toxicCounter);
+                    }
+                } else {
+                    $('#' + side + ' .toxic-counter').hide();
                 }
             }
             // Restore item and ability (may have changed from set defaults)
             if (entry.item !== undefined) {
-                $('#' + side + ' .item').val(entry.item).trigger('change');
+                $('#' + side + ' .item').val(entry.item);
             }
             if (entry.ability) {
-                $('#' + side + ' .ability').val(entry.ability).trigger('change');
+                $('#' + side + ' .ability').val(entry.ability);
             }
             // Set boosts
             if (entry.boosts) {
@@ -1762,6 +1773,12 @@
                     $('#' + side + ' .' + stats[i] + ' .boost').val(b);
                 }
             }
+
+            // Unsuppress and trigger ONE recalculation for the batch
+            window.NO_CALC = false;
+            _loadingForm = false;
+            try { performCalculations(); } catch (e) {}
+
             // Sync first-turn-out checkbox for P2 so AI percentages are correct
             if (side === 'p2') {
                 syncFirstTurnOut();
@@ -2034,10 +2051,8 @@
         if (idx < 0 || idx >= team.roster.length) return;
         if (idx === team.activeIdx) return; // already active
 
-        // Only save form state if rounds have been logged (preserves HP changes)
-        if (line.rounds.length > 0) {
-            saveFormToRoster(side);
-        }
+        // Always save form state so item/status/ability changes persist
+        saveFormToRoster(side);
 
         // Reset boosts on the outgoing pokemon (boosts clear on switch)
         var outgoing = getActiveEntry(team);
@@ -4896,7 +4911,9 @@
 
         // Update move display when calc recalculates
         $(document).on('change', '.calc-trigger', function () {
+            if (_loadingForm) return; // skip during batch form loading
             setTimeout(function () {
+                if (_loadingForm) return;
                 updateMovePickDisplay();
                 // Recompute rankings so defensive ranks reflect any P2 move/stat changes
                 try { cachedRankings = computeBoxRankings(); } catch (e) { cachedRankings = []; }
@@ -4975,6 +4992,12 @@
                 try { if (p1Ready) initP1Team(); } catch (e) { console.error('initP1Team error:', e); }
                 try { syncP2Team(); } catch (e) { console.error('syncP2Team error:', e); }
                 try { syncBoostsToCalc(); } catch (e) {}
+                // Load the active P1 from roster into the calc form (session restore)
+                try {
+                    var _line = curLine();
+                    var _p1Active = getActiveEntry(_line.teams.p1);
+                    if (_p1Active && _p1Active.setId) loadPokemonIntoForm('p1', _p1Active);
+                } catch (e) {}
                 // Second pass after a short delay to catch any remaining async setup
                 setTimeout(function () {
                     try {
