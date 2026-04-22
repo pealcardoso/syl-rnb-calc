@@ -3448,9 +3448,9 @@
                     var col = hpColor(pct);
                     var faintCls = e.currentHP <= 0 ? ' rsa-fainted' : '';
                     var hpEditHtml = side === 'p1'
-                        ? '<div class="rsa-team-hp-text" style="font-size:0.7em"><input type="number" class="rsa-hp-edit" data-side="p1" data-idx="' + s.idx + '" value="' + e.currentHP + '" min="0" max="' + e.maxHP + '" title="Edit HP before round" /><span class="rsa-hp-max">/' + e.maxHP + '</span></div>' +
+                        ? '<div class="rsa-team-hp-text" style="font-size:0.7em"><input type="number" class="rsa-hp-edit" data-side="p1" data-idx="' + s.idx + '" value="' + e.currentHP + '" min="0" max="' + e.maxHP + '" title="Edit HP before round" /><span class="rsa-hp-max"> HP (' + hpPct(e.currentHP, e.maxHP).toFixed(0) + '%)</span></div>' +
                           renderStatusSelect('p1', s.idx, e.status)
-                        : '<div class="rsa-team-hp-text" style="font-size:0.7em">' + e.currentHP + '/' + e.maxHP + '</div>' +
+                        : '<div class="rsa-team-hp-text" style="font-size:0.7em">' + e.currentHP + ' HP (' + hpPct(e.currentHP, e.maxHP).toFixed(0) + '%)</div>' +
                           (e.status ? '<span class="rsa-status-badge rsa-status-' + e.status.toLowerCase().replace(/\s+/g, '-') + '" style="font-size:0.65em">' + esc(e.status) + '</span>' : '');
                     activeHtml += '<div class="rsa-active-slot ' + s.cls + faintCls + '" data-side="' + side + '" data-idx="' + s.idx + '">' +
                         '<div class="rsa-field-label">' + s.label + '</div>' +
@@ -3554,9 +3554,12 @@
                     '<div class="rsa-team-name">' + esc(e.name) + ' ' + speedText + '</div>' +
                     '<div class="rsa-team-hp-bar"><div class="rsa-team-hp-fill" style="width:' + pct.toFixed(0) + '%;background:' + col + '"></div>' + teamUncertainBar + '</div>' +
                     (side === 'p1'
-                        ? '<div class="rsa-team-hp-text"><input type="number" class="rsa-hp-edit" data-side="p1" data-idx="' + i + '" value="' + e.currentHP + '" min="0" max="' + e.maxHP + '" title="Edit HP before round" /><span class="rsa-hp-max">/' + e.maxHP + (teamRangeText ? ' ' + teamRangeText : '') + '</span></div>' +
+                        ? '<div class="rsa-team-hp-text"><input type="number" class="rsa-hp-edit" data-side="p1" data-idx="' + i + '" value="' + e.currentHP + '" min="0" max="' + e.maxHP + '" title="Edit HP before round" /><span class="rsa-hp-max"> HP (' + pct.toFixed(0) + '%)' + (bestHP !== e.currentHP ? ' <span class="rsa-team-hp-range">(' + (side === 'p1' ? e.currentHP + '\u2013' + bestHP : bestHP + '\u2013' + e.currentHP) + ')</span>' : '') + '</span></div>' +
                            renderStatusSelect('p1', i, e.status)
-                        : '<div class="rsa-team-hp-text">' + e.currentHP + '/' + e.maxHP + ' ' + teamRangeText + '</div>' +
+                        : '<div class="rsa-team-hp-text">' + (bestHP !== e.currentHP
+                            ? (side === 'p2' ? bestHP + '\u2013' + e.currentHP : e.currentHP + '\u2013' + bestHP) + ' HP (' + pct.toFixed(0) + '%) ' + teamRangeText
+                            : e.currentHP + ' HP (' + pct.toFixed(0) + '%)'
+                          ) + '</div>' +
                            (e.status ? '<span class="rsa-status-badge rsa-status-' + e.status.toLowerCase().replace(/\s+/g, '-') + '">' + esc(e.status) + '</span>' : '')) +
                     (e.ability ? '<span class="rsa-ability-badge" title="' + esc(getAbilityDesc(e.ability)) + '">' + esc(e.ability) + '</span>' : '') +
                     itemHtml +
@@ -5245,6 +5248,8 @@
             if (idx === team.activeIdx) {
                 $('#' + side + ' .item').val(newItem).trigger('change');
             }
+            // Re-render card so speed badge updates immediately
+            renderTeamPanel(side);
         });
 
         // ── Inline HP edit on P1 card ──
