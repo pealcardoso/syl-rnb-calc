@@ -780,6 +780,43 @@
         'Ice Body', 'Snow Cloak', 'Slush Rush'
     ];
 
+    // Abilities that ignore the defender's ability (for Sturdy, Disguise, Ice Face, etc.)
+    var MOLD_BREAKER_ABILITIES = [
+        'Mold Breaker', 'Turboblaze', 'Teravolt', 'Mycelium Might'
+    ];
+
+    /** Check if the attacker's ability ignores the defender's ability */
+    function ignoresAbility(attackerAbility) {
+        return MOLD_BREAKER_ABILITIES.indexOf(attackerAbility) !== -1;
+    }
+
+    /**
+     * Apply survival checks for a defender hit by an attacker.
+     * Handles Focus Sash (item) and Sturdy (ability), respecting Mold Breaker.
+     * Returns { survived: bool, sashed: bool, sturdied: bool }
+     */
+    function applySurvivalChecks(defEntry, hpAfter, hpBefore, maxHP, atkAbility) {
+        var result = { survived: false, sashed: false, sturdied: false };
+        if (hpAfter > 0) return result; // not KO'd, no check needed
+        if (hpBefore <= 0) return result; // already fainted
+
+        // Focus Sash: survive at 1 HP if at full HP (not blocked by Mold Breaker — it's an item)
+        if (defEntry.item === 'Focus Sash' && hpBefore >= maxHP) {
+            result.survived = true;
+            result.sashed = true;
+            return result;
+        }
+
+        // Sturdy: survive at 1 HP if at full HP (blocked by Mold Breaker/Turboblaze/Teravolt)
+        if (defEntry.ability === 'Sturdy' && hpBefore >= maxHP && !ignoresAbility(atkAbility)) {
+            result.survived = true;
+            result.sturdied = true;
+            return result;
+        }
+
+        return result;
+    }
+
     // ════════════════════════════════════════════════════════════
     // STATE
     // ════════════════════════════════════════════════════════════
@@ -2303,22 +2340,29 @@
         var p1DmgToP2Min = (p1Dmg && !p1Flinched) ? p1Dmg.minDmg : 0;
         var p1DmgToP2Max = (p1Dmg && !p1Flinched) ? p1Dmg.maxDmg : 0;
 
-        // Apply in speed order with inline Focus Sash check
-        // Sash must fire BEFORE deciding if the second mover can attack
+        // Apply in speed order with inline survival checks (Focus Sash, Sturdy)
+        // Survival must fire BEFORE deciding if the second mover can attack
         var p1Sashed = false, p2Sashed = false;
+        var p1Sturdied = false, p2Sturdied = false;
 
         if (speed.faster === 'p1' || speed.faster === 'tie') {
             // P1 attacks P2 first
             p2HPAfter = Math.max(0, p2HPAfter - p1DmgToP2Min);
             p2BestAfter = Math.max(0, p2BestAfter - p1DmgToP2Max);
 
-            // Focus Sash: P2 survives at 1 HP if at full HP before the hit
-            if (p2Entry.item === 'Focus Sash' && p2HPBefore >= p2Entry.maxHP && p2HPBefore > 0) {
-                if (p2HPAfter <= 0) { p2HPAfter = 1; p2Sashed = true; }
-                if (p2BestAfter <= 0 && p2BestBefore >= p2Entry.maxHP) { p2BestAfter = 1; p2Sashed = true; }
+            // Survival checks for P2 (defender) — P1 is attacker
+            var p2Surv = applySurvivalChecks(p2Entry, p2HPAfter, p2HPBefore, p2Entry.maxHP, p1Entry.ability);
+            if (p2Surv.survived) {
+                if (p2HPAfter <= 0) p2HPAfter = 1;
+                p2Sashed = p2Surv.sashed;
+                p2Sturdied = p2Surv.sturdied;
+            }
+            var p2SurvBest = applySurvivalChecks(p2Entry, p2BestAfter, p2BestBefore, p2Entry.maxHP, p1Entry.ability);
+            if (p2SurvBest.survived && p2BestAfter <= 0) {
+                if (p2BestBefore >= p2Entry.maxHP) p2BestAfter = 1;
             }
 
-            // P2 attacks P1 only if P2 survived (including via sash)
+            // P2 attacks P1 only if P2 survived (including via sash/sturdy)
             if (p2HPAfter > 0) {
                 p1HPAfter = Math.max(0, p1HPAfter - p2DmgToP1Max);
             }
@@ -2327,18 +2371,36 @@
             } else {
                 p1BestAfter = p1BestBefore; // P2 KO'd, P1 takes no damage in best case
             }
+
+            // Survival checks for P1 (defender) — P2 is attacker
+            if (p2HPAfter > 0) {
+                var p1Surv = applySurvivalChecks(p1Entry, p1HPAfter, p1HPBefore, p1Entry.maxHP, p2Entry.ability);
+                if (p1Surv.survived) {
+                    if (p1HPAfter <= 0) p1HPAfter = 1;
+                    p1Sashed = p1Surv.sashed;
+                    p1Sturdied = p1Surv.sturdied;
+                }
+            }
+            if (p2BestAfter > 0) {
+                var p1SurvBest = applySurvivalChecks(p1Entry, p1BestAfter, p1BestBefore, p1Entry.maxHP, p2Entry.ability);
+                if (p1SurvBest.survived && p1BestAfter <= 0 && p1BestBefore >= p1Entry.maxHP) p1BestAfter = 1;
+            }
         } else {
             // P2 attacks P1 first
             p1HPAfter = Math.max(0, p1HPAfter - p2DmgToP1Max);
             p1BestAfter = Math.max(0, p1BestAfter - p2DmgToP1Min);
 
-            // Focus Sash: P1 survives at 1 HP if at full HP before the hit
-            if (p1Entry.item === 'Focus Sash' && p1HPBefore >= p1Entry.maxHP && p1HPBefore > 0) {
-                if (p1HPAfter <= 0) { p1HPAfter = 1; p1Sashed = true; }
-                if (p1BestAfter <= 0 && p1BestBefore >= p1Entry.maxHP) { p1BestAfter = 1; p1Sashed = true; }
+            // Survival checks for P1 (defender) — P2 is attacker
+            var p1Surv = applySurvivalChecks(p1Entry, p1HPAfter, p1HPBefore, p1Entry.maxHP, p2Entry.ability);
+            if (p1Surv.survived) {
+                if (p1HPAfter <= 0) p1HPAfter = 1;
+                p1Sashed = p1Surv.sashed;
+                p1Sturdied = p1Surv.sturdied;
             }
+            var p1SurvBest = applySurvivalChecks(p1Entry, p1BestAfter, p1BestBefore, p1Entry.maxHP, p2Entry.ability);
+            if (p1SurvBest.survived && p1BestAfter <= 0 && p1BestBefore >= p1Entry.maxHP) p1BestAfter = 1;
 
-            // P1 attacks P2 only if P1 survived (including via sash)
+            // P1 attacks P2 only if P1 survived (including via sash/sturdy)
             if (p1HPAfter > 0) {
                 p2HPAfter = Math.max(0, p2HPAfter - p1DmgToP2Min);
             }
@@ -2347,9 +2409,23 @@
             } else {
                 p2BestAfter = p2BestBefore;
             }
+
+            // Survival checks for P2 (defender) — P1 is attacker
+            if (p1HPAfter > 0) {
+                var p2Surv = applySurvivalChecks(p2Entry, p2HPAfter, p2HPBefore, p2Entry.maxHP, p1Entry.ability);
+                if (p2Surv.survived) {
+                    if (p2HPAfter <= 0) p2HPAfter = 1;
+                    p2Sashed = p2Surv.sashed;
+                    p2Sturdied = p2Surv.sturdied;
+                }
+            }
+            if (p1BestAfter > 0) {
+                var p2SurvBest = applySurvivalChecks(p2Entry, p2BestAfter, p2BestBefore, p2Entry.maxHP, p1Entry.ability);
+                if (p2SurvBest.survived && p2BestAfter <= 0 && p2BestBefore >= p2Entry.maxHP) p2BestAfter = 1;
+            }
         }
 
-        // Consume Focus Sash after speed-order resolution
+        // Consume Focus Sash after speed-order resolution (Sturdy is not consumed)
         if (p1Sashed) { p1Entry.item = ''; $('#p1 .item').val('').trigger('change'); }
         if (p2Sashed) { p2Entry.item = ''; $('#p2 .item').val('').trigger('change'); }
 
@@ -2527,6 +2603,8 @@
                 flinched: p1Flinched,
                 blockReason: (secondMover === 'p1') ? secondMoverBlockReason : '',
                 secondaryApplied: p1ApplySecondary && p1SecondaryApplied,
+                sashed: p1Sashed,
+                sturdied: p1Sturdied,
                 damage: p1Dmg,
                 critDamage: null,
                 extras: p1Extras,
@@ -2556,6 +2634,8 @@
                 flinched: p2Flinched,
                 blockReason: (secondMover === 'p2') ? secondMoverBlockReason : '',
                 secondaryApplied: p2ApplySecondary && p2SecondaryApplied,
+                sashed: p2Sashed,
+                sturdied: p2Sturdied,
                 damage: p2Dmg,
                 critDamage: p2CritInfo,
                 extras: p2Extras,
@@ -2866,14 +2946,17 @@
                 // Best case = min damage
                 var appliedMin = Math.min(defEntry.bestCaseHP != null ? defEntry.bestCaseHP : defEntry.currentHP, dmg.minDmg);
 
-                // Focus Sash check
+                // Survival checks (Focus Sash, Sturdy — respects Mold Breaker)
                 var sashed = false;
-                if (defEntry.item === 'Focus Sash' && defEntry.currentHP >= defEntry.maxHP &&
-                    applied >= defEntry.currentHP && defEntry.currentHP > 0) {
+                var sturdied = false;
+                var hpAfterHit = Math.max(0, defEntry.currentHP - applied);
+                var survCheck = applySurvivalChecks(defEntry, hpAfterHit, defEntry.currentHP, defEntry.maxHP, act.entry.ability);
+                if (survCheck.survived) {
                     defEntry.currentHP = 1;
                     if (defEntry.bestCaseHP != null) defEntry.bestCaseHP = 1;
-                    defEntry.item = '';
-                    sashed = true;
+                    sashed = survCheck.sashed;
+                    sturdied = survCheck.sturdied;
+                    if (sashed) defEntry.item = '';
                 } else {
                     defEntry.currentHP = Math.max(0, defEntry.currentHP - applied);
                     // Best-case HP uses min damage
@@ -2888,6 +2971,7 @@
                     maxDmg: dmg.maxDmg,
                     applied: applied,
                     sashed: sashed,
+                    sturdied: sturdied,
                     ko: defEntry.currentHP <= 0
                 });
             }
@@ -3214,6 +3298,7 @@
                         var tSlotLabel = t.target && t.target.indexOf('a') > 0 ? 'L' : 'R';
                         var killBadge = t.ko ? ' <span class="rsa-tag rsa-ko-tag">KO</span>' : '';
                         var sashBadge = t.sashed ? ' <span class="rsa-tag rsa-sash-tag">Sash!</span>' : '';
+                        var sturdyBadge = t.sturdied ? ' <span class="rsa-tag rsa-sash-tag">Sturdy!</span>' : '';
 
                         actionsHtml += '<div class="rsa-dbl-target-result">';
                         if (tFighter) {
@@ -3230,7 +3315,7 @@
                             actionsHtml += ' <span class="rsa-tag rsa-ability-tag">TELEPATHY</span>';
                         } else {
                             actionsHtml += '<span class="rsa-dmg-range">' + t.minDmg + '-' + t.maxDmg + ' dmg</span>';
-                            actionsHtml += killBadge + sashBadge;
+                            actionsHtml += killBadge + sashBadge + sturdyBadge;
                         }
                         actionsHtml += '</div>';
                     }
@@ -3972,6 +4057,8 @@
                 '</div>' +
             '</div>' +
             moveHtml + extrasHtml + eotHtml + hpSim +
+            (actor.sashed ? '<span class=\"rsa-tag rsa-sash-tag\">Focus Sash!</span>' : '') +
+            (actor.sturdied ? '<span class=\"rsa-tag rsa-sash-tag\">Sturdy!</span>' : '') +
         '</div>';
     }
 
