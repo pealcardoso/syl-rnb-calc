@@ -2475,6 +2475,26 @@
 
         // Track flinched mons (set by earlier movers, blocks later movers)
         var flinched = {};
+        // Track protected mons — set when a mon uses Protect/Spiky Shield/etc.
+        var protected_ = {}; // { [slot]: 'protect' | 'spikyshield' | 'kingsshield' | 'banefulbunker' | 'obstruct' | 'silktrap' | 'craftyshield' }
+
+        // Protect-type move detection
+        var PROTECT_VOLATILE = {
+            protect: 'protect', detect: 'protect', kingsshield: 'kingsshield',
+            spikyshield: 'spikyshield', banefulbunker: 'banefulbunker',
+            obstruct: 'obstruct', silktrap: 'silktrap'
+        };
+        function isProtectMove(md) {
+            if (!md) return false;
+            if (md.stallingMove && md.target === 'self') return true;
+            var vs = md.volatileStatus ? md.volatileStatus.toLowerCase().replace(/[\s\-]+/g, '') : '';
+            return !!(PROTECT_VOLATILE[vs]);
+        }
+        function getProtectType(md) {
+            if (!md) return null;
+            var vs = md.volatileStatus ? md.volatileStatus.toLowerCase().replace(/[\s\-]+/g, '') : '';
+            return PROTECT_VOLATILE[vs] || (md.stallingMove && md.target === 'self' ? 'protect' : null);
+        }
 
         // Process each action in turn order
         var roundActions = [];
@@ -2501,6 +2521,18 @@
             var moveData = lookupMoveData(act.moveName);
             var moveTarget = moveData ? (moveData.target || 'normal') : 'normal';
 
+            // Protect-type move: mark this mon as protected, no damage dealt
+            if (isProtectMove(moveData)) {
+                protected_[sid] = getProtectType(moveData);
+                roundActions.push({
+                    slot: sid, name: act.entry.name, move: act.moveName,
+                    moveData: moveData, targets: [], extras: [],
+                    speed: order[oi].speed, priority: order[oi].priority,
+                    flinched: false, protected: true
+                });
+                continue;
+            }
+
             // Determine actual targets based on move target type
             var targets = [];
             if (moveTarget === 'allAdjacentFoes') {
@@ -2525,10 +2557,43 @@
 
             // Calc damage to each target
             var dmgResults = [];
+            var isContact = !!(moveData && (moveData.makesContact || (moveData.flags && moveData.flags.contact)));
             for (var ti = 0; ti < targets.length; ti++) {
                 var tgt = targets[ti];
                 var defEntry = fighters[tgt];
                 if (!defEntry || defEntry.currentHP <= 0) continue;
+
+                // Telepathy: skip damage from ally's spread move
+                var isSameTeam = sid.substring(0, 2) === tgt.substring(0, 2);
+                if (isSameTeam && defEntry.ability === 'Telepathy') {
+                    dmgResults.push({
+                        target: tgt, targetName: defEntry.name,
+                        minDmg: 0, maxDmg: 0, applied: 0, sashed: false, ko: false, blocked: 'telepathy'
+                    });
+                    continue;
+                }
+
+                // Protect check: skip damage if target is protected
+                if (protected_[tgt]) {
+                    var protType = protected_[tgt];
+                    var protResult = { target: tgt, targetName: defEntry.name,
+                        minDmg: 0, maxDmg: 0, applied: 0, sashed: false, ko: false, blocked: 'protect' };
+                    // Spiky Shield: deal 1/8 max HP to contact attacker
+                    if (protType === 'spikyshield' && isContact && act.entry.currentHP > 0) {
+                        var spikeDmg = Math.max(1, Math.floor(act.entry.maxHP / 8));
+                        act.entry.currentHP = Math.max(0, act.entry.currentHP - spikeDmg);
+                        if (act.entry.bestCaseHP != null) act.entry.bestCaseHP = Math.max(0, act.entry.bestCaseHP - spikeDmg);
+                        protResult.spikyRecoil = spikeDmg;
+                    }
+                    // Baneful Bunker: poison contact attacker
+                    if (protType === 'banefulbunker' && isContact && !act.entry.status) {
+                        act.entry.status = 'Poison';
+                        protResult.bunkerPoison = true;
+                    }
+                    // King's Shield: -2 Atk on contact attacker (tracked as note, no stat model here)
+                    dmgResults.push(protResult);
+                    continue;
+                }
 
                 var dmg = calcDamageDirect(act.entry, defEntry, act.moveName);
                 if (!dmg) continue;
@@ -2566,8 +2631,13 @@
 
             // Apply recoil/Life Orb/contact damage per target
             var actionExtras = [];
-            if (dmgResults.length > 0 && act.entry.currentHP > 0) {
-                var firstDmg = dmgResults[0];
+            // Find the first result that actually dealt damage (not blocked/protected/telepathy)
+            var firstRealDmg = null;
+            for (var di = 0; di < dmgResults.length; di++) {
+                if (!dmgResults[di].blocked) { firstRealDmg = dmgResults[di]; break; }
+            }
+            if (firstRealDmg && act.entry.currentHP > 0) {
+                var firstDmg = firstRealDmg;
                 var firstDef = fighters[firstDmg.target];
 
                 // Life Orb + move recoil — triggered once per attack using first target
@@ -2590,12 +2660,13 @@
                 }
 
                 // Contact damage — check each target individually
-                var isContact = false;
+                // (isContact already computed above for protect checks)
                 if (moveData) {
                     isContact = !!(moveData.makesContact || (moveData.flags && moveData.flags.contact));
                 }
                 if (isContact && act.entry.ability !== 'Magic Guard') {
                     for (var di = 0; di < dmgResults.length; di++) {
+                        if (dmgResults[di].blocked) continue; // no contact damage through protect/telepathy
                         var defE = fighters[dmgResults[di].target];
                         if (!defE || dmgResults[di].minDmg <= 0) continue;
                         var atkMaxHP = act.entry.maxHP;
@@ -2797,7 +2868,15 @@
             '</div>';
 
             // Move info
-            if (act.flinched) {
+            if (act.protected) {
+                var md = act.moveData;
+                var typeSprite = md && md.type ? '<img class="rsa-type-sprite" src="' + esc(getTypeSpriteUrl(md.type)) + '" alt="" title="' + esc(md.type) + '">' : '';
+                var catSprite = md && md.category ? '<img class="rsa-cat-sprite" src="' + esc(getCategorySpriteUrl(md.category)) + '" alt="" title="' + esc(md.category) + '">' : '';
+                actionsHtml += '<div class="rsa-move-line">' +
+                    '<div class="rsa-move-name">' + typeSprite + catSprite + ' ' + esc(act.move) + '</div>' +
+                    '<span class="rsa-tag rsa-flinch-tag" style="background:#4a5568">PROTECTED</span>' +
+                '</div>';
+            } else if (act.flinched) {
                 var md = act.moveData;
                 var typeSprite = md && md.type ? '<img class="rsa-type-sprite" src="' + esc(getTypeSpriteUrl(md.type)) + '" alt="" title="' + esc(md.type) + '">' : '';
                 var catSprite = md && md.category ? '<img class="rsa-cat-sprite" src="' + esc(getCategorySpriteUrl(md.category)) + '" alt="" title="' + esc(md.category) + '">' : '';
@@ -2841,8 +2920,17 @@
                         }
                         actionsHtml += '<span class="rsa-target-arrow">→</span>';
                         actionsHtml += '<span class="rsa-target-name">' + esc(t.targetName) + ' [' + tSlotLabel + ']</span>';
-                        actionsHtml += '<span class="rsa-dmg-range">' + t.minDmg + '-' + t.maxDmg + ' dmg</span>';
-                        actionsHtml += killBadge + sashBadge;
+
+                        if (t.blocked === 'protect') {
+                            actionsHtml += ' <span class="rsa-tag rsa-flinch-tag">PROTECTED</span>';
+                            if (t.spikyRecoil) actionsHtml += ' <span class="rsa-extra rsa-extra-dmg" style="font-size:0.8em">Spiky Shield: -' + t.spikyRecoil + '</span>';
+                            if (t.bunkerPoison) actionsHtml += ' <span class="rsa-tag rsa-status-tag">POISONED</span>';
+                        } else if (t.blocked === 'telepathy') {
+                            actionsHtml += ' <span class="rsa-tag rsa-ability-tag">TELEPATHY</span>';
+                        } else {
+                            actionsHtml += '<span class="rsa-dmg-range">' + t.minDmg + '-' + t.maxDmg + ' dmg</span>';
+                            actionsHtml += killBadge + sashBadge;
+                        }
                         actionsHtml += '</div>';
                     }
                 }
