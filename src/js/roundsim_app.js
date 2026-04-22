@@ -1698,7 +1698,7 @@
         // Update the Select2 display text to match
         $('#' + side + ' .set-selector').closest('.select2-container').find('.select2-chosen').text(entry.setId);
 
-        // After the calc form has fully loaded, set the tracked HP, status, and boosts
+        // After the calc form has fully loaded, set the tracked HP, status, boosts, item, and ability
         setTimeout(function () {
             if (entry.currentHP !== undefined) {
                 $('#' + side + ' .current-hp').val(entry.currentHP).trigger('input');
@@ -1710,6 +1710,13 @@
                     $('#' + side + ' .toxic-counter').val(entry.toxicCounter);
                 }
             }
+            // Restore item and ability (may have changed from set defaults)
+            if (entry.item !== undefined) {
+                $('#' + side + ' .item').val(entry.item).trigger('change');
+            }
+            if (entry.ability) {
+                $('#' + side + ' .ability').val(entry.ability).trigger('change');
+            }
             // Set boosts
             if (entry.boosts) {
                 var stats = ['at', 'df', 'sa', 'sd', 'sp'];
@@ -1718,10 +1725,28 @@
                     $('#' + side + ' .' + stats[i] + ' .boost').val(b);
                 }
             }
+            // Sync first-turn-out checkbox for P2 so AI percentages are correct
+            if (side === 'p2') {
+                syncFirstTurnOut();
+            }
             // Re-inject damage badges now that the new pokemon is loaded
             injectDamageBadges();
             injectMoveLabelSprites();
         }, 300);
+    }
+
+    /**
+     * Auto-sync the #firstTurnOutAiOpt checkbox to match whether the current P2
+     * has appeared in any prior round. Ensures AI percentages are accurate.
+     */
+    function syncFirstTurnOut() {
+        var p2Name = getP2Name();
+        if (!p2Name) return;
+        var isFirst = isP2FirstTurnOut(p2Name);
+        var $cb = $('#firstTurnOutAiOpt');
+        if ($cb.prop('checked') !== isFirst) {
+            $cb.prop('checked', isFirst).trigger('change');
+        }
     }
 
     // ════════════════════════════════════════════════════════════
@@ -1901,6 +1926,8 @@
         }
         renderTeamPanel('p2');
         if (isDoubles()) refreshDoublesUI();
+        // Sync first-turn-out checkbox when P2 team changes
+        setTimeout(syncFirstTurnOut, 100);
     }
 
     /** Look up a set from SETDEX by its setId string like "Garchomp (Gym Leader Hassel)" */
@@ -2549,6 +2576,10 @@
         $('#p1 .current-hp').val(p1HPAfter).trigger('input');
         $('#p2 .current-hp').val(p2HPAfter).trigger('input');
 
+        // Re-sync first-turn-out so the next round's AI percentages are correct
+        // (P2 has now appeared, so firstTurnOut should become false after this round)
+        setTimeout(syncFirstTurnOut, 50);
+
         // If P2 is KO'd, predict who switches in next
         if (p2HPAfter <= 0) {
             try {
@@ -3074,6 +3105,9 @@
                     : predictSwitchIn('$p1', 'p2b');
             } catch (e) {}
         }
+
+        // Re-sync first-turn-out so the next doubles round's AI percentages are correct
+        setTimeout(syncFirstTurnOut, 50);
 
         return rd;
     }
