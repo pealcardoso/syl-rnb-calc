@@ -914,6 +914,62 @@
         return entry && entry.moves ? entry.moves : [];
     }
 
+    /**
+     * Compute AI move-choice probability distribution for a P2 entry against a P1 target.
+     * Returns an array of { move, rate } for each real move (rate 0-1, totalising ~1).
+     * Falls back to equal distribution if generateMoveDist is unavailable.
+     */
+    function calcP2MoveRates(p2Entry, p1Entry) {
+        if (!p2Entry || !p1Entry || p2Entry.currentHP <= 0 || p1Entry.currentHP <= 0) return [];
+        try {
+            var p2Poke = createPokemon(p2Entry.setId);
+            var p1Poke = createPokemon(p1Entry.setId);
+
+            // Apply roster state
+            p2Poke.originalCurHP = Math.min(p2Entry.currentHP || p2Poke.rawStats.hp, p2Poke.rawStats.hp);
+            p1Poke.originalCurHP = Math.min(p1Entry.currentHP || p1Poke.rawStats.hp, p1Poke.rawStats.hp);
+            if (p2Entry.item !== undefined) p2Poke.item = p2Entry.item;
+            if (p1Entry.item !== undefined) p1Poke.item = p1Entry.item;
+            if (p2Entry.ability) p2Poke.ability = p2Entry.ability;
+            if (p1Entry.ability) p1Poke.ability = p1Entry.ability;
+
+            var field = createField();
+            field = new calc.Field({ ...field, gameType: 'Doubles' });
+            var field2 = field.clone().swap();
+
+            // P1→P2 results (player moves)
+            var p1Results = [];
+            for (var i = 0; i < 4; i++) {
+                var mv = p1Poke.moves[i] || new calc.Move(gen || 9, '(No Move)');
+                p1Results.push(calc.calculate(gen || 9, p1Poke, p2Poke, mv, field));
+            }
+            // P2→P1 results (AI moves)
+            var p2Results = [];
+            for (var i = 0; i < 4; i++) {
+                var mv = p2Poke.moves[i] || new calc.Move(gen || 9, '(No Move)');
+                p2Results.push(calc.calculate(gen || 9, p2Poke, p1Poke, mv, field2));
+            }
+
+            var damageResults = [p1Results, p2Results];
+            var fastestSide = p1Poke.stats.spe >= p2Poke.stats.spe ? '0' : '1';
+            var aiOptions = typeof createAiOptionsDict === 'function' ? createAiOptionsDict() : {};
+            var rates = calc.generateMoveDist(damageResults, fastestSide, aiOptions);
+
+            // Map to move names
+            var moves = getEntryMoves(p2Entry);
+            var result = [];
+            for (var i = 0; i < rates.length; i++) {
+                var mn = moves[i] || (p2Poke.moves[i] ? p2Poke.moves[i].name : null);
+                if (mn && mn !== '(No Move)') {
+                    result.push({ move: mn, rate: rates[i] });
+                }
+            }
+            return result;
+        } catch (e) {
+            return [];
+        }
+    }
+
     // ── Doubles selection state: tracks which move+target each slot picked ──
     var dblSelections = { p1a: { move: null, target: null }, p1b: { move: null, target: null },
                           p2a: { move: null, target: null }, p2b: { move: null, target: null } };
@@ -982,6 +1038,24 @@
             // Move rows
             var moves = getEntryMoves(entry);
             var hasMoves = false;
+
+            // Compute AI move rates for P2 slots (probability each move is chosen)
+            var moveRateMap = {};
+            if (isP2) {
+                // Use opponent across (p2a→p1a, p2b→p1b) as the primary target for AI calc
+                var primaryTarget = sid === 'p2a' ? entries.p1a : entries.p1b;
+                if (!primaryTarget || primaryTarget.currentHP <= 0) {
+                    primaryTarget = sid === 'p2a' ? entries.p1b : entries.p1a;
+                }
+                if (primaryTarget && primaryTarget.currentHP > 0) {
+                    var rates = calcP2MoveRates(entry, primaryTarget);
+                    for (var ri = 0; ri < rates.length; ri++) {
+                        moveRateMap[rates[ri].move] = rates[ri].rate;
+                    }
+                }
+            }
+
+            var sel = dblSelections[sid];
             for (var mi = 0; mi < moves.length; mi++) {
                 var moveName = moves[mi];
                 if (!moveName || moveName === '(No Move)') continue;
@@ -991,12 +1065,17 @@
                 var typeSprite = md && md.type ? '<img class="rsa-type-sprite" src="' + esc(getTypeSpriteUrl(md.type)) + '" alt="" title="' + esc(md.type) + '">' : '';
                 var catSprite = md && md.category ? '<img class="rsa-cat-sprite" src="' + esc(getCategorySpriteUrl(md.category)) + '" alt="" title="' + esc(md.category) + '">' : '';
 
-                var sel = dblSelections[sid];
                 var isSelectedMove = sel && sel.move === moveName;
                 var rowCls = isSelectedMove ? ' rsa-dbl-selected' : '';
 
                 html += '<div class="rsa-dbl-move-row' + rowCls + '" data-slot="' + sid + '" data-move="' + esc(moveName) + '">';
-                html += '<div class="rsa-dbl-move-name">' + typeSprite + catSprite + ' ' + esc(moveName) + '</div>';
+                // Move name + AI probability for P2
+                var rateBadge = '';
+                if (isP2 && moveRateMap[moveName] !== undefined) {
+                    var pctRate = (moveRateMap[moveName] * 100).toFixed(1);
+                    rateBadge = ' <span class="rsa-dbl-ai-pct">' + pctRate + '%</span>';
+                }
+                html += '<div class="rsa-dbl-move-name">' + typeSprite + catSprite + ' ' + esc(moveName) + rateBadge + '</div>';
 
                 // Damage cell for each target
                 for (var ti = 0; ti < targets.length; ti++) {
@@ -1412,7 +1491,10 @@
                     var preserved = oldEntries[pokeName];
                     preserved.item = getItem('p2') || preserved.item;
                     preserved.ability = getAbility('p2') || preserved.ability;
-                    preserved.moves = getMoves('p2') || preserved.moves;
+                    var formMoves = getMoves('p2');
+                    // Only update moves if the form has real moves (not all empty/No Move)
+                    var hasRealMove = formMoves && formMoves.some(function(m) { return m && m !== '(No Move)'; });
+                    if (hasRealMove) preserved.moves = formMoves;
                     newRoster.push(preserved);
                 } else {
                     newRoster.push(oldEntries[pokeName]);
@@ -1421,12 +1503,19 @@
                 // Use live calc form data for the currently loaded pokemon
                 var hp = getCurrentHP('p2');
                 var maxHP = hp.max || 100;
+                var formMoves2 = getMoves('p2');
+                var hasRealMove2 = formMoves2 && formMoves2.some(function(m) { return m && m !== '(No Move)'; });
+                // Fall back to set moves if form hasn't populated yet
+                if (!hasRealMove2) {
+                    var setFallback = lookupSet(setId);
+                    if (setFallback && setFallback.moves) formMoves2 = setFallback.moves;
+                }
                 var entry = createRosterEntry(
                     pokeName, setId,
                     getSprite(pokeName),
                     getItem('p2'),
                     getAbility('p2'),
-                    getMoves('p2'),
+                    formMoves2,
                     maxHP,
                     getTypes('p2')
                 );
@@ -2274,19 +2363,52 @@
                 });
             }
 
-            // Apply recoil/Life Orb/contact damage
+            // Apply recoil/Life Orb/contact damage per target
+            var actionExtras = [];
             if (dmgResults.length > 0 && act.entry.currentHP > 0) {
                 var firstDmg = dmgResults[0];
                 var firstDef = fighters[firstDmg.target];
-                // Use the first target's entry for extras
+
+                // Life Orb + move recoil — triggered once per attack using first target
                 var dummyMoveInfo = { minDmg: firstDmg.minDmg, maxDmg: firstDmg.maxDmg, move: moveData || {} };
-                var extras = calcExtraDamage(act.entry, firstDef || act.entry, dummyMoveInfo, weather);
-                for (var ei = 0; ei < extras.length; ei++) {
-                    if (extras[ei].target === 'attacker') {
-                        if (extras[ei].type === 'drain') {
-                            act.entry.currentHP = Math.min(act.entry.maxHP, act.entry.currentHP - extras[ei].damage);
-                        } else {
-                            act.entry.currentHP = Math.max(0, act.entry.currentHP - extras[ei].damage);
+                var generalExtras = calcExtraDamage(act.entry, firstDef || act.entry, dummyMoveInfo, weather);
+                // Filter out contact damage — we compute that per-target below
+                for (var ei = 0; ei < generalExtras.length; ei++) {
+                    if (generalExtras[ei].type !== 'contact') {
+                        actionExtras.push(generalExtras[ei]);
+                        if (generalExtras[ei].target === 'attacker') {
+                            if (generalExtras[ei].type === 'drain') {
+                                act.entry.currentHP = Math.min(act.entry.maxHP, act.entry.currentHP - generalExtras[ei].damage);
+                            } else {
+                                act.entry.currentHP = Math.max(0, act.entry.currentHP - generalExtras[ei].damage);
+                            }
+                        }
+                    }
+                }
+
+                // Contact damage — check each target individually
+                var isContact = false;
+                if (moveData) {
+                    isContact = !!(moveData.makesContact || (moveData.flags && moveData.flags.contact));
+                }
+                if (isContact && act.entry.ability !== 'Magic Guard') {
+                    for (var di = 0; di < dmgResults.length; di++) {
+                        var defE = fighters[dmgResults[di].target];
+                        if (!defE || dmgResults[di].minDmg <= 0) continue;
+                        var atkMaxHP = act.entry.maxHP;
+                        // Defender ability (Iron Barbs, Rough Skin)
+                        if (CONTACT_DAMAGE_ABILITIES[defE.ability]) {
+                            var frac = CONTACT_DAMAGE_ABILITIES[defE.ability];
+                            var cDmg = Math.max(1, Math.floor(atkMaxHP * frac));
+                            actionExtras.push({ target: 'attacker', source: defE.ability + ' (' + defE.name + ')', damage: cDmg, type: 'contact' });
+                            act.entry.currentHP = Math.max(0, act.entry.currentHP - cDmg);
+                        }
+                        // Defender item (Rocky Helmet)
+                        if (CONTACT_DAMAGE_ITEMS[defE.item]) {
+                            var frac2 = CONTACT_DAMAGE_ITEMS[defE.item];
+                            var cDmg2 = Math.max(1, Math.floor(atkMaxHP * frac2));
+                            actionExtras.push({ target: 'attacker', source: defE.item + ' (' + defE.name + ')', damage: cDmg2, type: 'contact' });
+                            act.entry.currentHP = Math.max(0, act.entry.currentHP - cDmg2);
                         }
                     }
                 }
@@ -2298,6 +2420,7 @@
                 move: act.moveName,
                 moveData: moveData,
                 targets: dmgResults,
+                extras: actionExtras,
                 speed: order[oi].speed,
                 priority: order[oi].priority
             });
@@ -2385,60 +2508,145 @@
         if (rd.terrain !== 'None') tags += '<span class="rsa-tag rsa-terrain">' + esc(rd.terrain) + '</span>';
         if (rd.trickRoom) tags += '<span class="rsa-tag rsa-trickroom">Trick Room</span>';
 
-        // Speed order display
-        var orderStr = rd.order.map(function (o) { 
+        // Speed order display with sprites
+        var orderHtml = '';
+        for (var oi = 0; oi < rd.order.length; oi++) {
+            var o = rd.order[oi];
             var f = rd.fighters[o.slot];
-            return f ? f.name : o.slot; 
-        }).join(' → ');
+            if (!f) continue;
+            if (oi > 0) orderHtml += ' <span class="rsa-order-arrow">→</span> ';
+            orderHtml += '<img class="rsa-order-sprite" src="' + esc(f.sprite) + '" alt="">';
+            orderHtml += '<span class="rsa-order-name">' + esc(f.name) + '</span>';
+            orderHtml += '<span class="rsa-order-spd">' + o.speed + '</span>';
+            if (o.priority) orderHtml += '<span class="rsa-tag" style="font-size:0.6em">P+' + o.priority + '</span>';
+        }
 
-        // Actions HTML
+        // Build per-action cards (in turn order)
         var actionsHtml = '';
         for (var ai = 0; ai < rd.actions.length; ai++) {
             var act = rd.actions[ai];
-            if (!act.move || act.move === '—') continue;
             var f = rd.fighters[act.slot];
+            if (!f) continue;
             var isP1 = act.slot.indexOf('p1') === 0;
             var cls = isP1 ? 'rsa-p1' : 'rsa-p2';
             var slotLabel = act.slot.indexOf('a') > 0 ? 'L' : 'R';
+            var slotCls = slotLabel === 'L' ? 'rsa-dbl-panel-slot-label-left' : 'rsa-dbl-panel-slot-label-right';
+            var bPct = f.maxHP > 0 ? (f.hpBefore / f.maxHP * 100) : 0;
+            var bCol = hpColor(bPct);
 
-            var tgtHtml = '';
-            if (act.targets && act.targets.length > 0) {
-                for (var ti = 0; ti < act.targets.length; ti++) {
-                    var t = act.targets[ti];
-                    var killBadge = t.ko ? ' <span class="rsa-tag rsa-ko-tag">KO</span>' : '';
-                    var sashBadge = t.sashed ? ' <span class="rsa-tag rsa-sash-tag">Sash!</span>' : '';
-                    tgtHtml += '<div class="rsa-dbl-act-target">' +
-                        '→ ' + esc(t.targetName) + ': ' + t.minDmg + '-' + t.maxDmg + ' dmg' +
-                        killBadge + sashBadge + '</div>';
+            actionsHtml += '<div class="rsa-dbl-action-card ' + cls + '">';
+
+            // Actor header: sprite + name + item + ability + HP bar before
+            actionsHtml += '<div class="rsa-actor-header">' +
+                '<img class="rsa-sprite" src="' + esc(f.sprite) + '" alt="">' +
+                '<div class="rsa-actor-info">' +
+                    '<div class="rsa-actor-name">' + esc(f.name) + ' <span class="rsa-dbl-panel-slot-label ' + slotCls + '">' + slotLabel + '</span></div>' +
+                    '<div class="rsa-actor-tags">' +
+                        '<span class="rsa-tag rsa-item-tag" title="' + esc(getItemDesc(f.item)) + '"><img class="rsa-item-sprite-sm" src="' + esc(getItemSpriteUrl(f.item)) + '" alt="" onerror="this.style.display=\'none\'"> ' + esc(f.item) + '</span>' +
+                        '<span class="rsa-tag rsa-ability-tag" title="' + esc(getAbilityDesc(f.ability)) + '">' + esc(f.ability) + '</span>' +
+                        (f.status ? '<span class="rsa-tag rsa-status-tag rsa-status-' + f.status.toLowerCase().replace(/\s+/g, '-') + '">' + esc(f.status) + '</span>' : '') +
+                    '</div>' +
+                    '<div class="rsa-hp-bar-wrap"><div class="rsa-hp-bar" style="width:' + bPct.toFixed(0) + '%;background:' + bCol + '"></div></div>' +
+                    '<span class="rsa-hp-text">' + f.hpBefore + '/' + f.maxHP + '</span>' +
+                '</div>' +
+            '</div>';
+
+            // Move info
+            if (!act.move || act.move === '—') {
+                actionsHtml += '<div class="rsa-move-name rsa-no-move">— No Move</div>';
+            } else {
+                var md = act.moveData;
+                var typeSprite = md && md.type ? '<img class="rsa-type-sprite" src="' + esc(getTypeSpriteUrl(md.type)) + '" alt="" title="' + esc(md.type) + '">' : '';
+                var catSprite = md && md.category ? '<img class="rsa-cat-sprite" src="' + esc(getCategorySpriteUrl(md.category)) + '" alt="" title="' + esc(md.category) + '">' : '';
+                var moveStats = '';
+                if (md) {
+                    var statParts = [];
+                    if (md.basePower) statParts.push('BP: ' + md.basePower);
+                    if (md.priority && md.priority !== 0) {
+                        var prioSign = md.priority > 0 ? '+' : '';
+                        statParts.push('<span class="rsa-prio-tag">Prio ' + prioSign + md.priority + '</span>');
+                    }
+                    if (statParts.length) moveStats = '<span class="rsa-move-stats">' + statParts.join(' · ') + '</span>';
+                }
+                actionsHtml += '<div class="rsa-move-line">' +
+                    '<div class="rsa-move-name">' + typeSprite + catSprite + ' ' + esc(act.move) + '</div>' +
+                    moveStats +
+                '</div>';
+
+                // Damage to each target — with target sprite + HP bar
+                if (act.targets && act.targets.length > 0) {
+                    for (var ti = 0; ti < act.targets.length; ti++) {
+                        var t = act.targets[ti];
+                        var tFighter = rd.fighters[t.target];
+                        var tSlotLabel = t.target && t.target.indexOf('a') > 0 ? 'L' : 'R';
+                        var killBadge = t.ko ? ' <span class="rsa-tag rsa-ko-tag">KO</span>' : '';
+                        var sashBadge = t.sashed ? ' <span class="rsa-tag rsa-sash-tag">Sash!</span>' : '';
+
+                        actionsHtml += '<div class="rsa-dbl-target-result">';
+                        if (tFighter) {
+                            actionsHtml += '<img class="rsa-target-sprite" src="' + esc(tFighter.sprite) + '" alt="">';
+                        }
+                        actionsHtml += '<span class="rsa-target-arrow">→</span>';
+                        actionsHtml += '<span class="rsa-target-name">' + esc(t.targetName) + ' [' + tSlotLabel + ']</span>';
+                        actionsHtml += '<span class="rsa-dmg-range">' + t.minDmg + '-' + t.maxDmg + ' dmg</span>';
+                        actionsHtml += killBadge + sashBadge;
+                        actionsHtml += '</div>';
+                    }
                 }
             }
 
-            actionsHtml += '<div class="rsa-dbl-act ' + cls + '">' +
-                '<span class="rsa-dbl-act-who">' + esc(f ? f.name : act.slot) + ' [' + slotLabel + ']</span>' +
-                '<span class="rsa-dbl-act-move">' + esc(act.move) + '</span>' +
-                (act.priority ? '<span class="rsa-tag" style="font-size:0.7em">P+' + act.priority + '</span>' : '') +
-                tgtHtml +
-            '</div>';
+            // Extra damage sources (Life Orb, Iron Barbs, etc.)
+            if (act.extras && act.extras.length > 0) {
+                actionsHtml += '<div class="rsa-extras">';
+                for (var ei = 0; ei < act.extras.length; ei++) {
+                    var ex = act.extras[ei];
+                    var sign = ex.damage > 0 ? '-' : '+';
+                    var absD = Math.abs(ex.damage);
+                    var exCls = ex.damage > 0 ? 'rsa-extra-dmg' : 'rsa-extra-heal';
+                    actionsHtml += '<span class="rsa-extra ' + exCls + '">' + esc(ex.source) + ': ' + sign + absD + '</span>';
+                }
+                actionsHtml += '</div>';
+            }
+
+            actionsHtml += '</div>'; // close action card
         }
 
-        // HP summary after
+        // HP summary after round (4 mini cards with HP bars)
         var hpHtml = '<div class="rsa-dbl-hp-summary">';
         var sids = ['p1a', 'p1b', 'p2a', 'p2b'];
         for (var si = 0; si < sids.length; si++) {
             var sid = sids[si];
             var f = rd.fighters[sid];
             if (!f) continue;
-            var pct = f.maxHP > 0 ? (f.hpAfter / f.maxHP * 100) : 0;
-            var col = hpColor(pct);
+            var aPct = f.maxHP > 0 ? (f.hpAfter / f.maxHP * 100) : 0;
+            var aCol = hpColor(aPct);
             var diff = f.hpBefore - f.hpAfter;
             var isP1 = sid.indexOf('p1') === 0;
             var slotLabel = sid.indexOf('a') > 0 ? 'L' : 'R';
-            hpHtml += '<div class="rsa-dbl-hp-entry">' +
-                '<span style="color:' + (isP1 ? '#63b3ed' : '#fc8181') + '">' + esc(f.name) + ' [' + slotLabel + ']</span> ' +
-                f.hpAfter + '/' + f.maxHP +
-                (diff > 0 ? ' <span class="rsa-hp-diff">-' + diff + '</span>' : '') +
-                (f.hpAfter <= 0 ? ' <span class="rsa-tag rsa-ko-tag">KO</span>' : '') +
-            '</div>';
+            var nameCls = isP1 ? 'rsa-p1' : 'rsa-p2';
+
+            hpHtml += '<div class="rsa-dbl-hp-entry">';
+            hpHtml += '<img class="rsa-hp-sprite" src="' + esc(f.sprite) + '" alt="">';
+            hpHtml += '<div class="rsa-hp-entry-info">';
+            hpHtml += '<span class="' + nameCls + '" style="font-size:0.8em;font-weight:600">' + esc(f.name) + ' [' + slotLabel + ']</span>';
+            hpHtml += '<div class="rsa-hp-bar-wrap" style="height:6px"><div class="rsa-hp-bar" style="width:' + aPct.toFixed(0) + '%;background:' + aCol + '"></div></div>';
+            hpHtml += '<span class="rsa-hp-text" style="font-size:0.7em">' + f.hpAfter + '/' + f.maxHP;
+            if (diff > 0) hpHtml += ' <span class="rsa-hp-diff">-' + diff + '</span>';
+            if (f.hpAfter <= 0) hpHtml += ' <span class="rsa-tag rsa-ko-tag" style="font-size:0.8em">KO</span>';
+            hpHtml += '</span>';
+
+            // EOT for this slot
+            if (rd.eot && rd.eot[sid] && rd.eot[sid].length > 0) {
+                for (var ei = 0; ei < rd.eot[sid].length; ei++) {
+                    var e = rd.eot[sid][ei];
+                    var eSign = e.damage > 0 ? '-' : '+';
+                    var eAbsD = Math.abs(e.damage);
+                    var eCls = e.damage > 0 ? 'rsa-extra-dmg' : 'rsa-extra-heal';
+                    hpHtml += '<span class="rsa-extra ' + eCls + '" style="font-size:0.65em">' + esc(e.source) + ': ' + eSign + eAbsD + '</span>';
+                }
+            }
+
+            hpHtml += '</div></div>';
         }
         hpHtml += '</div>';
 
@@ -2463,11 +2671,11 @@
         return '<div class="rsa-round-card rsa-round-card-doubles" data-round="' + rd.roundNum + '">' +
             '<div class="rsa-round-header">' +
                 '<span class="rsa-round-num">Round ' + rd.roundNum + ' (Doubles)</span>' +
-                '<span class="rsa-speed" style="font-size:0.75em">⚡ ' + esc(orderStr) + '</span>' +
                 tags +
                 '<button class="rsa-delete-round" data-round="' + rd.roundNum + '" title="Delete round">×</button>' +
             '</div>' +
-            '<div class="rsa-dbl-actions">' + actionsHtml + '</div>' +
+            '<div class="rsa-dbl-order">⚡ ' + orderHtml + '</div>' +
+            '<div class="rsa-round-body rsa-round-body-doubles">' + actionsHtml + '</div>' +
             hpHtml + switchPredHtml + cmnt +
         '</div>';
     }
