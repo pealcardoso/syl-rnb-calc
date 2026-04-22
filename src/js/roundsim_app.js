@@ -911,7 +911,44 @@
 
     /** Get all 4 move names for a roster entry */
     function getEntryMoves(entry) {
-        return entry && entry.moves ? entry.moves : [];
+        if (!entry) return [];
+        if (entry.moves && entry.moves.length > 0) {
+            // Check if there's at least one real move
+            var hasReal = false;
+            for (var i = 0; i < entry.moves.length; i++) {
+                if (entry.moves[i] && entry.moves[i] !== '(No Move)') { hasReal = true; break; }
+            }
+            if (hasReal) return entry.moves;
+        }
+        // Fallback: try to get moves from the set
+        if (entry.setId) {
+            var set = lookupSet(entry.setId);
+            if (set && set.moves && set.moves.length > 0) {
+                entry.moves = set.moves; // also fix the entry for future use
+                return set.moves;
+            }
+        }
+        return entry.moves || [];
+    }
+
+    /**
+     * Check if a P2 Pokémon is appearing for the first time (hasn't been in any previous round).
+     * Used to auto-set firstTurnOutAiOpt for Fake Out / First Impression detection.
+     */
+    function isP2FirstTurnOut(p2Name) {
+        var line = curLine();
+        if (!line || !line.rounds || line.rounds.length === 0) return true;
+        for (var ri = 0; ri < line.rounds.length; ri++) {
+            var rd = line.rounds[ri];
+            if (rd.isDoubles && rd.fighters) {
+                for (var sid in rd.fighters) {
+                    if (sid.indexOf('p2') === 0 && rd.fighters[sid] && rd.fighters[sid].name === p2Name) return false;
+                }
+            } else if (rd.p2 && rd.p2.name === p2Name) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**
@@ -949,6 +986,10 @@
             var damageResults = [p1Results, p2Results];
             var fastestSide = p1Poke.stats.spe >= p2Poke.stats.spe ? '0' : '1';
             var aiOptions = typeof createAiOptionsDict === 'function' ? createAiOptionsDict() : {};
+
+            // Auto-detect first-turn-out for moves like Fake Out / First Impression
+            aiOptions.firstTurnOutAiOpt = isP2FirstTurnOut(p2Entry.name);
+
             var rates = calc.generateMoveDist(damageResults, fastestSide, aiOptions);
 
             var moves = getEntryMoves(p2Entry);
@@ -977,45 +1018,79 @@
         if (!p2Entry || p2Entry.currentHP <= 0 || enemyEntries.length === 0) return {};
 
         var result = {};
-        var bestScores = {};
+        var targetInfo = {};
 
         for (var ti = 0; ti < enemyEntries.length; ti++) {
             var te = enemyEntries[ti];
             var rateData = calcP2MoveRates(p2Entry, te.entry);
-            // Best move rate is the highest move probability = the move AI would most likely pick
+
+            // Find the best move: the one with highest probability
             var bestMoveRate = 0;
-            var bestMoveDmg = 0;
+            var bestMoveName = null;
+            var canKO = false;
             for (var ri = 0; ri < rateData.rates.length; ri++) {
                 if (rateData.rates[ri].rate > bestMoveRate) {
                     bestMoveRate = rateData.rates[ri].rate;
+                    bestMoveName = rateData.rates[ri].move;
                 }
             }
-            // Compute the "AI score" for this target: sum of (move_rate × max_dmg) as a proxy
-            var scoreSum = 0;
+
+            // Check if any move can KO this target
             var moves = getEntryMoves(p2Entry);
+            var koMoveRate = 0; // rate of best move that can KO
             for (var mi = 0; mi < moves.length; mi++) {
                 var mn = moves[mi];
                 if (!mn || mn === '(No Move)') continue;
                 var dmg = calcDamageDirect(p2Entry, te.entry, mn);
-                var moveDmg = dmg ? dmg.maxDmg : 0;
-                var moveRate = rateData.moveMap[mn] || 0;
-                scoreSum += moveRate * moveDmg;
+                if (dmg && dmg.maxDmg >= te.entry.currentHP) {
+                    canKO = true;
+                    var r = rateData.moveMap[mn] || 0;
+                    if (r > koMoveRate) koMoveRate = r;
+                }
             }
-            bestScores[te.slot] = scoreSum;
+
+            targetInfo[te.slot] = {
+                moveMap: rateData.moveMap,
+                bestMoveRate: bestMoveRate,
+                canKO: canKO,
+                koMoveRate: koMoveRate  // highest rate among KO-capable moves
+            };
             result[te.slot] = { moveMap: rateData.moveMap, targetProb: 0 };
         }
 
-        // Derive target probability from scores (AI targets the one where its best move does more)
-        var totalScore = 0;
-        for (var slot in bestScores) totalScore += bestScores[slot];
-        if (totalScore > 0) {
-            for (var slot in bestScores) {
-                result[slot].targetProb = bestScores[slot] / totalScore;
+        // Determine target probability based on KO opportunities
+        var slots = Object.keys(targetInfo);
+        if (slots.length === 1) {
+            // Only one target — 100%
+            result[slots[0]].targetProb = 1;
+        } else if (slots.length === 2) {
+            var a = targetInfo[slots[0]];
+            var b = targetInfo[slots[1]];
+
+            if (a.canKO && !b.canKO && a.koMoveRate >= 0.99) {
+                // A can be KO'd with a move the AI would pick 100% → target A guaranteed
+                result[slots[0]].targetProb = 1;
+                result[slots[1]].targetProb = 0;
+            } else if (b.canKO && !a.canKO && b.koMoveRate >= 0.99) {
+                // B can be KO'd with a move the AI would pick 100% → target B guaranteed
+                result[slots[0]].targetProb = 0;
+                result[slots[1]].targetProb = 1;
+            } else if (a.canKO && !b.canKO) {
+                // A can be KO'd but move isn't 100% — lean towards A
+                // Weight = 0.5 + 0.5 * koMoveRate (e.g., 70% rate → 85% target prob)
+                var probA = 0.5 + 0.5 * a.koMoveRate;
+                result[slots[0]].targetProb = probA;
+                result[slots[1]].targetProb = 1 - probA;
+            } else if (b.canKO && !a.canKO) {
+                // B can be KO'd but move isn't 100%
+                var probB = 0.5 + 0.5 * b.koMoveRate;
+                result[slots[0]].targetProb = 1 - probB;
+                result[slots[1]].targetProb = probB;
+            } else {
+                // Both can KO, or neither can KO → 50/50
+                result[slots[0]].targetProb = 0.5;
+                result[slots[1]].targetProb = 0.5;
             }
-        } else if (enemyEntries.length > 0) {
-            // Equal distribution fallback
-            var eq = 1 / enemyEntries.length;
-            for (var slot in result) result[slot].targetProb = eq;
         }
 
         return result;
@@ -2329,17 +2404,24 @@
             if (p1Targets.length === 1) {
                 p2act.target = p1Targets[0].slot;
             } else {
-                // Check for guaranteed KO
-                var koTargets = p1Targets.filter(function (t) { return t.isKO; });
-                if (koTargets.length > 0) {
-                    // Prefer KO target; if both KO, pick the one with higher max damage
-                    koTargets.sort(function (a, b) { return (b.dmg ? b.dmg.maxDmg : 0) - (a.dmg ? a.dmg.maxDmg : 0); });
-                    p2act.target = koTargets[0].slot;
+                // Use target probability from calcP2TargetRates
+                var enemyTargets = [];
+                for (var eti = 0; eti < p1Targets.length; eti++) {
+                    enemyTargets.push({ slot: p1Targets[eti].slot, entry: fighters[p1Targets[eti].slot] });
+                }
+                var tgtRates = calcP2TargetRates(p2act.entry, enemyTargets);
+                var tgtProb0 = tgtRates[p1Targets[0].slot] ? tgtRates[p1Targets[0].slot].targetProb : 0.5;
+                // Use probability as weighted random
+                if (tgtProb0 >= 0.99) {
+                    p2act.target = p1Targets[0].slot;
+                    p2act.aiNote = 'KO target';
+                } else if (tgtProb0 <= 0.01) {
+                    p2act.target = p1Targets[1].slot;
                     p2act.aiNote = 'KO target';
                 } else {
-                    // Coin flip (50/50)
-                    p2act.target = p1Targets[Math.random() < 0.5 ? 0 : 1].slot;
-                    p2act.aiNote = 'random target';
+                    p2act.target = Math.random() < tgtProb0 ? p1Targets[0].slot : p1Targets[1].slot;
+                    p2act.aiNote = Math.abs(tgtProb0 - 0.5) < 0.01 ? 'random target' : 'weighted target';
+                }
                 }
             }
         }
@@ -2382,13 +2464,18 @@
             return b.speed - a.speed;
         });
 
-        // Snapshot HP before
+        // Snapshot HP before (worst case = current, best case = bestCaseHP)
         var hpBefore = {};
+        var bestHPBefore = {};
         for (var sid in fighters) {
             if (fighters[sid]) {
                 hpBefore[sid] = fighters[sid].currentHP;
+                bestHPBefore[sid] = fighters[sid].bestCaseHP != null ? fighters[sid].bestCaseHP : fighters[sid].currentHP;
             }
         }
+
+        // Track flinched mons (set by earlier movers, blocks later movers)
+        var flinched = {};
 
         // Process each action in turn order
         var roundActions = [];
@@ -2396,7 +2483,19 @@
             var sid = order[oi].slot;
             var act = actions[sid];
             if (!act.entry || act.entry.currentHP <= 0 || !act.moveName) {
-                roundActions.push({ slot: sid, move: '—', targets: [], dmgInfo: null });
+                roundActions.push({ slot: sid, move: '—', targets: [], dmgInfo: null, flinched: !!flinched[sid] });
+                continue;
+            }
+
+            // Check if this mon was flinched by an earlier mover
+            if (flinched[sid]) {
+                roundActions.push({
+                    slot: sid, name: act.entry.name, move: act.moveName,
+                    moveData: lookupMoveData(act.moveName),
+                    targets: [], extras: [],
+                    speed: order[oi].speed, priority: order[oi].priority,
+                    flinched: true
+                });
                 continue;
             }
 
@@ -2437,16 +2536,22 @@
 
                 // Apply damage (worst case = max damage)
                 var applied = Math.min(defEntry.currentHP, dmg.maxDmg);
+                // Best case = min damage
+                var appliedMin = Math.min(defEntry.bestCaseHP != null ? defEntry.bestCaseHP : defEntry.currentHP, dmg.minDmg);
 
                 // Focus Sash check
                 var sashed = false;
                 if (defEntry.item === 'Focus Sash' && defEntry.currentHP >= defEntry.maxHP &&
                     applied >= defEntry.currentHP && defEntry.currentHP > 0) {
                     defEntry.currentHP = 1;
+                    if (defEntry.bestCaseHP != null) defEntry.bestCaseHP = 1;
                     defEntry.item = '';
                     sashed = true;
                 } else {
                     defEntry.currentHP = Math.max(0, defEntry.currentHP - applied);
+                    // Best-case HP uses min damage
+                    var bestHP = defEntry.bestCaseHP != null ? defEntry.bestCaseHP : (defEntry.currentHP + applied);
+                    defEntry.bestCaseHP = Math.max(0, bestHP - dmg.minDmg);
                 }
 
                 dmgResults.push({
@@ -2476,8 +2581,10 @@
                         if (generalExtras[ei].target === 'attacker') {
                             if (generalExtras[ei].type === 'drain') {
                                 act.entry.currentHP = Math.min(act.entry.maxHP, act.entry.currentHP - generalExtras[ei].damage);
+                                if (act.entry.bestCaseHP != null) act.entry.bestCaseHP = Math.min(act.entry.maxHP, act.entry.bestCaseHP - generalExtras[ei].damage);
                             } else {
                                 act.entry.currentHP = Math.max(0, act.entry.currentHP - generalExtras[ei].damage);
+                                if (act.entry.bestCaseHP != null) act.entry.bestCaseHP = Math.max(0, act.entry.bestCaseHP - generalExtras[ei].damage);
                             }
                         }
                     }
@@ -2499,6 +2606,7 @@
                             var cDmg = Math.max(1, Math.floor(atkMaxHP * frac));
                             actionExtras.push({ target: 'attacker', source: defE.ability + ' (' + defE.name + ')', damage: cDmg, type: 'contact' });
                             act.entry.currentHP = Math.max(0, act.entry.currentHP - cDmg);
+                            if (act.entry.bestCaseHP != null) act.entry.bestCaseHP = Math.max(0, act.entry.bestCaseHP - cDmg);
                         }
                         // Defender item (Rocky Helmet)
                         if (CONTACT_DAMAGE_ITEMS[defE.item]) {
@@ -2506,8 +2614,43 @@
                             var cDmg2 = Math.max(1, Math.floor(atkMaxHP * frac2));
                             actionExtras.push({ target: 'attacker', source: defE.item + ' (' + defE.name + ')', damage: cDmg2, type: 'contact' });
                             act.entry.currentHP = Math.max(0, act.entry.currentHP - cDmg2);
+                            if (act.entry.bestCaseHP != null) act.entry.bestCaseHP = Math.max(0, act.entry.bestCaseHP - cDmg2);
                         }
                     }
+                }
+            }
+
+            // Resolve secondary effects (flinch, status, boosts)
+            if (moveData && dmgResults.length > 0) {
+                var eff = resolveSecondaryEffects(moveData, null, true); // guaranteed effects only
+                if (eff.volatile === 'flinch') {
+                    // Flinch all targets that were hit and haven't moved yet
+                    for (var di = 0; di < dmgResults.length; di++) {
+                        var hitSlot = dmgResults[di].target;
+                        var hitEntry = fighters[hitSlot];
+                        // Inner Focus and Shield Dust prevent flinch
+                        if (hitEntry && hitEntry.ability !== 'Inner Focus' && hitEntry.ability !== 'Shield Dust') {
+                            flinched[hitSlot] = true;
+                        }
+                    }
+                }
+                // Apply status/boosts to targets
+                if (eff.status) {
+                    for (var di = 0; di < dmgResults.length; di++) {
+                        var hitEntry2 = fighters[dmgResults[di].target];
+                        if (hitEntry2 && !hitEntry2.status && hitEntry2.currentHP > 0) {
+                            hitEntry2.status = eff.status;
+                        }
+                    }
+                }
+                if (eff.boosts) {
+                    for (var di = 0; di < dmgResults.length; di++) {
+                        var hitEntry3 = fighters[dmgResults[di].target];
+                        if (hitEntry3 && hitEntry3.currentHP > 0) applyBoosts(hitEntry3, eff.boosts);
+                    }
+                }
+                if (eff.selfBoosts) {
+                    applyBoosts(act.entry, eff.selfBoosts);
                 }
             }
 
@@ -2519,7 +2662,8 @@
                 targets: dmgResults,
                 extras: actionExtras,
                 speed: order[oi].speed,
-                priority: order[oi].priority
+                priority: order[oi].priority,
+                flinched: false
             });
         }
 
@@ -2532,6 +2676,7 @@
             var eot = calcEndOfTurnDamage(e, weather);
             for (var ei = 0; ei < eot.length; ei++) {
                 e.currentHP = Math.max(0, Math.min(e.maxHP, e.currentHP - eot[ei].damage));
+                if (e.bestCaseHP != null) e.bestCaseHP = Math.max(0, Math.min(e.maxHP, e.bestCaseHP - eot[ei].damage));
             }
             eotAll[sid] = eot;
 
@@ -2541,8 +2686,12 @@
 
         // HP after
         var hpAfter = {};
+        var bestHPAfter = {};
         for (var sid in fighters) {
-            if (fighters[sid]) hpAfter[sid] = fighters[sid].currentHP;
+            if (fighters[sid]) {
+                hpAfter[sid] = fighters[sid].currentHP;
+                bestHPAfter[sid] = fighters[sid].bestCaseHP != null ? fighters[sid].bestCaseHP : fighters[sid].currentHP;
+            }
         }
 
         // Build round data
@@ -2570,7 +2719,7 @@
                 ability: e.ability,
                 status: e.status,
                 hpBefore: hpBefore[sid] || 0,
-                hpAfter: hpAfter[sid] || 0,
+                hpAfter: { current: hpAfter[sid] || 0, max: e.maxHP, bestCase: bestHPAfter[sid] || 0 },
                 maxHP: e.maxHP
             };
         }
@@ -2649,7 +2798,15 @@
             '</div>';
 
             // Move info
-            if (!act.move || act.move === '—') {
+            if (act.flinched) {
+                var md = act.moveData;
+                var typeSprite = md && md.type ? '<img class="rsa-type-sprite" src="' + esc(getTypeSpriteUrl(md.type)) + '" alt="" title="' + esc(md.type) + '">' : '';
+                var catSprite = md && md.category ? '<img class="rsa-cat-sprite" src="' + esc(getCategorySpriteUrl(md.category)) + '" alt="" title="' + esc(md.category) + '">' : '';
+                actionsHtml += '<div class="rsa-move-line">' +
+                    '<div class="rsa-move-name">' + typeSprite + catSprite + ' ' + esc(act.move) + '</div>' +
+                    '<span class="rsa-tag rsa-flinch-tag">FLINCHED</span>' +
+                '</div>';
+            } else if (!act.move || act.move === '—') {
                 actionsHtml += '<div class="rsa-move-name rsa-no-move">— No Move</div>';
             } else {
                 var md = act.moveData;
@@ -2715,21 +2872,41 @@
             var sid = sids[si];
             var f = rd.fighters[sid];
             if (!f) continue;
-            var aPct = f.maxHP > 0 ? (f.hpAfter / f.maxHP * 100) : 0;
+            // Support both old (number) and new (object) hpAfter format
+            var hpAfterCur = typeof f.hpAfter === 'object' ? f.hpAfter.current : f.hpAfter;
+            var hpAfterBest = typeof f.hpAfter === 'object' ? f.hpAfter.bestCase : hpAfterCur;
+            var aPct = f.maxHP > 0 ? (hpAfterCur / f.maxHP * 100) : 0;
             var aCol = hpColor(aPct);
-            var diff = f.hpBefore - f.hpAfter;
+            var diff = f.hpBefore - hpAfterCur;
             var isP1 = sid.indexOf('p1') === 0;
             var slotLabel = sid.indexOf('a') > 0 ? 'L' : 'R';
             var nameCls = isP1 ? 'rsa-p1' : 'rsa-p2';
+
+            // Damage range visualization (striped bar for uncertainty)
+            var stripedBar = '';
+            var rangeText = '';
+            if (isP1 && hpAfterBest > hpAfterCur && f.maxHP > 0) {
+                // P1 best case = more HP surviving
+                var bestPct = (hpAfterBest / f.maxHP * 100);
+                var uncertPct = bestPct - aPct;
+                stripedBar = '<div class="rsa-hp-bar rsa-hp-bar-uncertain" style="width:' + uncertPct.toFixed(0) + '%;left:' + aPct.toFixed(0) + '%"></div>';
+                rangeText = ' <span class="rsa-hp-range">(' + hpAfterCur + '–' + hpAfterBest + ')</span>';
+            } else if (!isP1 && hpAfterBest < hpAfterCur && f.maxHP > 0) {
+                // P2 best case (for P1) = less HP remaining on P2
+                var bestPct2 = (hpAfterBest / f.maxHP * 100);
+                var uncertPct2 = aPct - bestPct2;
+                stripedBar = '<div class="rsa-hp-bar rsa-hp-bar-uncertain rsa-hp-bar-uncertain-p2" style="width:' + uncertPct2.toFixed(0) + '%;left:' + bestPct2.toFixed(0) + '%"></div>';
+                rangeText = ' <span class="rsa-hp-range">(' + hpAfterBest + '–' + hpAfterCur + ')</span>';
+            }
 
             hpHtml += '<div class="rsa-dbl-hp-entry">';
             hpHtml += '<img class="rsa-hp-sprite" src="' + esc(f.sprite) + '" alt="">';
             hpHtml += '<div class="rsa-hp-entry-info">';
             hpHtml += '<span class="' + nameCls + '" style="font-size:0.8em;font-weight:600">' + esc(f.name) + ' [' + slotLabel + ']</span>';
-            hpHtml += '<div class="rsa-hp-bar-wrap" style="height:6px"><div class="rsa-hp-bar" style="width:' + aPct.toFixed(0) + '%;background:' + aCol + '"></div></div>';
-            hpHtml += '<span class="rsa-hp-text" style="font-size:0.7em">' + f.hpAfter + '/' + f.maxHP;
+            hpHtml += '<div class="rsa-hp-bar-wrap" style="height:6px;position:relative"><div class="rsa-hp-bar" style="width:' + aPct.toFixed(0) + '%;background:' + aCol + '"></div>' + stripedBar + '</div>';
+            hpHtml += '<span class="rsa-hp-text" style="font-size:0.7em">' + hpAfterCur + '/' + f.maxHP + rangeText;
             if (diff > 0) hpHtml += ' <span class="rsa-hp-diff">-' + diff + '</span>';
-            if (f.hpAfter <= 0) hpHtml += ' <span class="rsa-tag rsa-ko-tag" style="font-size:0.8em">KO</span>';
+            if (hpAfterCur <= 0) hpHtml += ' <span class="rsa-tag rsa-ko-tag" style="font-size:0.8em">KO</span>';
             hpHtml += '</span>';
 
             // EOT for this slot
@@ -2851,8 +3028,10 @@
                     if (!f || !mapping) continue;
                     var ri = findInRoster(mapping.team, f.name);
                     if (ri >= 0) {
-                        mapping.team.roster[ri].currentHP = f.hpAfter;
-                        mapping.team.roster[ri].bestCaseHP = f.hpAfter;
+                        var fHpCur = typeof f.hpAfter === 'object' ? f.hpAfter.current : f.hpAfter;
+                        var fHpBest = typeof f.hpAfter === 'object' ? (f.hpAfter.bestCase != null ? f.hpAfter.bestCase : fHpCur) : fHpCur;
+                        mapping.team.roster[ri].currentHP = fHpCur;
+                        mapping.team.roster[ri].bestCaseHP = fHpBest;
                         if (f.item !== undefined) mapping.team.roster[ri].item = f.item;
                         if (f.status !== undefined) mapping.team.roster[ri].status = f.status;
                         mapping.team[mapping.idxKey] = ri;
