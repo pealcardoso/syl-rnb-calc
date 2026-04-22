@@ -856,7 +856,8 @@
                 p2: { roster: [], activeIdx: -1, activeIdxB: -1 }
             },
             fieldState: {},  // track field conditions per line
-            teamSplit: null  // for doubles-2t: { left: number } — first N mons are left team
+            teamSplit: null,  // for doubles-2t: { left: number } — first N mons are left team
+            battleFormat: 'singles'  // per-line format
         };
     }
     function curLine() { return lines[currentLineIdx]; }
@@ -3129,7 +3130,7 @@
                         (f.status ? '<span class="rsa-tag rsa-status-tag rsa-status-' + f.status.toLowerCase().replace(/\s+/g, '-') + '">' + esc(f.status) + '</span>' : '') +
                     '</div>' +
                     '<div class="rsa-hp-bar-wrap"><div class="rsa-hp-bar" style="width:' + bPct.toFixed(0) + '%;background:' + bCol + '"></div></div>' +
-                    '<span class="rsa-hp-text">' + f.hpBefore + '/' + f.maxHP + '</span>' +
+                    '<span class="rsa-hp-text">' + f.hpBefore + ' HP (' + bPct.toFixed(0) + '%)</span>' +
                 '</div>' +
             '</div>';
 
@@ -3257,7 +3258,7 @@
             hpHtml += '<div class="rsa-hp-entry-info">';
             hpHtml += '<span class="' + nameCls + '" style="font-size:0.8em;font-weight:600">' + esc(f.name) + ' [' + slotLabel + ']</span>';
             hpHtml += '<div class="rsa-hp-bar-wrap" style="height:6px;position:relative"><div class="rsa-hp-bar" style="width:' + aPct.toFixed(0) + '%;background:' + aCol + '"></div>' + stripedBar + '</div>';
-            hpHtml += '<span class="rsa-hp-text" style="font-size:0.7em">' + hpAfterCur + '/' + f.maxHP + rangeText;
+            hpHtml += '<span class="rsa-hp-text" style="font-size:0.7em">' + hpAfterCur + ' HP (' + aPct.toFixed(0) + '%)' + rangeText;
             if (diff > 0) hpHtml += ' <span class="rsa-hp-diff">-' + diff + '</span>';
             if (hpAfterCur <= 0) hpHtml += ' <span class="rsa-tag rsa-ko-tag" style="font-size:0.8em">KO</span>';
             hpHtml += '</span>';
@@ -3887,7 +3888,7 @@
                     '<div class="rsa-hp-bar" style="width:' + Math.max(0, Math.min(100, aPct)).toFixed(0) + '%;background:' + aCol + '"></div>' +
                     stripedBar +
                 '</div>' +
-                '<span class="rsa-hp-after">' + actor.hpAfter.current + '/' + actor.hpAfter.max + ' (' + aPct.toFixed(0) + '%)' +
+                '<span class="rsa-hp-after">' + actor.hpAfter.current + ' HP (' + aPct.toFixed(0) + '%)' +
                     (diff !== 0 ? ' <span class="rsa-hp-diff">' + diffSign + Math.abs(diff) + '</span>' : '') +
                     rangeText +
                 '</span>' +
@@ -3921,7 +3922,7 @@
                         boostHtml +
                     '</div>' +
                     '<div class="rsa-hp-bar-wrap"><div class="rsa-hp-bar" style="width:' + bPct.toFixed(0) + '%;background:' + bCol + '"></div></div>' +
-                    '<span class="rsa-hp-text">' + actor.hpBefore.current + '/' + actor.hpBefore.max + '</span>' +
+                    '<span class="rsa-hp-text">' + actor.hpBefore.current + ' HP (' + bPct.toFixed(0) + '%)</span>' +
                 '</div>' +
             '</div>' +
             moveHtml + extrasHtml + eotHtml + hpSim +
@@ -4611,6 +4612,7 @@
             var fmt = $(this).data('format');
             if (fmt === battleFormat) return;
             battleFormat = fmt;
+            curLine().battleFormat = fmt;
             $('.rsa-format-btn').removeClass('rsa-format-active');
             $(this).addClass('rsa-format-active');
 
@@ -4674,6 +4676,23 @@
                 if (!existing || existing.move !== move) {
                     var firstTarget = $(this).find('.rsa-dbl-dmg-cell[data-target]').first().data('target');
                     dblSelections[slot] = { move: move, target: firstTarget || null };
+                }
+            }
+            // When a P2 move row is selected, load that P2 mon and refresh box rankings
+            if (slot && slot.indexOf('p2') === 0 && move !== 'none') {
+                var line = curLine();
+                var isA = slot === 'p2a';
+                var p2Entry = isA ? getActiveEntry(line.teams.p2) : getActiveEntryB(line.teams.p2);
+                if (p2Entry) {
+                    loadPokemonIntoForm('p2', p2Entry);
+                    var moveName = move;
+                    var moves = getEntryMoves(p2Entry);
+                    var moveIdx = moves.indexOf(moveName);
+                    selectedP2Move = moveIdx >= 0 ? moveIdx : 'none';
+                    setTimeout(function () {
+                        try { cachedRankings = computeBoxRankings(); } catch (e) { cachedRankings = []; }
+                        renderBox('p1');
+                    }, 300);
                 }
             }
             refreshDoublesUI();
@@ -4910,6 +4929,28 @@
             saveFormToRoster('p2');
 
             currentLineIdx = idx;
+
+            // Restore battle format for the new line
+            var lineFmt = lines[idx].battleFormat || 'singles';
+            battleFormat = lineFmt;
+            $('.rsa-format-btn').removeClass('rsa-format-active');
+            $('[data-format="' + battleFormat + '"]').addClass('rsa-format-active');
+            if (isDoubles()) {
+                $('body').addClass('rsa-format-doubles');
+                $('#rsa-doubles-moves').show();
+                $('.rsa-active-field').addClass('rsa-show');
+                $('.rsa-doubles-switch').show();
+                $('#rsa-team-split').toggle(battleFormat === 'doubles-2t');
+                $('#rsa-switch-p1').closest('.rsa-switch-group').not('.rsa-doubles-switch').hide();
+            } else {
+                $('body').removeClass('rsa-format-doubles');
+                $('#rsa-doubles-moves').hide();
+                $('.rsa-active-field').removeClass('rsa-show');
+                $('.rsa-doubles-switch').hide();
+                $('#rsa-team-split').hide();
+                $('#rsa-switch-p1').closest('.rsa-switch-group').not('.rsa-doubles-switch').show();
+            }
+
             renderAll();
 
             // Load active pokemon from new line into forms
@@ -4931,10 +4972,37 @@
 
         $(document).on('click', '.rsa-team-slot', function (e) {
             if ($(e.target).hasClass('rsa-team-remove')) return;
-            if (isDoubles()) return; // In doubles, use drag-to-slot instead
             var side = $(this).data('side');
             var idx = ~~$(this).data('idx');
+            if (isDoubles()) {
+                // In doubles, P2 click loads that mon for box color/ranking evaluation
+                if (side === 'p2') {
+                    var line = curLine();
+                    var entry = line.teams.p2.roster[idx];
+                    if (!entry) return;
+                    loadPokemonIntoForm('p2', entry);
+                    setTimeout(function () {
+                        try { cachedRankings = computeBoxRankings(); } catch (e) { cachedRankings = []; }
+                        renderBox('p1');
+                    }, 300);
+                }
+                return; // In doubles, P1 uses drag-to-slot
+            }
             switchActive(side, idx);
+        });
+
+        // In doubles, clicking a P2 active-field slot also refreshes box rankings
+        $(document).on('click', '.rsa-active-slot[data-side="p2"]', function () {
+            if (!isDoubles()) return;
+            var idx = ~~$(this).data('idx');
+            var line = curLine();
+            var entry = line.teams.p2.roster[idx];
+            if (!entry || entry.currentHP <= 0) return;
+            loadPokemonIntoForm('p2', entry);
+            setTimeout(function () {
+                try { cachedRankings = computeBoxRankings(); } catch (e) { cachedRankings = []; }
+                renderBox('p1');
+            }, 300);
         });
 
         // ── Log round ──
