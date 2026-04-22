@@ -3414,6 +3414,18 @@
     }
 
     // ── Team Panel ───────────────────────────────────────────
+    /** Build a compact status <select> for a P1 roster slot */
+    function renderStatusSelect(side, idx, currentStatus) {
+        var statuses = ['', 'Burn', 'Paralysis', 'Poison', 'Badly Poisoned', 'Sleep', 'Freeze'];
+        var html = '<select class="rsa-status-select" data-side="' + side + '" data-idx="' + idx + '" title="Set status">';
+        for (var s = 0; s < statuses.length; s++) {
+            var sel = statuses[s] === currentStatus ? ' selected' : '';
+            html += '<option value="' + esc(statuses[s]) + '"' + sel + '>' + (statuses[s] || '— Status —') + '</option>';
+        }
+        html += '</select>';
+        return html;
+    }
+
     function renderTeamPanel(side) {
         var line = curLine();
         var team = line.teams[side];
@@ -3435,13 +3447,17 @@
                     var pct = hpPct(e.currentHP, e.maxHP);
                     var col = hpColor(pct);
                     var faintCls = e.currentHP <= 0 ? ' rsa-fainted' : '';
+                    var hpEditHtml = side === 'p1'
+                        ? '<div class="rsa-team-hp-text" style="font-size:0.7em"><input type="number" class="rsa-hp-edit" data-side="p1" data-idx="' + s.idx + '" value="' + e.currentHP + '" min="0" max="' + e.maxHP + '" title="Edit HP before round" /><span class="rsa-hp-max">/' + e.maxHP + '</span></div>' +
+                          renderStatusSelect('p1', s.idx, e.status)
+                        : '<div class="rsa-team-hp-text" style="font-size:0.7em">' + e.currentHP + '/' + e.maxHP + '</div>' +
+                          (e.status ? '<span class="rsa-status-badge rsa-status-' + e.status.toLowerCase().replace(/\s+/g, '-') + '" style="font-size:0.65em">' + esc(e.status) + '</span>' : '');
                     activeHtml += '<div class="rsa-active-slot ' + s.cls + faintCls + '" data-side="' + side + '" data-idx="' + s.idx + '">' +
                         '<div class="rsa-field-label">' + s.label + '</div>' +
                         '<img class="rsa-team-sprite" src="' + esc(e.sprite) + '" alt="' + esc(e.name) + '">' +
                         '<div class="rsa-team-name">' + esc(e.name) + '</div>' +
                         '<div class="rsa-team-hp-bar"><div class="rsa-team-hp-fill" style="width:' + pct.toFixed(0) + '%;background:' + col + '"></div></div>' +
-                        '<div class="rsa-team-hp-text" style="font-size:0.7em">' + e.currentHP + '/' + e.maxHP + '</div>' +
-                        (e.status ? '<span class="rsa-status-badge rsa-status-' + e.status.toLowerCase().replace(/\s+/g, '-') + '" style="font-size:0.65em">' + esc(e.status) + '</span>' : '') +
+                        hpEditHtml +
                     '</div>';
                 } else {
                     activeHtml += '<div class="rsa-active-slot ' + s.cls + '" data-side="' + side + '"><div class="rsa-field-label">' + s.label + '</div><span style="color:#718096;font-size:0.8em">Empty</span></div>';
@@ -3537,8 +3553,11 @@
                 '<div class="rsa-team-info">' +
                     '<div class="rsa-team-name">' + esc(e.name) + ' ' + speedText + '</div>' +
                     '<div class="rsa-team-hp-bar"><div class="rsa-team-hp-fill" style="width:' + pct.toFixed(0) + '%;background:' + col + '"></div>' + teamUncertainBar + '</div>' +
-                    '<div class="rsa-team-hp-text">' + e.currentHP + '/' + e.maxHP + ' ' + teamRangeText + '</div>' +
-                    (e.status ? '<span class="rsa-status-badge rsa-status-' + e.status.toLowerCase().replace(/\s+/g, '-') + '">' + esc(e.status) + '</span>' : '') +
+                    (side === 'p1'
+                        ? '<div class="rsa-team-hp-text"><input type="number" class="rsa-hp-edit" data-side="p1" data-idx="' + i + '" value="' + e.currentHP + '" min="0" max="' + e.maxHP + '" title="Edit HP before round" /><span class="rsa-hp-max">/' + e.maxHP + (teamRangeText ? ' ' + teamRangeText : '') + '</span></div>' +
+                           renderStatusSelect('p1', i, e.status)
+                        : '<div class="rsa-team-hp-text">' + e.currentHP + '/' + e.maxHP + ' ' + teamRangeText + '</div>' +
+                           (e.status ? '<span class="rsa-status-badge rsa-status-' + e.status.toLowerCase().replace(/\s+/g, '-') + '">' + esc(e.status) + '</span>' : '')) +
                     (e.ability ? '<span class="rsa-ability-badge" title="' + esc(getAbilityDesc(e.ability)) + '">' + esc(e.ability) + '</span>' : '') +
                     itemHtml +
                 '</div>' +
@@ -4833,8 +4852,6 @@
                 if (isDoubles()) refreshDoublesUI();
                 $('#rsa-comment').val('');
                 if (!isDoubles()) {
-                    $('#rsa-p1-predmg').val(0);
-                    $('#rsa-p1-prestatus').val('');
                     $('#rsa-p1-apply-secondary').prop('checked', false);
                 }
             }
@@ -4843,11 +4860,11 @@
                 var p1MoveIdx = selectedP1Move;
                 var p2MoveIdx = selectedP2Move;
                 var p2Crit = $('#rsa-p2-crit').is(':checked');
-                var p1PreDmg = parseInt($('#rsa-p1-predmg').val()) || 0;
-                var p1PreStatus = $('#rsa-p1-prestatus').val();
                 var p1ApplySec = $('#rsa-p1-apply-secondary').is(':checked');
                 var p2ApplySec = $('#rsa-p2-apply-secondary').is(':checked');
-                return captureRound(p1MoveIdx, p2MoveIdx, p2Crit, p1PreDmg, p1PreStatus, comment, p1ApplySec, p2ApplySec);
+                // p1PreDmg and p1PreStatus are now edited directly on the P1 card;
+                // entry.currentHP and entry.status already reflect any changes.
+                return captureRound(p1MoveIdx, p2MoveIdx, p2Crit, 0, '', comment, p1ApplySec, p2ApplySec);
             }
 
             if (isDoubles()) {
@@ -5228,6 +5245,40 @@
             if (idx === team.activeIdx) {
                 $('#' + side + ' .item').val(newItem).trigger('change');
             }
+        });
+
+        // ── Inline HP edit on P1 card ──
+        $(document).on('change', '.rsa-hp-edit', function () {
+            var side = $(this).data('side');
+            var idx = parseInt($(this).data('idx'));
+            var line = curLine();
+            var entry = line.teams[side] && line.teams[side].roster[idx];
+            if (!entry) return;
+            var val = parseInt($(this).val());
+            if (isNaN(val)) val = entry.currentHP;
+            val = Math.max(0, Math.min(entry.maxHP, val));
+            entry.currentHP = val;
+            // User explicitly set HP — clear uncertainty range
+            entry.bestCaseHP = val;
+            renderTeamPanel(side);
+            autoSave();
+        });
+
+        // ── Inline status select on P1 card ──
+        $(document).on('change', '.rsa-status-select', function () {
+            var side = $(this).data('side');
+            var idx = parseInt($(this).data('idx'));
+            var val = $(this).val();
+            var line = curLine();
+            var entry = line.teams[side] && line.teams[side].roster[idx];
+            if (!entry) return;
+            entry.status = val;
+            // Sync to calc form if this is the active mon
+            if (idx === line.teams[side].activeIdx) {
+                syncStatusToForm(side, entry);
+            }
+            renderTeamPanel(side);
+            autoSave();
         });
 
         // ── Sort box ──

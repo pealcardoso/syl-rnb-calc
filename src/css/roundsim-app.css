@@ -352,6 +352,22 @@
     max-width: 130px; margin-top: 2px; cursor: pointer; display: block;
 }
 .rsa-item-select:focus { outline: none; border-color: #4299e1; }
+/* Inline HP edit + status select on P1 team cards */
+.rsa-hp-edit {
+    width: 46px; background: #1a202c; border: 1px solid #4a5568; color: #68d391;
+    border-radius: 3px; font-size: 0.85em; padding: 1px 4px; font-weight: 600;
+    -moz-appearance: textfield; text-align: center;
+}
+.rsa-hp-edit::-webkit-outer-spin-button,
+.rsa-hp-edit::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.rsa-hp-edit:focus { outline: none; border-color: #4299e1; }
+.rsa-hp-max { font-size: 0.8em; color: #718096; margin-left: 1px; }
+.rsa-status-select {
+    background: #2d3748; border: 1px solid #4a5568; color: #cbd5e0;
+    border-radius: 3px; font-size: 0.68em; padding: 1px 3px;
+    max-width: 110px; margin-top: 2px; cursor: pointer; display: block;
+}
+.rsa-status-select:focus { outline: none; border-color: #4299e1; }
 .rsa-ability-badge {
     font-size: 0.65em; font-weight: 700; padding: 1px 5px;
     border-radius: 3px; display: inline-block; margin-top: 2px;
