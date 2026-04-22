@@ -1209,6 +1209,12 @@ fieldset {
     font-size: 0.8em; color: #fbd38d; font-weight: 600;
     margin-left: auto; white-space: nowrap;
 }
+.rsa-dbl-tgt-prob {
+    font-size: 0.85em; color: #fbd38d; font-weight: 600;
+}
+.rsa-dbl-cell-prob {
+    font-size: 0.85em; color: #fbd38d; font-weight: 600;
+}
 .rsa-dbl-no-move {
     font-size: 0.7em; color: #718096; font-style: italic;
     padding: 4px; text-align: center;

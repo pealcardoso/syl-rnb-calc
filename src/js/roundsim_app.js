@@ -915,17 +915,15 @@
     }
 
     /**
-     * Compute AI move-choice probability distribution for a P2 entry against a P1 target.
-     * Returns an array of { move, rate } for each real move (rate 0-1, totalising ~1).
-     * Falls back to equal distribution if generateMoveDist is unavailable.
+     * Compute AI move-choice probability distribution for a P2 entry against a specific P1 target.
+     * Returns an object { rates: [{move, rate}], moveMap: {moveName: rate} }.
      */
     function calcP2MoveRates(p2Entry, p1Entry) {
-        if (!p2Entry || !p1Entry || p2Entry.currentHP <= 0 || p1Entry.currentHP <= 0) return [];
+        if (!p2Entry || !p1Entry || p2Entry.currentHP <= 0 || p1Entry.currentHP <= 0) return { rates: [], moveMap: {} };
         try {
             var p2Poke = createPokemon(p2Entry.setId);
             var p1Poke = createPokemon(p1Entry.setId);
 
-            // Apply roster state
             p2Poke.originalCurHP = Math.min(p2Entry.currentHP || p2Poke.rawStats.hp, p2Poke.rawStats.hp);
             p1Poke.originalCurHP = Math.min(p1Entry.currentHP || p1Poke.rawStats.hp, p1Poke.rawStats.hp);
             if (p2Entry.item !== undefined) p2Poke.item = p2Entry.item;
@@ -937,13 +935,11 @@
             field = new calc.Field({ ...field, gameType: 'Doubles' });
             var field2 = field.clone().swap();
 
-            // P1→P2 results (player moves)
             var p1Results = [];
             for (var i = 0; i < 4; i++) {
                 var mv = p1Poke.moves[i] || new calc.Move(gen || 9, '(No Move)');
                 p1Results.push(calc.calculate(gen || 9, p1Poke, p2Poke, mv, field));
             }
-            // P2→P1 results (AI moves)
             var p2Results = [];
             for (var i = 0; i < 4; i++) {
                 var mv = p2Poke.moves[i] || new calc.Move(gen || 9, '(No Move)');
@@ -955,19 +951,74 @@
             var aiOptions = typeof createAiOptionsDict === 'function' ? createAiOptionsDict() : {};
             var rates = calc.generateMoveDist(damageResults, fastestSide, aiOptions);
 
-            // Map to move names
             var moves = getEntryMoves(p2Entry);
             var result = [];
+            var moveMap = {};
             for (var i = 0; i < rates.length; i++) {
                 var mn = moves[i] || (p2Poke.moves[i] ? p2Poke.moves[i].name : null);
                 if (mn && mn !== '(No Move)') {
                     result.push({ move: mn, rate: rates[i] });
+                    moveMap[mn] = rates[i];
                 }
             }
-            return result;
+            return { rates: result, moveMap: moveMap };
         } catch (e) {
-            return [];
+            return { rates: [], moveMap: {} };
         }
+    }
+
+    /**
+     * Compute per-target AI move rates and target probabilities for a P2 slot.
+     * Returns { targets: { targetSlot: { moveMap, targetProb } } }
+     * targetProb = probability of choosing this target (derived from best move score per target).
+     */
+    function calcP2TargetRates(p2Entry, enemyEntries) {
+        // enemyEntries: array of { slot, entry } for alive P1 mons
+        if (!p2Entry || p2Entry.currentHP <= 0 || enemyEntries.length === 0) return {};
+
+        var result = {};
+        var bestScores = {};
+
+        for (var ti = 0; ti < enemyEntries.length; ti++) {
+            var te = enemyEntries[ti];
+            var rateData = calcP2MoveRates(p2Entry, te.entry);
+            // Best move rate is the highest move probability = the move AI would most likely pick
+            var bestMoveRate = 0;
+            var bestMoveDmg = 0;
+            for (var ri = 0; ri < rateData.rates.length; ri++) {
+                if (rateData.rates[ri].rate > bestMoveRate) {
+                    bestMoveRate = rateData.rates[ri].rate;
+                }
+            }
+            // Compute the "AI score" for this target: sum of (move_rate × max_dmg) as a proxy
+            var scoreSum = 0;
+            var moves = getEntryMoves(p2Entry);
+            for (var mi = 0; mi < moves.length; mi++) {
+                var mn = moves[mi];
+                if (!mn || mn === '(No Move)') continue;
+                var dmg = calcDamageDirect(p2Entry, te.entry, mn);
+                var moveDmg = dmg ? dmg.maxDmg : 0;
+                var moveRate = rateData.moveMap[mn] || 0;
+                scoreSum += moveRate * moveDmg;
+            }
+            bestScores[te.slot] = scoreSum;
+            result[te.slot] = { moveMap: rateData.moveMap, targetProb: 0 };
+        }
+
+        // Derive target probability from scores (AI targets the one where its best move does more)
+        var totalScore = 0;
+        for (var slot in bestScores) totalScore += bestScores[slot];
+        if (totalScore > 0) {
+            for (var slot in bestScores) {
+                result[slot].targetProb = bestScores[slot] / totalScore;
+            }
+        } else if (enemyEntries.length > 0) {
+            // Equal distribution fallback
+            var eq = 1 / enemyEntries.length;
+            for (var slot in result) result[slot].targetProb = eq;
+        }
+
+        return result;
     }
 
     // ── Doubles selection state: tracks which move+target each slot picked ──
@@ -1022,6 +1073,22 @@
                 if (slotIds[ti] !== sid) targets.push(slotIds[ti]);
             }
 
+            // For P2 slots, compute per-target AI move rates and target probabilities
+            var p2TargetRates = {};
+            if (isP2) {
+                // Find alive enemy (P1) targets
+                var enemyTargets = [];
+                for (var ti = 0; ti < targets.length; ti++) {
+                    var tgt = targets[ti];
+                    if (tgt.indexOf('p1') === 0 && entries[tgt] && entries[tgt].currentHP > 0) {
+                        enemyTargets.push({ slot: tgt, entry: entries[tgt] });
+                    }
+                }
+                if (enemyTargets.length > 0) {
+                    p2TargetRates = calcP2TargetRates(entry, enemyTargets);
+                }
+            }
+
             // Target header row
             html += '<div class="rsa-dbl-target-headers">';
             html += '<div class="rsa-dbl-target-hdr">Move</div>';
@@ -1031,29 +1098,19 @@
                 var tLabel = tEntry ? tEntry.name : tgt;
                 var tSlotTag = slotLabels[tgt] === 'Left' ? 'L' : 'R';
                 var tSide = tgt.indexOf('p1') === 0 ? 'P1' : 'P2';
-                html += '<div class="rsa-dbl-target-hdr">' + esc(tLabel) + ' <small>(' + tSide + tSlotTag + ')</small></div>';
+                // Show target probability for P2 panels on enemy targets
+                var tgtProbHtml = '';
+                if (isP2 && p2TargetRates[tgt] && p2TargetRates[tgt].targetProb > 0) {
+                    var tpPct = (p2TargetRates[tgt].targetProb * 100).toFixed(0);
+                    tgtProbHtml = '<br><span class="rsa-dbl-tgt-prob">🎯 ' + tpPct + '%</span>';
+                }
+                html += '<div class="rsa-dbl-target-hdr">' + esc(tLabel) + ' <small>(' + tSide + tSlotTag + ')</small>' + tgtProbHtml + '</div>';
             }
             html += '</div>';
 
             // Move rows
             var moves = getEntryMoves(entry);
             var hasMoves = false;
-
-            // Compute AI move rates for P2 slots (probability each move is chosen)
-            var moveRateMap = {};
-            if (isP2) {
-                // Use opponent across (p2a→p1a, p2b→p1b) as the primary target for AI calc
-                var primaryTarget = sid === 'p2a' ? entries.p1a : entries.p1b;
-                if (!primaryTarget || primaryTarget.currentHP <= 0) {
-                    primaryTarget = sid === 'p2a' ? entries.p1b : entries.p1a;
-                }
-                if (primaryTarget && primaryTarget.currentHP > 0) {
-                    var rates = calcP2MoveRates(entry, primaryTarget);
-                    for (var ri = 0; ri < rates.length; ri++) {
-                        moveRateMap[rates[ri].move] = rates[ri].rate;
-                    }
-                }
-            }
 
             var sel = dblSelections[sid];
             for (var mi = 0; mi < moves.length; mi++) {
@@ -1069,13 +1126,7 @@
                 var rowCls = isSelectedMove ? ' rsa-dbl-selected' : '';
 
                 html += '<div class="rsa-dbl-move-row' + rowCls + '" data-slot="' + sid + '" data-move="' + esc(moveName) + '">';
-                // Move name + AI probability for P2
-                var rateBadge = '';
-                if (isP2 && moveRateMap[moveName] !== undefined) {
-                    var pctRate = (moveRateMap[moveName] * 100).toFixed(1);
-                    rateBadge = ' <span class="rsa-dbl-ai-pct">' + pctRate + '%</span>';
-                }
-                html += '<div class="rsa-dbl-move-name">' + typeSprite + catSprite + ' ' + esc(moveName) + rateBadge + '</div>';
+                html += '<div class="rsa-dbl-move-name">' + typeSprite + catSprite + ' ' + esc(moveName) + '</div>';
 
                 // Damage cell for each target
                 for (var ti = 0; ti < targets.length; ti++) {
@@ -1084,6 +1135,13 @@
                     var isSelectedTarget = isSelectedMove && sel.target === tgt;
                     var cellCls = isSelectedTarget ? ' rsa-dbl-target-selected' : '';
 
+                    // Per-target move probability for P2 panels
+                    var cellProbHtml = '';
+                    if (isP2 && p2TargetRates[tgt] && p2TargetRates[tgt].moveMap[moveName] !== undefined) {
+                        var cellPct = (p2TargetRates[tgt].moveMap[moveName] * 100).toFixed(1);
+                        cellProbHtml = '<br><span class="rsa-dbl-cell-prob">' + cellPct + '%</span>';
+                    }
+
                     if (!defEntry || defEntry.currentHP <= 0) {
                         html += '<div class="rsa-dbl-dmg-cell rsa-dbl-dmg-immune' + cellCls + '" data-slot="' + sid + '" data-move="' + esc(moveName) + '" data-target="' + tgt + '">—</div>';
                         continue;
@@ -1091,7 +1149,7 @@
 
                     var dmg = calcDamageDirect(entry, defEntry, moveName);
                     if (!dmg || (dmg.minDmg === 0 && dmg.maxDmg === 0)) {
-                        html += '<div class="rsa-dbl-dmg-cell rsa-dbl-dmg-immune' + cellCls + '" data-slot="' + sid + '" data-move="' + esc(moveName) + '" data-target="' + tgt + '">immune</div>';
+                        html += '<div class="rsa-dbl-dmg-cell rsa-dbl-dmg-immune' + cellCls + '" data-slot="' + sid + '" data-move="' + esc(moveName) + '" data-target="' + tgt + '">immune' + cellProbHtml + '</div>';
                         continue;
                     }
 
@@ -1104,6 +1162,7 @@
                     html += '<div class="rsa-dbl-dmg-cell' + koCls + cellCls + '" data-slot="' + sid + '" data-move="' + esc(moveName) + '" data-target="' + tgt + '">' +
                         dmg.minDmg + '-' + dmg.maxDmg +
                         '<br><small>' + pctMin + '-' + pctMax + '%' + (isKO ? ' KO!' : '') + '</small>' +
+                        cellProbHtml +
                     '</div>';
                 }
                 html += '</div>';
@@ -1595,9 +1654,47 @@
     function removeFromTeam(side, idx) {
         var line = curLine();
         var team = line.teams[side];
+
+        // In doubles, handle slot cleanup before removing
+        if (isDoubles()) {
+            if (idx === team.activeIdx) {
+                // Removed mon was in A slot — find next alive mon not in B
+                team.activeIdx = -1;
+                for (var ri = 0; ri < team.roster.length; ri++) {
+                    if (ri !== idx && ri !== team.activeIdxB && team.roster[ri].currentHP > 0) {
+                        team.activeIdx = ri; break;
+                    }
+                }
+            }
+            if (idx === team.activeIdxB) {
+                // Removed mon was in B slot — find next alive mon not in A
+                team.activeIdxB = -1;
+                for (var ri = 0; ri < team.roster.length; ri++) {
+                    if (ri !== idx && ri !== team.activeIdx && team.roster[ri].currentHP > 0) {
+                        team.activeIdxB = ri; break;
+                    }
+                }
+            }
+        }
+
         team.roster.splice(idx, 1);
+
+        // Adjust indices after splice
         if (team.activeIdx >= team.roster.length) team.activeIdx = team.roster.length - 1;
+        if (team.activeIdx > idx) team.activeIdx--;
+        if (isDoubles()) {
+            if (team.activeIdxB >= team.roster.length) team.activeIdxB = -1;
+            if (team.activeIdxB > idx) team.activeIdxB--;
+            // Ensure A and B aren't the same
+            if (team.activeIdxB === team.activeIdx && team.roster.length >= 2) {
+                for (var ri = 0; ri < team.roster.length; ri++) {
+                    if (ri !== team.activeIdx) { team.activeIdxB = ri; break; }
+                }
+            }
+        }
+
         renderTeamPanel(side);
+        if (isDoubles()) refreshDoublesUI();
     }
 
     function switchActive(side, idx) {
@@ -2854,7 +2951,7 @@
                         (e.status ? '<span class="rsa-status-badge rsa-status-' + e.status.toLowerCase().replace(/\s+/g, '-') + '" style="font-size:0.65em">' + esc(e.status) + '</span>' : '') +
                     '</div>';
                 } else {
-                    activeHtml += '<div class="rsa-active-slot ' + s.cls + '"><div class="rsa-field-label">' + s.label + '</div><span style="color:#718096;font-size:0.8em">Empty</span></div>';
+                    activeHtml += '<div class="rsa-active-slot ' + s.cls + '" data-side="' + side + '"><div class="rsa-field-label">' + s.label + '</div><span style="color:#718096;font-size:0.8em">Empty</span></div>';
                 }
             }
             $active.html(activeHtml);
@@ -3270,6 +3367,7 @@
         renderRoundLog();
         updateMovePickDisplay();
         populateSwitchDropdown();
+        if (isDoubles()) refreshDoublesUI();
     }
 
     function populateSwitchDropdown() {
@@ -4152,6 +4250,7 @@
 
         $(document).on('click', '.rsa-team-slot', function (e) {
             if ($(e.target).hasClass('rsa-team-remove')) return;
+            if (isDoubles()) return; // In doubles, use drag-to-slot instead
             var side = $(this).data('side');
             var idx = ~~$(this).data('idx');
             switchActive(side, idx);
@@ -4348,8 +4447,18 @@
                 team.roster.push(entry);
                 var newIdx = team.roster.length - 1;
                 if (team.activeIdx < 0) team.activeIdx = 0;
-                // Auto-select the newly added mon into the calc form
-                team.activeIdx = newIdx;
+
+                // In doubles, auto-assign to slots
+                if (isDoubles()) {
+                    if (team.roster.length === 1) {
+                        team.activeIdx = 0;
+                    } else if (team.roster.length === 2 && team.activeIdxB < 0) {
+                        team.activeIdxB = newIdx;
+                    }
+                } else {
+                    team.activeIdx = newIdx;
+                }
+
                 loadPokemonIntoForm('p1', entry);
                 renderTeamPanel(side);
                 renderBox(side);
@@ -4419,8 +4528,20 @@
             team.roster.push(entry);
             var newIdx = team.roster.length - 1;
             if (team.activeIdx < 0) team.activeIdx = 0;
-            // Auto-select the newly added mon into the calc form
-            team.activeIdx = newIdx;
+
+            // In doubles, auto-assign to slots
+            if (isDoubles()) {
+                if (team.roster.length === 1) {
+                    team.activeIdx = 0;
+                } else if (team.roster.length === 2 && team.activeIdxB < 0) {
+                    // Second mon goes to B slot
+                    team.activeIdxB = newIdx;
+                }
+            } else {
+                // Singles: select the newly added mon
+                team.activeIdx = newIdx;
+            }
+
             loadPokemonIntoForm('p1', entry);
             renderTeamPanel('p1');
             renderBox('p1');
