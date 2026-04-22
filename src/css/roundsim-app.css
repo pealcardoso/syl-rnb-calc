@@ -454,7 +454,17 @@
     background: #4a5568; color: #e2e8f0; border-radius: 10px;
     padding: 1px 8px; font-size: 0.75em;
 }
-.rsa-empty { color: #718096; font-style: italic; text-align: center; padding: 20px; }
+/* Collapse-all: hide everything below the header in each round card */
+#rsa-round-log.rsa-all-collapsed .rsa-round-body,
+#rsa-round-log.rsa-all-collapsed .rsa-round-body-doubles,
+#rsa-round-log.rsa-all-collapsed .rsa-dbl-hp-summary,
+#rsa-round-log.rsa-all-collapsed .rsa-hp-summary,
+#rsa-round-log.rsa-all-collapsed .rsa-dbl-order,
+#rsa-round-log.rsa-all-collapsed .rsa-round-switchpred,
+#rsa-round-log.rsa-all-collapsed .rsa-comment { display: none; }
+.rsa-round-card { border-bottom-left-radius: 8px; border-bottom-right-radius: 8px; }
+#rsa-round-log.rsa-all-collapsed .rsa-round-card { border-radius: 6px; }
+
 
 /* ── Round Card ───────────────────────────────────────────── */
 .rsa-round-card {

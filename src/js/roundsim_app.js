@@ -4973,6 +4973,13 @@
             }, 600);
         });
 
+        // ── Collapse / expand all rounds ──
+        $('#rsa-collapse-all').on('click', function () {
+            var $log = $('#rsa-round-log');
+            var collapsed = $log.toggleClass('rsa-all-collapsed').hasClass('rsa-all-collapsed');
+            $(this).text(collapsed ? '\u229e Expand All' : '\u2296 Collapse All');
+        });
+
         // ── Delete round ──
         $(document).on('click', '.rsa-delete-round', function (e) {
             e.stopPropagation();
