@@ -99,6 +99,17 @@
     </div>
     <hr />
 
+    <!-- ═══ RSA: Lines Bar ═══ -->
+    <div class="rsa-lines-bar">
+        <span class="rsa-lines-label">Lines:</span>
+        <div id="rsa-line-tabs"></div>
+        <button class="rsa-line-btn" id="rsa-add-line">+ New Line</button>
+        <button class="rsa-line-btn rsa-line-btn-danger" id="rsa-delete-line">Delete Line</button>
+        <button class="rsa-line-btn rsa-line-btn-save" id="rsa-save-session" title="Save all lines to browser storage">💾 Save</button>
+        <button class="rsa-line-btn rsa-line-btn-load" id="rsa-load-session" title="Restore last saved session">📂 Load</button>
+        <button class="rsa-line-btn rsa-line-btn-danger" id="rsa-clear-session" title="Delete saved session">✕ Clear Save</button>
+    </div>
+
     <!-- ═══ RSA: Format Selector ═══ -->
     <div class="rsa-format-bar">
         <span class="rsa-format-label">Battle Format:</span>
@@ -112,17 +123,6 @@
             <label>Left team size: <input type="number" id="rsa-split-left" min="1" max="5" value="3" style="width:50px" /></label>
             <span class="rsa-split-info">(remaining go to right team)</span>
         </div>
-    </div>
-
-    <!-- ═══ RSA: Lines Bar ═══ -->
-    <div class="rsa-lines-bar">
-        <span class="rsa-lines-label">Lines:</span>
-        <div id="rsa-line-tabs"></div>
-        <button class="rsa-line-btn" id="rsa-add-line">+ New Line</button>
-        <button class="rsa-line-btn rsa-line-btn-danger" id="rsa-delete-line">Delete Line</button>
-        <button class="rsa-line-btn rsa-line-btn-save" id="rsa-save-session" title="Save all lines to browser storage">💾 Save</button>
-        <button class="rsa-line-btn rsa-line-btn-load" id="rsa-load-session" title="Restore last saved session">📂 Load</button>
-        <button class="rsa-line-btn rsa-line-btn-danger" id="rsa-clear-session" title="Delete saved session">✕ Clear Save</button>
     </div>
 
     <!-- ═══ RSA: Pokemon Box ═══ -->
@@ -284,6 +284,7 @@
         <div class="rsa-log-header">
             <span class="rsa-log-title">Round Log</span>
             <span id="rsa-round-count">0</span>
+            <button class="rsa-line-btn rsa-line-btn-danger" id="rsa-delete-all-rounds" title="Delete all rounds in this line" style="margin-left:8px">🗑 Delete All</button>
             <button class="rsa-line-btn" id="rsa-collapse-all" title="Collapse / expand all rounds" style="margin-left:auto">⊖ Collapse All</button>
         </div>
         <div id="rsa-round-log">

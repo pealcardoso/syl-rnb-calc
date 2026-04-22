@@ -3246,11 +3246,14 @@
                 stripedBar = '<div class="rsa-hp-bar rsa-hp-bar-uncertain" style="width:' + uncertPct.toFixed(0) + '%;left:' + aPct.toFixed(0) + '%"></div>';
                 rangeText = ' <span class="rsa-hp-range">(' + hpAfterCur + '–' + hpAfterBest + ')</span>';
             } else if (!isP1 && hpAfterBest < hpAfterCur && f.maxHP > 0) {
-                // P2 best case (for P1) = less HP remaining on P2
+                // P2: solid bar at bestHP floor, stripes extend right to hpAfterCur
                 var bestPct2 = (hpAfterBest / f.maxHP * 100);
                 var uncertPct2 = aPct - bestPct2;
+                aCol = hpColor(bestPct2);
+                aPct = bestPct2;
                 stripedBar = '<div class="rsa-hp-bar rsa-hp-bar-uncertain rsa-hp-bar-uncertain-p2" style="width:' + uncertPct2.toFixed(0) + '%;left:' + bestPct2.toFixed(0) + '%"></div>';
                 rangeText = ' <span class="rsa-hp-range">(' + hpAfterBest + '–' + hpAfterCur + ')</span>';
+                hpAfterCur = hpAfterBest; // display floor as primary HP value
             }
 
             hpHtml += '<div class="rsa-dbl-hp-entry">';
@@ -3534,17 +3537,21 @@
             var bestHP = e.bestCaseHP != null ? e.bestCaseHP : e.currentHP;
             var teamUncertainBar = '';
             var teamRangeText = '';
+            var solidFillPct = pct;
+            var solidFillCol = col;
 
             if (side === 'p1' && bestHP > e.currentHP) {
-                // P1: bestCase > currentHP — bar extends right
+                // P1: bestCase > currentHP — solid bar at currentHP, stripes extend right into gray
                 var uncertaintyPct = e.maxHP > 0 ? ((bestHP - e.currentHP) / e.maxHP * 100) : 0;
                 teamUncertainBar = '<div class="rsa-team-hp-uncertain" style="width:' +
                     Math.min(100, uncertaintyPct).toFixed(1) + '%;left:' + pct.toFixed(1) + '%"></div>';
                 teamRangeText = '<span class="rsa-team-hp-range">(' + e.currentHP + '–' + bestHP + ')</span>';
             } else if (side === 'p2' && bestHP < e.currentHP) {
-                // P2: bestCase < currentHP — bar overlays the solid portion (P2 might have less HP)
+                // P2: solid bar at bestHP (guaranteed min HP floor), stripes extend right to currentHP
                 var bestPct = e.maxHP > 0 ? (bestHP / e.maxHP * 100) : 0;
                 var uncertaintyPct = pct - bestPct;
+                solidFillPct = bestPct;
+                solidFillCol = hpColor(bestPct);
                 teamUncertainBar = '<div class="rsa-team-hp-uncertain rsa-hp-bar-uncertain-p2" style="width:' +
                     Math.min(100, uncertaintyPct).toFixed(1) + '%;left:' + bestPct.toFixed(1) + '%"></div>';
                 teamRangeText = '<span class="rsa-team-hp-range">(' + bestHP + '–' + e.currentHP + ')</span>';
@@ -3592,7 +3599,7 @@
                 '<img class="rsa-team-sprite" src="' + esc(e.sprite) + '" alt="' + esc(e.name) + '" title="' + esc(teamDefTooltip) + '">' +
                 '<div class="rsa-team-info">' +
                     '<div class="rsa-team-name">' + esc(e.name) + ' ' + speedText + '</div>' +
-                    '<div class="rsa-team-hp-bar"><div class="rsa-team-hp-fill" style="width:' + pct.toFixed(0) + '%;background:' + col + '"></div>' + teamUncertainBar + '</div>' +
+                    '<div class="rsa-team-hp-bar"><div class="rsa-team-hp-fill" style="width:' + solidFillPct.toFixed(0) + '%;background:' + solidFillCol + '"></div>' + teamUncertainBar + '</div>' +
                     (side === 'p1'
                         ? '<div class="rsa-team-hp-text"><input type="number" class="rsa-hp-edit" data-side="p1" data-idx="' + i + '" value="' + e.currentHP + '" min="0" max="' + e.maxHP + '" title="Edit HP before round" /><span class="rsa-hp-max"> HP (' + pct.toFixed(0) + '%)' + (bestHP !== e.currentHP ? ' <span class="rsa-team-hp-range">(' + (side === 'p1' ? e.currentHP + '\u2013' + bestHP : bestHP + '\u2013' + e.currentHP) + ')</span>' : '') + '</span></div>' +
                            renderStatusSelect('p1', i, e.status)
@@ -3865,27 +3872,32 @@
             var stripedBar = '';
             var rangeText = '';
 
+            // Solid bar defaults to aPct; may be overridden to bestPct for P2
+            var solidBarPct = aPct;
+            var solidBarCol = aCol;
+
             if (side === 'p1' && bestHP > worstHP) {
-                // P1: bestCase >= currentHP — striped bar extends RIGHT of solid bar
+                // P1: solid bar at worstHP, stripes extend RIGHT into gray
                 var uncertaintyPct = actor.hpAfter.max > 0 ? ((bestHP - worstHP) / actor.hpAfter.max * 100) : 0;
                 stripedBar = '<div class="rsa-hp-bar rsa-hp-bar-uncertain" style="width:' +
                     Math.min(100, uncertaintyPct).toFixed(1) + '%;left:' +
                     Math.min(100, aPct).toFixed(1) + '%"></div>';
                 rangeText = ' <span class="rsa-hp-range">(' + worstHP + '–' + bestHP + ')</span>';
             } else if (side === 'p2' && bestHP < worstHP) {
-                // P2: bestCase <= currentHP (best for P1 = P2 has less HP)
-                // Striped bar shows the portion of the solid bar that MIGHT be gone
-                var bestPct = actor.hpAfter.max > 0 ? (bestHP / actor.hpAfter.max * 100) : 0;
-                var uncertaintyPct = aPct - bestPct;
+                // P2: solid bar at bestHP (guaranteed min HP floor), stripes extend RIGHT to worstHP
+                var bestPctP2 = actor.hpAfter.max > 0 ? (bestHP / actor.hpAfter.max * 100) : 0;
+                var uncertaintyPct = aPct - bestPctP2;
+                solidBarPct = bestPctP2;
+                solidBarCol = hpColor(bestPctP2);
                 stripedBar = '<div class="rsa-hp-bar rsa-hp-bar-uncertain rsa-hp-bar-uncertain-p2" style="width:' +
                     Math.min(100, uncertaintyPct).toFixed(1) + '%;left:' +
-                    Math.max(0, bestPct).toFixed(1) + '%"></div>';
+                    Math.max(0, bestPctP2).toFixed(1) + '%"></div>';
                 rangeText = ' <span class="rsa-hp-range">(' + bestHP + '–' + worstHP + ')</span>';
             }
 
             hpSim = '<div class="rsa-hp-sim">' +
                 '<div class="rsa-hp-bar-wrap">' +
-                    '<div class="rsa-hp-bar" style="width:' + Math.max(0, Math.min(100, aPct)).toFixed(0) + '%;background:' + aCol + '"></div>' +
+                    '<div class="rsa-hp-bar" style="width:' + Math.max(0, Math.min(100, solidBarPct)).toFixed(0) + '%;background:' + solidBarCol + '"></div>' +
                     stripedBar +
                 '</div>' +
                 '<span class="rsa-hp-after">' + actor.hpAfter.current + ' HP (' + aPct.toFixed(0) + '%)' +
@@ -5155,6 +5167,18 @@
             var num = ~~$(this).data('round');
             var line = curLine();
             line.rounds = line.rounds.filter(function (r) { return r.roundNum !== num; });
+            rebuildLineTeams(line);
+            renderAll();
+            autoSave();
+        });
+
+        // ── Delete All Rounds (log header button) ──
+        $(document).on('click', '#rsa-delete-all-rounds', function () {
+            var line = curLine();
+            if (line.rounds.length === 0) return;
+            if (!confirm('Delete all ' + line.rounds.length + ' rounds in "' + line.name + '"?')) return;
+            line.rounds = [];
+            line.roundCounter = 0;
             rebuildLineTeams(line);
             renderAll();
             autoSave();
