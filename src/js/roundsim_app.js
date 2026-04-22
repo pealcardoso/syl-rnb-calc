@@ -367,12 +367,14 @@
         } catch (e) { return null; }
 
         var activeP2 = getActiveEntry(team);
+        var activeP2B = getActiveEntryB(team); // in doubles, second active slot must also be excluded
         var candidates = [];
 
         for (var i = 0; i < team.roster.length; i++) {
             var e = team.roster[i];
-            // Skip active P2 and fainted mons
+            // Skip both active P2 slots and fainted mons
             if (activeP2 && e.name === activeP2.name) continue;
+            if (activeP2B && e.name === activeP2B.name) continue;
             if (e.currentHP <= 0) continue;
 
             var p2;
@@ -398,6 +400,50 @@
 
         return { name: best.name, sprite: best.sprite, score: best.score,
                  reason: best.reason, scores: candidates };
+    }
+
+    /**
+     * Show a modal overlay asking the user to choose who goes first in a speed tie.
+     * nameA / nameB are displayed on the two buttons. callback receives 'a' or 'b'.
+     */
+    function showSpeedTieModal(nameA, nameB, callback) {
+        var overlay = document.getElementById('rsa-tie-overlay');
+        if (!overlay) {
+            var el = document.createElement('div');
+            el.id = 'rsa-tie-overlay';
+            el.innerHTML =
+                '<div id="rsa-tie-modal">' +
+                '<div class="rsa-tie-title">⚡ Speed Tie!</div>' +
+                '<div class="rsa-tie-msg">Same speed — who goes first this turn?</div>' +
+                '<div class="rsa-tie-btns">' +
+                '<button id="rsa-tie-btn-a"></button>' +
+                '<button id="rsa-tie-btn-b"></button>' +
+                '</div></div>';
+            el.style.cssText = 'display:none;position:fixed;top:0;left:0;width:100%;height:100%;' +
+                'background:rgba(0,0,0,0.55);z-index:9999;align-items:center;justify-content:center';
+            document.body.appendChild(el);
+            var modal = document.getElementById('rsa-tie-modal');
+            modal.style.cssText = 'background:var(--bg-card,#23272f);color:var(--text,#e8eaf0);' +
+                'border-radius:10px;padding:24px 28px;text-align:center;min-width:280px;' +
+                'box-shadow:0 6px 32px rgba(0,0,0,0.4);max-width:90vw';
+            document.getElementById('rsa-tie-title') && (document.getElementById('rsa-tie-title').style.cssText = 'font-weight:700;font-size:1.15em;margin-bottom:6px');
+            overlay = el;
+        }
+        var btnA = document.getElementById('rsa-tie-btn-a');
+        var btnB = document.getElementById('rsa-tie-btn-b');
+        btnA.textContent = nameA + ' first';
+        btnB.textContent = nameB + ' first';
+        var btnStyle = 'flex:1;padding:9px 16px;cursor:pointer;border-radius:6px;border:1px solid #666;' +
+            'font-weight:600;font-size:0.95em;margin:4px;background:var(--bg-btn,#343a46);color:inherit';
+        btnA.style.cssText = btnStyle;
+        btnB.style.cssText = btnStyle;
+        var tieMsg = document.getElementById('rsa-tie-modal').querySelector('.rsa-tie-msg');
+        if (tieMsg) tieMsg.style.cssText = 'margin:6px 0 16px;color:var(--text-muted,#9aa0b0);font-size:0.9em';
+        var tieBtns = document.getElementById('rsa-tie-modal').querySelector('.rsa-tie-btns');
+        if (tieBtns) tieBtns.style.cssText = 'display:flex;gap:8px;justify-content:center;margin-top:4px';
+        overlay.style.display = 'flex';
+        $(btnA).off('click').on('click', function () { overlay.style.display = 'none'; callback('a'); });
+        $(btnB).off('click').on('click', function () { overlay.style.display = 'none'; callback('b'); });
     }
 
     /** Cached switch-in prediction for current live state */
@@ -762,6 +808,39 @@
         };
     }
 
+    /**
+     * Compute the effective Speed stat for a roster entry, applying item and status modifiers.
+     * Used for both turn-order sorting and tie-break pre-computation.
+     */
+    function computeEntrySpeed(entry) {
+        var spd = 0;
+        try {
+            var poke = createPokemon(entry.setId);
+            spd = poke.stats.spe || 50;
+            // Item modifiers
+            var itm = entry.item || '';
+            if (itm === 'Iron Ball' || itm === 'Macho Brace' || itm === 'Power Weight' ||
+                itm === 'Power Bracer' || itm === 'Power Belt' || itm === 'Power Lens' ||
+                itm === 'Power Band' || itm === 'Power Anklet') {
+                spd = Math.floor(spd * 0.5);
+            } else if (itm === 'Choice Scarf') {
+                spd = Math.floor(spd * 1.5);
+            } else if (itm === 'Quick Powder' && entry.name === 'Ditto') {
+                spd = spd * 2;
+            }
+            // Ability modifiers
+            if (entry.ability === 'Quick Feet' && entry.status) spd = Math.floor(spd * 1.5);
+            if (entry.ability === 'Slow Start') spd = Math.floor(spd * 0.5);
+            // Status modifier (paralysis halves speed; Quick Feet bypasses this)
+            if (entry.status === 'Paralysis' && entry.ability !== 'Quick Feet') spd = Math.floor(spd * 0.5);
+            // Stat boost modifier
+            var spdBoost = (entry.boosts && entry.boosts.sp) || 0;
+            if (spdBoost > 0) spd = Math.floor(spd * (2 + spdBoost) / 2);
+            else if (spdBoost < 0) spd = Math.floor(spd * 2 / (2 - spdBoost));
+        } catch (err) {}
+        return spd;
+    }
+
     // ════════════════════════════════════════════════════════════
     // CALC INTEGRATION — reading from the existing calc form
     // ════════════════════════════════════════════════════════════
@@ -816,8 +895,14 @@
         if ($('#p2 .status').val() === 'Paralyzed') p2s = Math.floor(p2s * 0.75);
         var tr = $('#trickroom').is(':checked');
         var f;
-        if (tr) f = p1s === p2s ? 'tie' : (p1s < p2s ? 'p1' : 'p2');
-        else    f = p1s === p2s ? 'tie' : (p1s > p2s ? 'p1' : 'p2');
+        if (p1s === p2s) {
+            // Use stored tiebreaker (set by click handler after user chose via modal)
+            f = window._rsaTiebreaker || 'tie';
+        } else if (tr) {
+            f = p1s < p2s ? 'p1' : 'p2';
+        } else {
+            f = p1s > p2s ? 'p1' : 'p2';
+        }
         return { p1: p1s, p2: p2s, trickRoom: tr, faster: f };
     }
 
@@ -2474,18 +2559,8 @@
             var act = actions[sid];
             if (!act.entry || act.fainted) continue;
 
-            // Get speed from entry using the calc engine
-            var spd = 0;
-            try {
-                var poke = createPokemon(act.entry.setId);
-                spd = poke.stats.spe || 50;
-                // Apply paralysis
-                if (act.entry.status === 'Paralysis') spd = Math.floor(spd * 0.5);
-                // Apply boost multiplier
-                var spdBoost = (act.entry.boosts && act.entry.boosts.sp) || 0;
-                if (spdBoost > 0) spd = Math.floor(spd * (2 + spdBoost) / 2);
-                else if (spdBoost < 0) spd = Math.floor(spd * 2 / (2 - spdBoost));
-            } catch (e) {}
+            // Get speed from entry (includes all item/ability/status/boost modifiers)
+            var spd = computeEntrySpeed(act.entry);
 
             // Get move priority
             var priority = 0;
@@ -2500,8 +2575,17 @@
         // Sort by priority (descending) then speed (descending; ascending if Trick Room)
         order.sort(function (a, b) {
             if (a.priority !== b.priority) return b.priority - a.priority;
-            if (tr) return a.speed - b.speed; // Trick Room: slower goes first
-            return b.speed - a.speed;
+            if (a.speed !== b.speed) return tr ? a.speed - b.speed : b.speed - a.speed;
+            // Speed tie: use stored tiebreaker (set by click handler via showSpeedTieModal)
+            if (window._rsaDoubleTiebreakers) {
+                var keyAB = a.slot + ',' + b.slot;
+                var keyBA = b.slot + ',' + a.slot;
+                if (window._rsaDoubleTiebreakers[keyAB] === a.slot) return -1;
+                if (window._rsaDoubleTiebreakers[keyAB] === b.slot) return 1;
+                if (window._rsaDoubleTiebreakers[keyBA] === b.slot) return -1;
+                if (window._rsaDoubleTiebreakers[keyBA] === a.slot) return 1;
+            }
+            return 0; // preserve insertion order (stable)
         });
 
         // Snapshot HP before (worst case = current, best case = bestCaseHP)
@@ -4613,12 +4697,21 @@
         // ── Log round ──
         $('#rsa-log-round').on('click', function () {
             var comment = $('#rsa-comment').val().trim();
-            var rd;
 
-            if (isDoubles()) {
-                rd = captureDoublesRound(comment);
+            function finishRound(rd) {
                 if (!rd) return;
-            } else {
+                curLine().rounds.push(rd);
+                renderAll();
+                if (isDoubles()) refreshDoublesUI();
+                $('#rsa-comment').val('');
+                if (!isDoubles()) {
+                    $('#rsa-p1-predmg').val(0);
+                    $('#rsa-p1-prestatus').val('');
+                    $('#rsa-p1-apply-secondary').prop('checked', false);
+                }
+            }
+
+            function doCaptureSingles() {
                 var p1MoveIdx = selectedP1Move;
                 var p2MoveIdx = selectedP2Move;
                 var p2Crit = $('#rsa-p2-crit').is(':checked');
@@ -4626,22 +4719,78 @@
                 var p1PreStatus = $('#rsa-p1-prestatus').val();
                 var p1ApplySec = $('#rsa-p1-apply-secondary').is(':checked');
                 var p2ApplySec = $('#rsa-p2-apply-secondary').is(':checked');
-
-                rd = captureRound(p1MoveIdx, p2MoveIdx, p2Crit, p1PreDmg, p1PreStatus, comment, p1ApplySec, p2ApplySec);
-                if (!rd) return;
+                return captureRound(p1MoveIdx, p2MoveIdx, p2Crit, p1PreDmg, p1PreStatus, comment, p1ApplySec, p2ApplySec);
             }
 
-            curLine().rounds.push(rd);
-            renderAll();
-            if (isDoubles()) refreshDoublesUI();
-
-            // Reset controls (keep P2 crit and P2 effect persistent across rounds)
-            $('#rsa-comment').val('');
-            if (!isDoubles()) {
-                $('#rsa-p1-predmg').val(0);
-                $('#rsa-p1-prestatus').val('');
-                $('#rsa-p1-apply-secondary').prop('checked', false);
+            if (isDoubles()) {
+                // Pre-compute speed order to detect ties before logging the round
+                var lineDbl = curLine();
+                var trPre = $('#trickroom').is(':checked');
+                var slotsPre = ['p1a', 'p1b', 'p2a', 'p2b'];
+                var specsPre = [];
+                for (var sp = 0; sp < slotsPre.length; sp++) {
+                    var spSid = slotsPre[sp];
+                    var spTeam = spSid.substring(0, 2) === 'p1' ? lineDbl.teams.p1 : lineDbl.teams.p2;
+                    var spEntry = spSid.charAt(2) === 'a' ? getActiveEntry(spTeam) : getActiveEntryB(spTeam);
+                    var spSel = dblSelections[spSid];
+                    if (!spEntry || spEntry.currentHP <= 0) continue;
+                    var spMd = spSel && spSel.move ? lookupMoveData(spSel.move) : null;
+                    var spPri = spMd && typeof spMd.priority === 'number' ? spMd.priority : 0;
+                    specsPre.push({ slot: spSid, name: spEntry.name, speed: computeEntrySpeed(spEntry), priority: spPri });
+                }
+                specsPre.sort(function (a, b) {
+                    if (a.priority !== b.priority) return b.priority - a.priority;
+                    return trPre ? a.speed - b.speed : b.speed - a.speed;
+                });
+                var tiePairs = [];
+                for (var tp = 0; tp + 1 < specsPre.length; tp++) {
+                    if (specsPre[tp].priority === specsPre[tp + 1].priority &&
+                        specsPre[tp].speed === specsPre[tp + 1].speed) {
+                        tiePairs.push({
+                            slotA: specsPre[tp].slot, nameA: specsPre[tp].name,
+                            slotB: specsPre[tp + 1].slot, nameB: specsPre[tp + 1].name
+                        });
+                    }
+                }
+                if (tiePairs.length > 0) {
+                    window._rsaDoubleTiebreakers = {};
+                    function resolvePairs(idx) {
+                        if (idx >= tiePairs.length) {
+                            finishRound(captureDoublesRound(comment));
+                            window._rsaDoubleTiebreakers = null;
+                            return;
+                        }
+                        var pair = tiePairs[idx];
+                        showSpeedTieModal(pair.nameA, pair.nameB, function (winner) {
+                            window._rsaDoubleTiebreakers[pair.slotA + ',' + pair.slotB] =
+                                winner === 'a' ? pair.slotA : pair.slotB;
+                            resolvePairs(idx + 1);
+                        });
+                    }
+                    resolvePairs(0);
+                    return;
+                }
+                finishRound(captureDoublesRound(comment));
+                return;
             }
+
+            // Singles: check for speed tie before capturing
+            var speedPre = getSpeedInfo();
+            if (speedPre.faster === 'tie') {
+                var lineS = curLine();
+                var p1EntryPre = getActiveEntry(lineS.teams.p1);
+                var p2EntryPre = getActiveEntry(lineS.teams.p2);
+                var p1NameTie = p1EntryPre ? p1EntryPre.name : 'P1';
+                var p2NameTie = p2EntryPre ? p2EntryPre.name : 'P2';
+                showSpeedTieModal(p1NameTie, p2NameTie, function (winner) {
+                    window._rsaTiebreaker = winner === 'a' ? 'p1' : 'p2';
+                    finishRound(doCaptureSingles());
+                    window._rsaTiebreaker = null;
+                });
+                return;
+            }
+
+            finishRound(doCaptureSingles());
         });
 
         // ── Switch P1 in (takes the P2 move) ──
