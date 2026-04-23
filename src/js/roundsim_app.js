@@ -870,18 +870,104 @@
     }
 
     /**
-     * Sync the hazard UI buttons and counters to match the current line's fieldState.
+     * Sync the field-state hazards to the calc's UI checkboxes/radios so the
+     * damage engine accounts for them.
      */
-    function renderHazardsUI() {
+    function syncHazardsToCalc() {
         var fld = curLine().fieldState;
-        if (!fld.hazards) return; // nothing to render yet
-        ['p1', 'p2'].forEach(function (side) {
-            var h = fld.hazards[side] || {};
-            $('#rsa-h-sr-' + side).toggleClass('rsa-hazard-active', !!h.sr);
-            $('#rsa-h-spikes-' + side).text(h.spikes || 0);
-            $('#rsa-h-tspikes-' + side).text(h.tspikes || 0);
-            $('#rsa-h-web-' + side).toggleClass('rsa-hazard-active', !!h.stickyWeb);
-        });
+        if (!fld.hazards) return;
+        var h1 = fld.hazards.p1 || {};
+        var h2 = fld.hazards.p2 || {};
+        // L = attacker side = P1, R = defender side = P2
+        $('#srL').prop('checked', !!h1.sr).trigger('change');
+        $('#srR').prop('checked', !!h2.sr).trigger('change');
+        $('input[name=spikesL][value=' + (h1.spikes || 0) + ']').prop('checked', true).trigger('change');
+        $('input[name=spikesR][value=' + (h2.spikes || 0) + ']').prop('checked', true).trigger('change');
+        $('input[name=tspikesL][value=' + (h1.tspikes || 0) + ']').prop('checked', true).trigger('change');
+        $('input[name=tspikesR][value=' + (h2.tspikes || 0) + ']').prop('checked', true).trigger('change');
+    }
+
+    // Map of hazard-setting move names to sideCondition key
+    var HAZARD_SET_MOVES = {
+        'Stealth Rock': 'sr',
+        'Spikes': 'spikes',
+        'Toxic Spikes': 'tspikes',
+        'Sticky Web': 'stickyWeb'
+    };
+    // Moves that clear hazards
+    var HAZARD_CLEAR_MOVES = ['Rapid Spin', 'Defog', 'Mortal Spin', 'Tidy Up', 'Court Change'];
+
+    /**
+     * After a round is captured, check both sides' moves for hazard effects and
+     * update the field state accordingly.
+     *   - Hazard-setting moves place hazards on the OPPONENT's side.
+     *   - Rapid Spin / Mortal Spin / Tidy Up clear hazards on the USER's side.
+     *   - Defog clears hazards on BOTH sides.
+     *   - Court Change swaps hazards between sides.
+     */
+    function applyHazardMoves(p1MoveName, p2MoveName) {
+        if (!p1MoveName && !p2MoveName) return;
+
+        // P1 uses a hazard-setting move → opponent (P2) side gets the hazard
+        if (p1MoveName && HAZARD_SET_MOVES[p1MoveName]) {
+            var key = HAZARD_SET_MOVES[p1MoveName];
+            var h = getFieldHazards('p2');
+            if (key === 'sr' || key === 'stickyWeb') {
+                h[key] = true;
+            } else if (key === 'spikes') {
+                h.spikes = Math.min(3, (h.spikes || 0) + 1);
+            } else if (key === 'tspikes') {
+                h.tspikes = Math.min(2, (h.tspikes || 0) + 1);
+            }
+        }
+        // P2 uses a hazard-setting move → opponent (P1) side gets the hazard
+        if (p2MoveName && HAZARD_SET_MOVES[p2MoveName]) {
+            var key2 = HAZARD_SET_MOVES[p2MoveName];
+            var h2 = getFieldHazards('p1');
+            if (key2 === 'sr' || key2 === 'stickyWeb') {
+                h2[key2] = true;
+            } else if (key2 === 'spikes') {
+                h2.spikes = Math.min(3, (h2.spikes || 0) + 1);
+            } else if (key2 === 'tspikes') {
+                h2.tspikes = Math.min(2, (h2.tspikes || 0) + 1);
+            }
+        }
+
+        // Hazard-clearing moves
+        function clearSide(side) {
+            var h = getFieldHazards(side);
+            h.sr = false; h.spikes = 0; h.tspikes = 0; h.stickyWeb = false;
+        }
+        // P1's clearing move clears P1's side (Rapid Spin/Mortal Spin/Tidy Up) or both (Defog)
+        if (p1MoveName) {
+            if (p1MoveName === 'Rapid Spin' || p1MoveName === 'Mortal Spin' || p1MoveName === 'Tidy Up') {
+                clearSide('p1');
+            } else if (p1MoveName === 'Defog') {
+                clearSide('p1'); clearSide('p2');
+            } else if (p1MoveName === 'Court Change') {
+                var tmp = $.extend({}, getFieldHazards('p1'));
+                var p2h = getFieldHazards('p2');
+                var p1h = getFieldHazards('p1');
+                p1h.sr = p2h.sr; p1h.spikes = p2h.spikes; p1h.tspikes = p2h.tspikes; p1h.stickyWeb = p2h.stickyWeb;
+                p2h.sr = tmp.sr; p2h.spikes = tmp.spikes; p2h.tspikes = tmp.tspikes; p2h.stickyWeb = tmp.stickyWeb;
+            }
+        }
+        // P2's clearing move
+        if (p2MoveName) {
+            if (p2MoveName === 'Rapid Spin' || p2MoveName === 'Mortal Spin' || p2MoveName === 'Tidy Up') {
+                clearSide('p2');
+            } else if (p2MoveName === 'Defog') {
+                clearSide('p1'); clearSide('p2');
+            } else if (p2MoveName === 'Court Change') {
+                var tmp2 = $.extend({}, getFieldHazards('p1'));
+                var p2h2 = getFieldHazards('p2');
+                var p1h2 = getFieldHazards('p1');
+                p1h2.sr = p2h2.sr; p1h2.spikes = p2h2.spikes; p1h2.tspikes = p2h2.tspikes; p1h2.stickyWeb = p2h2.stickyWeb;
+                p2h2.sr = tmp2.sr; p2h2.spikes = tmp2.spikes; p2h2.tspikes = tmp2.tspikes; p2h2.stickyWeb = tmp2.stickyWeb;
+            }
+        }
+
+        syncHazardsToCalc();
     }
 
     // Abilities that ignore the defender's ability (for Sturdy, Disguise, Ice Face, etc.)
@@ -1613,7 +1699,8 @@
 
         var atkMagicGuard = attacker.ability === 'Magic Guard';
         var atkRockHead   = attacker.ability === 'Rock Head';
-        // Recoil/drain are based on actual damage dealt, which is capped at the defender's current HP
+        // In Gen 5+, recoil is based on the raw damage roll, NOT capped at the
+        // defender's remaining HP.  Drain moves ARE capped at actual HP lost.
         var defCurHP = Math.max(1, defender.currentHP || defender.maxHP);
         var effMinDmg = Math.min(moveInfo.minDmg, defCurHP);
         var effMaxDmg = Math.min(moveInfo.maxDmg, defCurHP);
@@ -1629,10 +1716,10 @@
             });
         }
 
-        // --- Move recoil (blocked by Magic Guard / Rock Head; based on actual damage dealt) ---
+        // --- Move recoil (blocked by Magic Guard / Rock Head; based on raw damage roll in Gen 5+) ---
         if (move.recoil && moveInfo.maxDmg > 0 && !atkMagicGuard && !atkRockHead) {
-            var recoilMin = Math.max(1, Math.floor(effMinDmg * move.recoil[0] / move.recoil[1]));
-            var recoilMax = Math.max(1, Math.floor(effMaxDmg * move.recoil[0] / move.recoil[1]));
+            var recoilMin = Math.max(1, Math.floor(moveInfo.minDmg * move.recoil[0] / move.recoil[1]));
+            var recoilMax = Math.max(1, Math.floor(moveInfo.maxDmg * move.recoil[0] / move.recoil[1]));
             extras.push({
                 target: 'attacker',
                 source: 'Recoil (' + move.recoil[0] + '/' + move.recoil[1] + ')',
@@ -2560,7 +2647,7 @@
                     p1BestAfter = Math.min(p1Entry.maxHP, p1BestAfter - (ex.damageMin || ex.damage));
                 } else {
                     p1HPAfter = Math.max(0, p1HPAfter - ex.damage);
-                    p1BestAfter = Math.max(0, p1BestAfter - ex.damage);
+                    p1BestAfter = Math.max(0, p1BestAfter - (ex.damageMin != null ? ex.damageMin : ex.damage));
                 }
             }
         }
@@ -2572,7 +2659,7 @@
                     p2BestAfter = Math.min(p2Entry.maxHP, p2BestAfter - (ex.damageMin || ex.damage));
                 } else {
                     p2HPAfter = Math.max(0, p2HPAfter - ex.damage);
-                    p2BestAfter = Math.max(0, p2BestAfter - ex.damage);
+                    p2BestAfter = Math.max(0, p2BestAfter - (ex.damageMin != null ? ex.damageMin : ex.damage));
                 }
             }
         }
@@ -3692,6 +3779,26 @@
         for (var i = 0; i < line.rounds.length; i++) {
             line.rounds[i].roundNum = ++line.roundCounter;
         }
+        // Rebuild hazard state by replaying each round's moves
+        if (line.fieldState && line.fieldState.hazards) {
+            line.fieldState.hazards = {
+                p1: { sr: false, spikes: 0, tspikes: 0, stickyWeb: false },
+                p2: { sr: false, spikes: 0, tspikes: 0, stickyWeb: false }
+            };
+        }
+        for (var i = 0; i < line.rounds.length; i++) {
+            var rd = line.rounds[i];
+            if (rd.isDoubles && rd.actions) {
+                for (var a = 0; a < rd.actions.length; a++) {
+                    var act = rd.actions[a];
+                    var actSide = (act.slot || '').substring(0, 2);
+                    if (actSide === 'p1') applyHazardMoves(act.move, null);
+                    else if (actSide === 'p2') applyHazardMoves(null, act.move);
+                }
+            } else {
+                applyHazardMoves(rd.p1 && rd.p1.move, rd.p2 && rd.p2.move);
+            }
+        }
         // Sync the updated HP and item to calc form
         var p1Active = getActiveEntry(line.teams.p1);
         var p2Active = getActiveEntry(line.teams.p2);
@@ -4236,7 +4343,7 @@
         renderRoundLog();
         updateMovePickDisplay();
         populateSwitchDropdown();
-        renderHazardsUI();
+        syncHazardsToCalc();
         if (isDoubles()) refreshDoublesUI();
     }
 
@@ -5319,6 +5426,21 @@
             function finishRound(rd) {
                 if (!rd) return;
                 curLine().rounds.push(rd);
+                // Auto-detect hazard-setting/clearing moves and update field state
+                if (rd.isDoubles && rd.actions) {
+                    for (var ai = 0; ai < rd.actions.length; ai++) {
+                        var act = rd.actions[ai];
+                        if (act && act.move && act.move !== '—') {
+                            var actSide = act.slot ? act.slot.substring(0, 2) : '';
+                            if (actSide === 'p1') applyHazardMoves(act.move, null);
+                            else if (actSide === 'p2') applyHazardMoves(null, act.move);
+                        }
+                    }
+                } else {
+                    var p1Move = (rd.p1 && rd.p1.move !== '—') ? rd.p1.move : null;
+                    var p2Move = (rd.p2 && rd.p2.move !== '—') ? rd.p2.move : null;
+                    applyHazardMoves(p1Move, p2Move);
+                }
                 renderAll();
                 autoSave();
                 if (isDoubles()) refreshDoublesUI();
@@ -5411,12 +5533,16 @@
         });
 
         // ── Switch P1 in (takes the P2 move) ──
-        $('#rsa-do-switch').on('click', function () {
+        var _switchInProgress = false;
+        $('#rsa-do-switch').on('click', function (e) {
+            e.preventDefault();
+            if (_switchInProgress) return;
             var switchIdx = parseInt($('#rsa-switch-p1').val());
             if (isNaN(switchIdx)) {
                 alert('Select a Pokémon to switch in.');
                 return;
             }
+            _switchInProgress = true;
             var line = curLine();
             var p2MoveIdx = selectedP2Move;
             var p2Crit = $('#rsa-p2-crit').is(':checked');
@@ -5441,11 +5567,16 @@
                 if (!rd) return;
                 rd.isSwitch = true;
 
+                // Detect hazard moves from P2's attack
+                var p2Move = (rd.p2 && rd.p2.move !== '—') ? rd.p2.move : null;
+                if (p2Move) applyHazardMoves(null, p2Move);
+
                 line.rounds.push(rd);
                 renderAll();
 
                 $('#rsa-comment').val('');
                 $('#rsa-switch-p1').val('');
+                _switchInProgress = false;
             }, 600);
         });
 
@@ -5454,28 +5585,6 @@
             var $log = $('#rsa-round-log');
             var collapsed = $log.toggleClass('rsa-all-collapsed').hasClass('rsa-all-collapsed');
             $(this).text(collapsed ? '\u229e Expand All' : '\u2296 Collapse All');
-        });
-
-        // ── Entry hazard controls ──
-        // Toggle (SR, Sticky Web)
-        $(document).on('click', '.rsa-hazard-toggle', function () {
-            var side = $(this).data('side');
-            var hazard = $(this).data('hazard');
-            var h = getFieldHazards(side);
-            h[hazard] = !h[hazard];
-            renderHazardsUI();
-            autoSave();
-        });
-        // Increment / decrement (Spikes 0-3, Toxic Spikes 0-2)
-        $(document).on('click', '.rsa-hazard-step', function () {
-            var side = $(this).data('side');
-            var hazard = $(this).data('hazard');
-            var delta = parseInt($(this).data('delta')) || 0;
-            var h = getFieldHazards(side);
-            var max = (hazard === 'tspikes') ? 2 : 3;
-            h[hazard] = Math.max(0, Math.min(max, (h[hazard] || 0) + delta));
-            renderHazardsUI();
-            autoSave();
         });
 
         // ── Click header to toggle individual round card collapse ──
