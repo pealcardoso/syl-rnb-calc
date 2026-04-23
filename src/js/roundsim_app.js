@@ -878,13 +878,18 @@
         if (!fld.hazards) return;
         var h1 = fld.hazards.p1 || {};
         var h2 = fld.hazards.p2 || {};
+        // Batch-set all hazard controls WITHOUT triggering change cascades
+        window.NO_CALC = true;
         // L = attacker side = P1, R = defender side = P2
-        $('#srL').prop('checked', !!h1.sr).trigger('change');
-        $('#srR').prop('checked', !!h2.sr).trigger('change');
-        $('input[name=spikesL][value=' + (h1.spikes || 0) + ']').prop('checked', true).trigger('change');
-        $('input[name=spikesR][value=' + (h2.spikes || 0) + ']').prop('checked', true).trigger('change');
-        $('input[name=tspikesL][value=' + (h1.tspikes || 0) + ']').prop('checked', true).trigger('change');
-        $('input[name=tspikesR][value=' + (h2.tspikes || 0) + ']').prop('checked', true).trigger('change');
+        $('#srL').prop('checked', !!h1.sr);
+        $('#srR').prop('checked', !!h2.sr);
+        $('input[name=spikesL][value=' + (h1.spikes || 0) + ']').prop('checked', true);
+        $('input[name=spikesR][value=' + (h2.spikes || 0) + ']').prop('checked', true);
+        $('input[name=tspikesL][value=' + (h1.tspikes || 0) + ']').prop('checked', true);
+        $('input[name=tspikesR][value=' + (h2.tspikes || 0) + ']').prop('checked', true);
+        window.NO_CALC = false;
+        // Single recalculation for all hazard changes
+        try { performCalculations(); } catch (e) {}
     }
 
     // Map of hazard-setting move names to sideCondition key
@@ -1923,6 +1928,8 @@
 
     function loadPokemonIntoForm(side, entry) {
         if (!entry || !entry.setId) return;
+        // Suppress cascading recalculations during form population
+        _loadingForm = true;
         // Use val() + change() + select2-chosen text update (same pattern as trainer click handlers)
         var $sel = $('#' + side + ' .set-selector');
         $sel.val(entry.setId);
@@ -1934,7 +1941,6 @@
         // with NO_CALC + _loadingForm to prevent cascading recalculations
         setTimeout(function () {
             window.NO_CALC = true;
-            _loadingForm = true;
 
             if (entry.currentHP !== undefined) {
                 $('#' + side + ' .current-hp').val(entry.currentHP);
@@ -2334,15 +2340,18 @@
         if (!line) return;
         var sides = ['p1', 'p2'];
         var stats = ['at', 'df', 'sa', 'sd', 'sp'];
+        window.NO_CALC = true;
         for (var si = 0; si < sides.length; si++) {
             var side = sides[si];
             var entry = getActiveEntry(line.teams[side]);
             if (!entry) continue;
             for (var sti = 0; sti < stats.length; sti++) {
                 var val = (entry.boosts && entry.boosts[stats[sti]]) || 0;
-                $('#' + side + ' .' + stats[sti] + ' .boost').val(val).trigger('change');
+                $('#' + side + ' .' + stats[sti] + ' .boost').val(val);
             }
         }
+        window.NO_CALC = false;
+        try { performCalculations(); } catch (e) {}
     }
 
     // ════════════════════════════════════════════════════════════
@@ -2392,6 +2401,24 @@
         // ── Move priority determines turn order ──
         var p1Priority = (p1MoveData && typeof p1MoveData.priority === 'number') ? p1MoveData.priority : 0;
         var p2Priority = (p2MoveData && typeof p2MoveData.priority === 'number') ? p2MoveData.priority : 0;
+
+        // Custap Berry: gives +1 priority bracket when at ≤25% HP (≤50% with Gluttony)
+        var p1Custap = false, p2Custap = false;
+        if (p1Entry.item === 'Custap Berry' && p1MoveIdx !== 'none') {
+            var threshold = p1Entry.ability === 'Gluttony' ? 2 : 4;
+            if (p1Entry.currentHP <= Math.floor(p1Entry.maxHP / threshold)) {
+                p1Priority += 1;
+                p1Custap = true;
+            }
+        }
+        if (p2Entry.item === 'Custap Berry' && p2MoveIdx !== 'none') {
+            var threshold2 = p2Entry.ability === 'Gluttony' ? 2 : 4;
+            if (p2Entry.currentHP <= Math.floor(p2Entry.maxHP / threshold2)) {
+                p2Priority += 1;
+                p2Custap = true;
+            }
+        }
+
         if (p1Priority !== p2Priority) {
             // Higher priority bracket goes first (regardless of speed)
             speed.faster = p1Priority > p2Priority ? 'p1' : 'p2';
@@ -2408,6 +2435,10 @@
         // Apply P1 pre-damage (e.g., hazard damage, prior chip)
         if (p1PreDmg && p1PreDmg > 0) {
             p1Entry.currentHP = Math.max(0, p1Entry.currentHP - p1PreDmg);
+            // Hazard damage is flat (no roll), so apply identically to bestCaseHP
+            if (p1Entry.bestCaseHP != null) {
+                p1Entry.bestCaseHP = Math.max(0, p1Entry.bestCaseHP - p1PreDmg);
+            }
         }
         // Apply P1 pre-status (e.g., from a previous turn's move)
         if (p1PreStatus) {
@@ -2635,8 +2666,12 @@
         }
 
         // Consume Focus Sash after speed-order resolution (Sturdy is not consumed)
-        if (p1Sashed) { p1Entry.item = ''; $('#p1 .item').val('').trigger('change'); }
-        if (p2Sashed) { p2Entry.item = ''; $('#p2 .item').val('').trigger('change'); }
+        if (p1Sashed) { p1Entry.item = ''; $('#p1 .item').val(''); }
+        if (p2Sashed) { p2Entry.item = ''; $('#p2 .item').val(''); }
+
+        // Consume Custap Berry after it activated
+        if (p1Custap) { p1Entry.item = ''; $('#p1 .item').val(''); }
+        if (p2Custap) { p2Entry.item = ''; $('#p2 .item').val(''); }
 
         // Apply extra damage from attacks (same for worst and best — extras are fixed values)
         for (var i = 0; i < p1Extras.length; i++) {
@@ -2678,7 +2713,7 @@
         // Helper to clear a consumed item from the entry and its calc form
         function consumeItem(entry, side) {
             entry.item = '';
-            $('#' + side + ' .item').val('').trigger('change');
+            $('#' + side + ' .item').val('');
         }
 
         // Status-curing berries activate end-of-turn (after EOT status damage)
@@ -2818,6 +2853,7 @@
                 secondaryApplied: p1ApplySecondary && p1SecondaryApplied,
                 sashed: p1Sashed,
                 sturdied: p1Sturdied,
+                custap: p1Custap,
                 damage: p1Dmg,
                 critDamage: null,
                 extras: p1Extras,
@@ -2848,6 +2884,7 @@
                 blockReason: (secondMover === 'p2') ? secondMoverBlockReason : '',
                 secondaryApplied: p2ApplySecondary && p2SecondaryApplied,
                 sashed: p2Sashed,
+                custap: p2Custap,
                 sturdied: p2Sturdied,
                 damage: p2Dmg,
                 critDamage: p2CritInfo,
@@ -3800,16 +3837,18 @@
             }
         }
         // Sync the updated HP and item to calc form
+        window.NO_CALC = true;
         var p1Active = getActiveEntry(line.teams.p1);
         var p2Active = getActiveEntry(line.teams.p2);
         if (p1Active) {
             $('#p1 .current-hp').val(p1Active.currentHP);
-            $('#p1 .item').val(p1Active.item || '').trigger('change');
+            $('#p1 .item').val(p1Active.item || '');
         }
         if (p2Active) {
             $('#p2 .current-hp').val(p2Active.currentHP);
-            $('#p2 .item').val(p2Active.item || '').trigger('change');
+            $('#p2 .item').val(p2Active.item || '');
         }
+        window.NO_CALC = false;
         // Sync boosts to calc form
         syncBoostsToCalc();
     }
@@ -4331,6 +4370,7 @@
             moveHtml + extrasHtml + eotHtml + hpSim +
             (actor.sashed ? '<span class=\"rsa-tag rsa-sash-tag\">Focus Sash!</span>' : '') +
             (actor.sturdied ? '<span class=\"rsa-tag rsa-sash-tag\">Sturdy!</span>' : '') +
+            (actor.custap ? '<span class=\"rsa-tag rsa-sash-tag\">Custap Berry!</span>' : '') +
         '</div>';
     }
 
@@ -4426,7 +4466,7 @@
     }
 
     /** Auto-select the most probable P2 move based on AI percentages */
-    function autoSelectP2MostProbable() {
+    function autoSelectP2MostProbable(retries) {
         var maxPct = 0;
         var maxIdx = -1;
         for (var i = 1; i <= 4; i++) {
@@ -4450,6 +4490,9 @@
                 try { cachedRankings = computeBoxRankings(); } catch (e) { cachedRankings = []; }
                 renderBox('p1');
             }, 50);
+        } else if ((retries || 0) < 3) {
+            // AI percentages may not be populated yet — retry after a short delay
+            setTimeout(function () { autoSelectP2MostProbable((retries || 0) + 1); }, 300);
         }
     }
 
@@ -5167,10 +5210,12 @@
             }, 50);
         });
 
-        // Update move display when calc recalculates
+        // Update move display when calc recalculates (debounced)
+        var _calcTriggerTimer = null;
         $(document).on('change', '.calc-trigger', function () {
             if (_loadingForm) return; // skip during batch form loading
-            setTimeout(function () {
+            clearTimeout(_calcTriggerTimer);
+            _calcTriggerTimer = setTimeout(function () {
                 if (_loadingForm) return;
                 updateMovePickDisplay();
                 // Recompute rankings so defensive ranks reflect any P2 move/stat changes
@@ -5184,20 +5229,28 @@
             }, 200);
         });
 
-        // ── Auto-refresh P1 box when calc's team/box DOM changes ──
+        // ── Auto-refresh P1 box when calc's team/box DOM changes (debounced) ──
+        var _boxMutTimer = null;
         var boxContainers = ['team-poke-list', 'box-poke-list'];
         for (var i = 0; i < boxContainers.length; i++) {
             var el = document.getElementById(boxContainers[i]);
             if (el) {
-                new MutationObserver(function () { renderBox('p1'); }).observe(el, { childList: true, subtree: true });
+                new MutationObserver(function () {
+                    clearTimeout(_boxMutTimer);
+                    _boxMutTimer = setTimeout(function () { renderBox('p1'); }, 100);
+                }).observe(el, { childList: true, subtree: true });
             }
         }
 
+        var _oppMutTimer = null;
         var oppList = document.querySelector('.trainer-pok-list-opposing');
         if (oppList) {
             new MutationObserver(function () {
-                syncP2Team();
-                setTimeout(autoSelectP2MostProbable, 500);
+                clearTimeout(_oppMutTimer);
+                _oppMutTimer = setTimeout(function () {
+                    syncP2Team();
+                    setTimeout(autoSelectP2MostProbable, 300);
+                }, 150);
             }).observe(oppList, { childList: true, subtree: true });
         }
 
