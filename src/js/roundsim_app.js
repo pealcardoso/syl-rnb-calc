@@ -192,7 +192,9 @@
 
                 var p1hp = results[0][0].attacker.stats.hp;
                 var p2hp = results[1][0].attacker.stats.hp;
-                speed = p1.stats ? p1.stats.spe : 0;
+                // Use effective speed including weather/terrain/item/ability modifiers
+                var _bEntry = { item: p1.item || '', ability: p1.ability || '', status: '', boosts: { sp: (p1.boosts && p1.boosts.spe) || 0 } };
+                speed = calcEffectiveSpeed(_bEntry, p1.stats ? p1.stats.spe : 0);
 
                 // Offensive rank: best of all P1 moves vs P2
                 for (var j = 0; j < 4; j++) {
@@ -1283,6 +1285,59 @@
 
     function getWeather() { return $("input:radio[name='weather']:checked").val() || 'None'; }
     function getTerrain() { return $("input:checkbox[name='terrain']:checked").val() || 'None'; }
+
+    /**
+     * Compute effective displayed speed for a roster entry.
+     * Applies item, ability (including weather abilities), status, and boost modifiers.
+     * `entry` = roster entry (has .item, .ability, .status, .boosts)
+     * `baseSpe` = base stat speed from createPokemon().stats.spe
+     * `weather` = current weather string (optional, defaults to getWeather())
+     * `terrain` = current terrain string (optional, defaults to getTerrain())
+     * `boostStages` = current boost on .sp (optional)
+     */
+    function calcEffectiveSpeed(entry, baseSpe, weather, terrain) {
+        if (!baseSpe) return 0;
+        var spd = baseSpe;
+        var w = weather != null ? weather : getWeather();
+        var t = terrain != null ? terrain : getTerrain();
+        var item = entry.item || '';
+        var ability = entry.ability || '';
+        var status = entry.status || '';
+        var boost = (entry.boosts && entry.boosts.sp) || 0;
+
+        // Item modifiers
+        if (item === 'Iron Ball' || item === 'Macho Brace' || item === 'Power Weight' ||
+            item === 'Power Bracer' || item === 'Power Belt' || item === 'Power Lens' ||
+            item === 'Power Band' || item === 'Power Anklet') {
+            spd = Math.floor(spd * 0.5);
+        } else if (item === 'Choice Scarf') {
+            spd = Math.floor(spd * 1.5);
+        } else if (item === 'Quick Powder' && (entry.name || '') === 'Ditto') {
+            spd = spd * 2;
+        }
+
+        // Weather ability speed doublers
+        if (ability === 'Swift Swim' && (w === 'Rain' || w === 'Heavy Rain')) spd = spd * 2;
+        else if (ability === 'Chlorophyll' && (w === 'Sun' || w === 'Harsh Sunshine')) spd = spd * 2;
+        else if (ability === 'Sand Rush' && w === 'Sand') spd = spd * 2;
+        else if (ability === 'Slush Rush' && (w === 'Snow' || w === 'Hail')) spd = spd * 2;
+        // Terrain ability
+        else if (ability === 'Surge Surfer' && t === 'Electric') spd = spd * 2;
+        // Other ability modifiers
+        else if (ability === 'Quick Feet' && status) spd = Math.floor(spd * 1.5);
+        else if (ability === 'Slow Start') spd = Math.floor(spd * 0.5);
+
+        // Status modifiers (paralysis)
+        if (status === 'Paralysis' && ability !== 'Quick Feet') spd = Math.floor(spd * 0.5);
+
+        // Boost stages
+        if (boost !== 0) {
+            var boostMult = boost > 0 ? (2 + boost) / 2 : 2 / (2 - boost);
+            spd = Math.floor(spd * boostMult);
+        }
+
+        return spd;
+    }
 
     // ════════════════════════════════════════════════════════════
     // DAMAGE CALCULATIONS
@@ -2581,6 +2636,16 @@
         // Set blocked flags for HP calculation
         var p1Flinched = secondMoverBlocked && (secondMover === 'p1');
         var p2Flinched = secondMoverBlocked && (secondMover === 'p2');
+
+        // ── Contact/hit ability effects ──
+        // Cotton Down: when hit by a damaging move, -1 Speed to all other pokemon on the field
+        // In singles: the attacker gets -1 Spe
+        if (p1Dmg && p1Dmg.maxDmg > 0 && !p1Flinched && p2Entry.ability === 'Cotton Down') {
+            applyBoosts(p1Entry, { spe: -1 });
+        }
+        if (p2Dmg && p2Dmg.maxDmg > 0 && !p2Flinched && p1Entry.ability === 'Cotton Down') {
+            applyBoosts(p2Entry, { spe: -1 });
+        }
 
         // Increment toxic counter before EOT so the correct turn count is used
         if (p1Entry.status === 'Badly Poisoned') p1Entry.toxicCounter = (p1Entry.toxicCounter || 0) + 1;
@@ -4026,27 +4091,12 @@
                 teamDefTooltip = buildDefTooltip(e.name, tInfo.types, tInfo.ability);
             } catch (ex) {}
 
-            // Speed stat lookup (apply item/status modifiers for accurate display)
+            // Speed stat lookup (apply item/ability/status/weather/boost modifiers for accurate display)
             var speedText = '';
             try {
                 var tmpPoke = createPokemon(e.setId);
                 if (tmpPoke && tmpPoke.stats && tmpPoke.stats.spe) {
-                    var dispSpd = tmpPoke.stats.spe;
-                    // Item modifiers
-                    if (e.item === 'Iron Ball' || e.item === 'Macho Brace' || e.item === 'Power Weight' ||
-                        e.item === 'Power Bracer' || e.item === 'Power Belt' || e.item === 'Power Lens' ||
-                        e.item === 'Power Band' || e.item === 'Power Anklet') {
-                        dispSpd = Math.floor(dispSpd * 0.5);
-                    } else if (e.item === 'Choice Scarf') {
-                        dispSpd = Math.floor(dispSpd * 1.5);
-                    } else if (e.item === 'Quick Powder' && e.name === 'Ditto') {
-                        dispSpd = dispSpd * 2;
-                    }
-                    // Ability modifiers
-                    if (e.ability === 'Quick Feet' && e.status) dispSpd = Math.floor(dispSpd * 1.5);
-                    if (e.ability === 'Slow Start') dispSpd = Math.floor(dispSpd * 0.5);
-                    // Status modifiers
-                    if (e.status === 'Paralysis' && e.ability !== 'Quick Feet') dispSpd = Math.floor(dispSpd * 0.5);
+                    var dispSpd = calcEffectiveSpeed(e, tmpPoke.stats.spe);
                     speedText = '<span class="rsa-team-speed" title="Speed: ' + dispSpd + '">⚡' + dispSpd + '</span>';
                 }
             } catch (ex) {}
@@ -4833,8 +4883,24 @@
 
             var p1hp = results[0][0].attacker.stats.hp;
             var p2hp = results[1][0].attacker.stats.hp;
-            var p1s = p1.stats ? p1.stats.spe : 0;
-            var p2s = p2.stats ? p2.stats.spe : 0;
+
+            // Effective speed: use calcEffectiveSpeed to include weather/terrain/item/ability/status
+            // For P1 box mon, build an entry-like object from the calc pokemon and current conditions
+            var p1Entry4cc = {
+                item: p1.item || '',
+                ability: p1.ability || '',
+                status: '',
+                boosts: { sp: (p1.boosts && p1.boosts.spe) || 0 }
+            };
+            var p1s = calcEffectiveSpeed(p1Entry4cc, p1.stats ? p1.stats.spe : 0);
+            // For P2 playing on the field, read the form's totalMod (already accounts for Swift Swim etc.)
+            var p2sRaw = p2.stats ? p2.stats.spe : 0;
+            var p2sMod = parseInt($('#p2 .sp .totalMod').text()) || 0;
+            var p2sBase = parseInt($('#p2 .sp .total').text()) || p2sRaw;
+            var p2s = p2sMod || p2sBase || p2sRaw;
+            // Also apply paralysis if P2 is paralyzed (the form may already handle this)
+            if ($('#p2 .status').val() === 'Paralyzed' && p2s === p2sBase) p2s = Math.floor(p2s * 0.75);
+
             var p1AbilityToggle = $('#p1').find('.abilityToggle').is(':checked');
             if (p1.ability === 'Unburden' && !p1AbilityToggle) p1s = Math.floor(p1s / 2);
             var fastest = p1s > p2s ? 'F' : p1s < p2s ? 'S' : 'T';
