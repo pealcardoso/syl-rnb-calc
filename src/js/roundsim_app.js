@@ -1688,11 +1688,14 @@
     function calcEndOfTurnDamage(entry, weather) {
         var eot = [];
         var maxHP = entry.maxHP;
-        var hasMagicGuard = entry.ability === 'Magic Guard';
-        var hasPoisonHeal = entry.ability === 'Poison Heal';
+        var ability = entry.ability || '';
+        var hasMagicGuard = ability === 'Magic Guard';
+        var hasPoisonHeal = ability === 'Poison Heal';
+        // Guts suppresses burn damage (but burn SpAtk drop still applies)
+        var hasGuts = ability === 'Guts';
 
-        // --- Status damage (blocked by Magic Guard) ---
-        if (entry.status === 'Burn' && !hasMagicGuard) {
+        // --- Status damage (blocked by Magic Guard / Guts for burn) ---
+        if (entry.status === 'Burn' && !hasMagicGuard && !hasGuts) {
             var burnDmg = Math.max(1, Math.floor(maxHP / 16));
             eot.push({ source: 'Burn', damage: burnDmg });
         }
@@ -3592,6 +3595,15 @@
         }
     }
 
+    /** Sync the calc form status fields for both active P1 and P2 pokemon. */
+    function syncActiveStatusToForm() {
+        var line = curLine();
+        var p1Entry = getActiveEntry(line.teams.p1);
+        var p2Entry = getActiveEntry(line.teams.p2);
+        if (p1Entry) syncStatusToForm('p1', p1Entry);
+        if (p2Entry) syncStatusToForm('p2', p2Entry);
+    }
+
     /** Apply stat boost changes to a roster entry, clamping to ±6 */
     function applyBoosts(entry, boosts) {
         if (!entry || !boosts) return;
@@ -5481,6 +5493,8 @@
             line.rounds = line.rounds.filter(function (r) { return r.roundNum !== num; });
             rebuildLineTeams(line);
             renderAll();
+            // Sync calc form status so the dropdown and form stay in agreement
+            syncActiveStatusToForm();
             autoSave();
         });
 
@@ -5493,6 +5507,7 @@
             line.roundCounter = 0;
             rebuildLineTeams(line);
             renderAll();
+            syncActiveStatusToForm();
             autoSave();
         });
 
@@ -5505,6 +5520,7 @@
             line.roundCounter = 0;
             rebuildLineTeams(line);
             renderAll();
+            syncActiveStatusToForm();
             autoSave();
         });
 
