@@ -507,6 +507,9 @@
 .rsa-trickroom { background: #805ad5; color: #fff; }
 .rsa-crit-tag { background: #e53e3e; color: #fff; }
 .rsa-switch-tag { background: #805ad5; color: #fff; }
+/* Hazard badges in round log */
+.rsa-hazard-p1 { background: #b7791f; color: #fff; }
+.rsa-hazard-p2 { background: #6b46c1; color: #fff; }
 .rsa-prob-tag { cursor: help; font-weight: 600; }
 .rsa-prob-high { background: #2f855a; color: #fff; }
 .rsa-prob-mid { background: #c05621; color: #fff; }
@@ -675,6 +678,48 @@
     background: #2d3748; border: 1px solid #4a5568; color: #e2e8f0;
     padding: 4px 6px; border-radius: 4px; font-size: 0.85em;
     flex: 1; min-width: 200px;
+}
+
+/* ── Entry hazards panel ──────────────────────────────────── */
+.rsa-hazards-row {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+    margin-top: 6px; padding: 5px 8px;
+    background: #1a202c; border: 1px solid #4a5568; border-radius: 5px;
+}
+.rsa-hazards-section-title {
+    font-size: 0.75em; font-weight: 700; color: #a0aec0; white-space: nowrap;
+}
+.rsa-hazard-side {
+    display: flex; align-items: center; gap: 5px; flex-wrap: wrap;
+}
+.rsa-hazard-side-lbl {
+    font-size: 0.72em; font-weight: 700; padding: 1px 4px; border-radius: 3px;
+    white-space: nowrap;
+}
+.rsa-hazard-p1lbl { background: #b7791f; color: #fff; }
+.rsa-hazard-p2lbl { background: #6b46c1; color: #fff; }
+.rsa-hazard-toggle {
+    background: #2d3748; border: 1px solid #4a5568; color: #a0aec0;
+    font-size: 0.72em; font-weight: 700; padding: 2px 7px; border-radius: 3px;
+    cursor: pointer; transition: background 0.15s, color 0.15s;
+}
+.rsa-hazard-toggle:hover { border-color: #718096; color: #e2e8f0; }
+.rsa-hazard-toggle.rsa-hazard-active { background: #c05621; border-color: #dd6b20; color: #fff; }
+.rsa-hazard-group {
+    display: flex; align-items: center; gap: 2px;
+}
+.rsa-hazard-step {
+    background: #2d3748; border: 1px solid #4a5568; color: #a0aec0;
+    font-size: 0.8em; font-weight: 700; padding: 1px 5px; border-radius: 3px;
+    cursor: pointer; line-height: 1.2;
+}
+.rsa-hazard-step:hover { background: #4a5568; color: #e2e8f0; }
+.rsa-hazard-val {
+    font-size: 0.8em; font-weight: 700; color: #e2e8f0;
+    min-width: 12px; text-align: center;
+}
+.rsa-hazard-lbl {
+    font-size: 0.7em; color: #718096;
 }
 
 /* ── Hide excess calc sections in Round Sim ───────────────── */

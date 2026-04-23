@@ -780,6 +780,110 @@
         'Ice Body', 'Snow Cloak', 'Slush Rush'
     ];
 
+    // Rock-type effectiveness vs each type (for Stealth Rock damage)
+    var SR_EFFECTIVENESS = {
+        'Normal':1,'Fire':2,'Water':0.5,'Electric':1,'Grass':1,'Ice':2,
+        'Fighting':0.5,'Poison':1,'Ground':0.5,'Flying':2,'Psychic':1,
+        'Bug':2,'Rock':1,'Ghost':1,'Dragon':1,'Dark':1,'Steel':0.5,'Fairy':1
+    };
+
+    /**
+     * Ensure a line's fieldState has the hazards sub-object and return the side's hazards.
+     */
+    function getFieldHazards(side) {
+        var fld = curLine().fieldState;
+        if (!fld.hazards) {
+            fld.hazards = {
+                p1: { sr: false, spikes: 0, tspikes: 0, stickyWeb: false },
+                p2: { sr: false, spikes: 0, tspikes: 0, stickyWeb: false }
+            };
+        }
+        if (!fld.hazards[side]) fld.hazards[side] = { sr: false, spikes: 0, tspikes: 0, stickyWeb: false };
+        return fld.hazards[side];
+    }
+
+    /**
+     * Calculate entry hazard damage and any status the pokemon would receive
+     * when switching in while hazards are active.
+     * Returns { damage: number, status: string }
+     */
+    function calcEntryHazardDamage(entry, hazards) {
+        if (!hazards) return { damage: 0, status: '' };
+        var types = entry.types || [];
+        var ability = entry.ability || '';
+        var item = entry.item || '';
+        var maxHP = entry.maxHP || 100;
+
+        var hasMagicGuard = ability === 'Magic Guard';
+        var isFlying = types.indexOf('Flying') !== -1;
+        var hasLevitate = ability === 'Levitate';
+        var hasAirBalloon = item === 'Air Balloon';
+        var isGrounded = !isFlying && !hasLevitate && !hasAirBalloon;
+        // Poison and Steel types absorb Toxic Spikes
+        var absorbsTSpikes = types.indexOf('Poison') !== -1 || types.indexOf('Steel') !== -1;
+
+        var totalDamage = 0;
+        var status = '';
+
+        // Stealth Rocks — all pokemon, blocked only by Magic Guard
+        if (hazards.sr && !hasMagicGuard) {
+            var eff = 1;
+            for (var i = 0; i < types.length; i++) {
+                eff *= (SR_EFFECTIVENESS[types[i]] || 1);
+            }
+            totalDamage += Math.max(1, Math.floor(maxHP * eff / 8));
+        }
+
+        // Spikes — only grounded pokemon, blocked by Magic Guard
+        if (hazards.spikes > 0 && isGrounded && !hasMagicGuard) {
+            var spkDiv = [0, 8, 6, 4];
+            totalDamage += Math.max(1, Math.floor(maxHP / spkDiv[Math.min(hazards.spikes, 3)]));
+        }
+
+        // Toxic Spikes — only grounded pokemon; Poison/Steel absorb them
+        if (hazards.tspikes > 0 && isGrounded) {
+            if (absorbsTSpikes) {
+                // absorbed — no damage, no status
+            } else {
+                var alreadyStatused = entry.status && entry.status !== '' && entry.status !== 'Healthy';
+                if (!alreadyStatused) {
+                    status = hazards.tspikes >= 2 ? 'Badly Poisoned' : 'Poison';
+                }
+            }
+        }
+
+        return { damage: totalDamage, status: status };
+    }
+
+    /**
+     * Build a compact hazard description string for a side
+     * (used in round badge and labels).
+     */
+    function hazardDesc(hazards, prefix) {
+        if (!hazards) return '';
+        var parts = [];
+        if (hazards.sr) parts.push('SR');
+        if (hazards.spikes > 0) parts.push('Spikes×' + hazards.spikes);
+        if (hazards.tspikes > 0) parts.push('T.Spikes×' + hazards.tspikes);
+        if (hazards.stickyWeb) parts.push('Web');
+        return parts.length ? (prefix ? prefix + ':' + parts.join(',') : parts.join(', ')) : '';
+    }
+
+    /**
+     * Sync the hazard UI buttons and counters to match the current line's fieldState.
+     */
+    function renderHazardsUI() {
+        var fld = curLine().fieldState;
+        if (!fld.hazards) return; // nothing to render yet
+        ['p1', 'p2'].forEach(function (side) {
+            var h = fld.hazards[side] || {};
+            $('#rsa-h-sr-' + side).toggleClass('rsa-hazard-active', !!h.sr);
+            $('#rsa-h-spikes-' + side).text(h.spikes || 0);
+            $('#rsa-h-tspikes-' + side).text(h.tspikes || 0);
+            $('#rsa-h-web-' + side).toggleClass('rsa-hazard-active', !!h.stickyWeb);
+        });
+    }
+
     // Abilities that ignore the defender's ability (for Sturdy, Disguise, Ice Face, etc.)
     var MOLD_BREAKER_ABILITIES = [
         'Mold Breaker', 'Turboblaze', 'Teravolt', 'Mycelium Might'
@@ -2594,6 +2698,10 @@
             p1PreStatus: p1PreStatus || '',
             comment: comment || '',
             probability: roundProb,
+            hazards: {
+                p1: $.extend({}, getFieldHazards('p1')),
+                p2: $.extend({}, getFieldHazards('p2'))
+            },
             p1: {
                 name: p1Entry.name,
                 sprite: p1Entry.sprite,
@@ -3163,7 +3271,11 @@
             order: order,
             actions: roundActions,
             fighters: {},
-            eot: eotAll
+            eot: eotAll,
+            hazards: {
+                p1: $.extend({}, getFieldHazards('p1')),
+                p2: $.extend({}, getFieldHazards('p2'))
+            }
         };
 
         // Snapshot fighter state
@@ -3222,6 +3334,19 @@
         if (rd.trickRoom) {
             var trTurns = rd.trickRoomTurns > 0 ? ' (' + rd.trickRoomTurns + ' left)' : '';
             tags += '<span class="rsa-tag rsa-trickroom">Trick Room' + trTurns + '</span>';
+        }
+        // Hazard badges (doubles)
+        if (rd.hazards) {
+            var dh1 = rd.hazards.p1 || {};
+            var dh2 = rd.hazards.p2 || {};
+            if (dh1.sr)          tags += '<span class="rsa-tag rsa-hazard-p1" title="Stealth Rock on P1 side">⚑ SR</span>';
+            if (dh1.spikes > 0)  tags += '<span class="rsa-tag rsa-hazard-p1" title="Spikes on P1 side">Spikes×' + dh1.spikes + '</span>';
+            if (dh1.tspikes > 0) tags += '<span class="rsa-tag rsa-hazard-p1" title="Toxic Spikes on P1 side">T.Spikes×' + dh1.tspikes + '</span>';
+            if (dh1.stickyWeb)   tags += '<span class="rsa-tag rsa-hazard-p1" title="Sticky Web on P1 side">⛓ Web</span>';
+            if (dh2.sr)          tags += '<span class="rsa-tag rsa-hazard-p2" title="Stealth Rock on P2 side">⚑ SR (P2)</span>';
+            if (dh2.spikes > 0)  tags += '<span class="rsa-tag rsa-hazard-p2" title="Spikes on P2 side">Spikes×' + dh2.spikes + ' (P2)</span>';
+            if (dh2.tspikes > 0) tags += '<span class="rsa-tag rsa-hazard-p2" title="Toxic Spikes on P2 side">T.Spikes×' + dh2.tspikes + ' (P2)</span>';
+            if (dh2.stickyWeb)   tags += '<span class="rsa-tag rsa-hazard-p2" title="Sticky Web on P2 side">⛓ Web (P2)</span>';
         }
 
         // Speed order display with sprites
@@ -3852,6 +3977,19 @@
         if (rd.p2Crit)              tags += '<span class="rsa-tag rsa-crit-tag">P2 CRIT</span>';
         if (rd.p1PreDmg)            tags += '<span class="rsa-tag rsa-predmg-tag">P1 Pre-Dmg: -' + rd.p1PreDmg + '</span>';
         if (rd.p1PreStatus)         tags += '<span class="rsa-tag rsa-prestatus-tag">P1 Pre: ' + esc(rd.p1PreStatus) + '</span>';
+        // Hazard badges
+        if (rd.hazards) {
+            var h1 = rd.hazards.p1 || {};
+            var h2 = rd.hazards.p2 || {};
+            if (h1.sr)           tags += '<span class="rsa-tag rsa-hazard-p1" title="Stealth Rock on P1 side">⚑ SR</span>';
+            if (h1.spikes > 0)   tags += '<span class="rsa-tag rsa-hazard-p1" title="Spikes on P1 side">Spikes×' + h1.spikes + '</span>';
+            if (h1.tspikes > 0)  tags += '<span class="rsa-tag rsa-hazard-p1" title="Toxic Spikes on P1 side">T.Spikes×' + h1.tspikes + '</span>';
+            if (h1.stickyWeb)    tags += '<span class="rsa-tag rsa-hazard-p1" title="Sticky Web on P1 side">⛓ Web</span>';
+            if (h2.sr)           tags += '<span class="rsa-tag rsa-hazard-p2" title="Stealth Rock on P2 side">⚑ SR (P2)</span>';
+            if (h2.spikes > 0)   tags += '<span class="rsa-tag rsa-hazard-p2" title="Spikes on P2 side">Spikes×' + h2.spikes + ' (P2)</span>';
+            if (h2.tspikes > 0)  tags += '<span class="rsa-tag rsa-hazard-p2" title="Toxic Spikes on P2 side">T.Spikes×' + h2.tspikes + ' (P2)</span>';
+            if (h2.stickyWeb)    tags += '<span class="rsa-tag rsa-hazard-p2" title="Sticky Web on P2 side">⛓ Web (P2)</span>';
+        }
 
         // Determine who moves first for the indicator
         var p1First = rd.speed.faster === 'p1' || rd.speed.faster === 'tie';
@@ -4086,6 +4224,7 @@
         renderRoundLog();
         updateMovePickDisplay();
         populateSwitchDropdown();
+        renderHazardsUI();
         if (isDoubles()) refreshDoublesUI();
     }
 
@@ -5278,7 +5417,14 @@
 
             // Wait for the calc engine to recalculate with the new P1 pokemon
             setTimeout(function () {
-                var rd = captureRound('none', p2MoveIdx, p2Crit, 0, '',
+                // Auto-apply entry hazard damage for the incoming P1 pokemon
+                var switchEntry = getActiveEntry(curLine().teams.p1);
+                var hazResult = { damage: 0, status: '' };
+                if (switchEntry) {
+                    hazResult = calcEntryHazardDamage(switchEntry, getFieldHazards('p1'));
+                }
+
+                var rd = captureRound('none', p2MoveIdx, p2Crit, hazResult.damage, hazResult.status,
                     comment ? comment : 'Switch in: ' + switchName, false, p2ApplySec);
                 if (!rd) return;
                 rd.isSwitch = true;
@@ -5296,6 +5442,28 @@
             var $log = $('#rsa-round-log');
             var collapsed = $log.toggleClass('rsa-all-collapsed').hasClass('rsa-all-collapsed');
             $(this).text(collapsed ? '\u229e Expand All' : '\u2296 Collapse All');
+        });
+
+        // ── Entry hazard controls ──
+        // Toggle (SR, Sticky Web)
+        $(document).on('click', '.rsa-hazard-toggle', function () {
+            var side = $(this).data('side');
+            var hazard = $(this).data('hazard');
+            var h = getFieldHazards(side);
+            h[hazard] = !h[hazard];
+            renderHazardsUI();
+            autoSave();
+        });
+        // Increment / decrement (Spikes 0-3, Toxic Spikes 0-2)
+        $(document).on('click', '.rsa-hazard-step', function () {
+            var side = $(this).data('side');
+            var hazard = $(this).data('hazard');
+            var delta = parseInt($(this).data('delta')) || 0;
+            var h = getFieldHazards(side);
+            var max = (hazard === 'tspikes') ? 2 : 3;
+            h[hazard] = Math.max(0, Math.min(max, (h[hazard] || 0) + delta));
+            renderHazardsUI();
+            autoSave();
         });
 
         // ── Click header to toggle individual round card collapse ──

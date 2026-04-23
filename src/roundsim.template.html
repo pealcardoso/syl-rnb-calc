@@ -250,6 +250,45 @@
                 <label for="rsa-p2-apply-secondary">Apply P2 Effect</label>
             </div>
         </div>
+
+        <!-- Entry hazards row -->
+        <div class="rsa-hazards-row">
+            <span class="rsa-hazards-section-title">Hazards:</span>
+            <div class="rsa-hazard-side">
+                <span class="rsa-hazard-side-lbl rsa-hazard-p1lbl">P1 side</span>
+                <button class="rsa-hazard-toggle" data-side="p1" data-hazard="sr" id="rsa-h-sr-p1">SR</button>
+                <span class="rsa-hazard-group">
+                    <button class="rsa-hazard-step" data-side="p1" data-hazard="spikes" data-delta="-1">−</button>
+                    <span class="rsa-hazard-val" id="rsa-h-spikes-p1">0</span>
+                    <button class="rsa-hazard-step" data-side="p1" data-hazard="spikes" data-delta="1">+</button>
+                    <span class="rsa-hazard-lbl">Spikes</span>
+                </span>
+                <span class="rsa-hazard-group">
+                    <button class="rsa-hazard-step" data-side="p1" data-hazard="tspikes" data-delta="-1">−</button>
+                    <span class="rsa-hazard-val" id="rsa-h-tspikes-p1">0</span>
+                    <button class="rsa-hazard-step" data-side="p1" data-hazard="tspikes" data-delta="1">+</button>
+                    <span class="rsa-hazard-lbl">T.Spikes</span>
+                </span>
+                <button class="rsa-hazard-toggle" data-side="p1" data-hazard="stickyWeb" id="rsa-h-web-p1">Web</button>
+            </div>
+            <div class="rsa-hazard-side">
+                <span class="rsa-hazard-side-lbl rsa-hazard-p2lbl">P2 side</span>
+                <button class="rsa-hazard-toggle" data-side="p2" data-hazard="sr" id="rsa-h-sr-p2">SR</button>
+                <span class="rsa-hazard-group">
+                    <button class="rsa-hazard-step" data-side="p2" data-hazard="spikes" data-delta="-1">−</button>
+                    <span class="rsa-hazard-val" id="rsa-h-spikes-p2">0</span>
+                    <button class="rsa-hazard-step" data-side="p2" data-hazard="spikes" data-delta="1">+</button>
+                    <span class="rsa-hazard-lbl">Spikes</span>
+                </span>
+                <span class="rsa-hazard-group">
+                    <button class="rsa-hazard-step" data-side="p2" data-hazard="tspikes" data-delta="-1">−</button>
+                    <span class="rsa-hazard-val" id="rsa-h-tspikes-p2">0</span>
+                    <button class="rsa-hazard-step" data-side="p2" data-hazard="tspikes" data-delta="1">+</button>
+                    <span class="rsa-hazard-lbl">T.Spikes</span>
+                </span>
+                <button class="rsa-hazard-toggle" data-side="p2" data-hazard="stickyWeb" id="rsa-h-web-p2">Web</button>
+            </div>
+        </div>
         <div class="rsa-comment-row">
             <div class="rsa-ctrl-group rsa-comment-ctrl">
                 <label for="rsa-comment">Comment</label>
