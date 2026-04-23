@@ -312,7 +312,8 @@
      * p2calc = calc.Pokemon for the AI candidate (fresh, full HP)
      * returns { score, reason }
      */
-    function computeSwitchScore(p1calc, p2calc) {
+    // p1SpdOverride: effective P1 speed including current boost stage (from getSpeedInfo)
+    function computeSwitchScore(p1calc, p2calc, p1SpdOverride) {
         try {
             var field = createField();
             var fieldSwap = field.clone().swap();
@@ -355,8 +356,8 @@
             var aiOHKO = bestAiPct >= 100;
             var plOHKO = bestPlPct >= 100;
 
-            // Speed comparison
-            var p1spd = p1calc.stats ? p1calc.stats.spe : 0;
+            // Speed comparison — use effective P1 speed (including boosts) when provided
+            var p1spd = (p1SpdOverride != null) ? p1SpdOverride : (p1calc.stats ? p1calc.stats.spe : 0);
             var p2spd = p2calc.stats ? p2calc.stats.spe : 0;
             var tr = $('#trickroom').is(':checked');
             var aiFaster = tr ? (p2spd < p1spd) : (p2spd > p1spd);
@@ -426,6 +427,12 @@
             }
         }
 
+        // Pass effective P1 speed (including current boost stages) for accurate speed comparison
+        var p1SpdOverride = null;
+        if (p1SetIdOrCalc === '$p1') {
+            try { p1SpdOverride = getSpeedInfo().p1; } catch (e) {}
+        }
+
         var candidates = [];
 
         for (var i = idxMin; i <= Math.min(idxMax, team.roster.length - 1); i++) {
@@ -438,7 +445,7 @@
             var p2;
             try { p2 = createPokemon(e.setId); } catch (ex) { continue; }
 
-            var result = computeSwitchScore(p1, p2);
+            var result = computeSwitchScore(p1, p2, p1SpdOverride);
             candidates.push({
                 name: e.name,
                 sprite: e.sprite || getSprite(e.name),
@@ -973,6 +980,34 @@
         }
 
         syncHazardsToCalc();
+    }
+
+    /**
+     * Compute what hazards changed between two snapshots.
+     * Returns { cleared: [], set: [] } — arrays of human-readable strings.
+     */
+    function diffHazards(before, after) {
+        var cleared = [];
+        var set = [];
+        var sides = ['p1', 'p2'];
+        var sideLabel = { p1: 'P1', p2: 'P2' };
+        for (var si = 0; si < sides.length; si++) {
+            var s = sides[si];
+            var b = before[s] || {};
+            var a = after[s]  || {};
+            var lbl = sideLabel[s];
+            // Cleared
+            if (b.sr && !a.sr)                           cleared.push('⚑ SR (' + lbl + ')');
+            if ((b.spikes || 0) > (a.spikes || 0))       cleared.push('Spikes (' + lbl + ')');
+            if ((b.tspikes || 0) > (a.tspikes || 0))     cleared.push('T.Spikes (' + lbl + ')');
+            if (b.stickyWeb && !a.stickyWeb)             cleared.push('⛓ Web (' + lbl + ')');
+            // Set
+            if (!b.sr && a.sr)                           set.push('⚑ SR (' + lbl + ')');
+            if ((a.spikes || 0) > (b.spikes || 0))       set.push('Spikes×' + a.spikes + ' (' + lbl + ')');
+            if ((a.tspikes || 0) > (b.tspikes || 0))     set.push('T.Spikes×' + a.tspikes + ' (' + lbl + ')');
+            if (!b.stickyWeb && a.stickyWeb)             set.push('⛓ Web (' + lbl + ')');
+        }
+        return (cleared.length || set.length) ? { cleared: cleared, set: set } : null;
     }
 
     // Abilities that ignore the defender's ability (for Sturdy, Disguise, Ice Face, etc.)
@@ -3475,6 +3510,16 @@
             if (dh2.tspikes > 0) tags += '<span class="rsa-tag rsa-hazard-p2" title="Toxic Spikes on P2 side">T.Spikes×' + dh2.tspikes + ' (P2)</span>';
             if (dh2.stickyWeb)   tags += '<span class="rsa-tag rsa-hazard-p2" title="Sticky Web on P2 side">⛓ Web (P2)</span>';
         }
+        // Hazard change badges (doubles)
+        if (rd.hazardChanges) {
+            var dhc = rd.hazardChanges;
+            for (var dci = 0; dci < (dhc.cleared || []).length; dci++) {
+                tags += '<span class="rsa-tag rsa-hazard-cleared" title="Hazards cleared">🧹 ' + esc(dhc.cleared[dci]) + '</span>';
+            }
+            for (var dsi = 0; dsi < (dhc.set || []).length; dsi++) {
+                tags += '<span class="rsa-tag rsa-hazard-set" title="Hazards set">⚠ ' + esc(dhc.set[dsi]) + '</span>';
+            }
+        }
 
         // Speed order display with sprites
         var orderHtml = '';
@@ -4135,7 +4180,7 @@
         if (rd.p2Crit)              tags += '<span class="rsa-tag rsa-crit-tag">P2 CRIT</span>';
         if (rd.p1PreDmg)            tags += '<span class="rsa-tag rsa-predmg-tag">P1 Pre-Dmg: -' + rd.p1PreDmg + '</span>';
         if (rd.p1PreStatus)         tags += '<span class="rsa-tag rsa-prestatus-tag">P1 Pre: ' + esc(rd.p1PreStatus) + '</span>';
-        // Hazard badges
+        // Hazard state badges (active at time of round)
         if (rd.hazards) {
             var h1 = rd.hazards.p1 || {};
             var h2 = rd.hazards.p2 || {};
@@ -4147,6 +4192,16 @@
             if (h2.spikes > 0)   tags += '<span class="rsa-tag rsa-hazard-p2" title="Spikes on P2 side">Spikes×' + h2.spikes + ' (P2)</span>';
             if (h2.tspikes > 0)  tags += '<span class="rsa-tag rsa-hazard-p2" title="Toxic Spikes on P2 side">T.Spikes×' + h2.tspikes + ' (P2)</span>';
             if (h2.stickyWeb)    tags += '<span class="rsa-tag rsa-hazard-p2" title="Sticky Web on P2 side">⛓ Web (P2)</span>';
+        }
+        // Hazard change badges (what was set or cleared THIS round)
+        if (rd.hazardChanges) {
+            var hc = rd.hazardChanges;
+            for (var ci = 0; ci < (hc.cleared || []).length; ci++) {
+                tags += '<span class="rsa-tag rsa-hazard-cleared" title="Hazards cleared">🧹 ' + esc(hc.cleared[ci]) + '</span>';
+            }
+            for (var si2 = 0; si2 < (hc.set || []).length; si2++) {
+                tags += '<span class="rsa-tag rsa-hazard-set" title="Hazards set">⚠ ' + esc(hc.set[si2]) + '</span>';
+            }
         }
 
         // Determine who moves first for the indicator
@@ -5479,6 +5534,13 @@
             function finishRound(rd) {
                 if (!rd) return;
                 curLine().rounds.push(rd);
+
+                // Snapshot hazard state before applying move effects
+                var hazBefore = {
+                    p1: $.extend({}, getFieldHazards('p1')),
+                    p2: $.extend({}, getFieldHazards('p2'))
+                };
+
                 // Auto-detect hazard-setting/clearing moves and update field state
                 if (rd.isDoubles && rd.actions) {
                     for (var ai = 0; ai < rd.actions.length; ai++) {
@@ -5494,6 +5556,13 @@
                     var p2Move = (rd.p2 && rd.p2.move !== '—') ? rd.p2.move : null;
                     applyHazardMoves(p1Move, p2Move);
                 }
+
+                // Compute hazard diff (what changed this round) and store on round
+                var hazAfter = {
+                    p1: $.extend({}, getFieldHazards('p1')),
+                    p2: $.extend({}, getFieldHazards('p2'))
+                };
+                rd.hazardChanges = diffHazards(hazBefore, hazAfter);
                 renderAll();
                 autoSave();
                 if (isDoubles()) refreshDoublesUI();

@@ -510,6 +510,9 @@
 /* Hazard badges in round log */
 .rsa-hazard-p1 { background: #b7791f; color: #fff; }
 .rsa-hazard-p2 { background: #6b46c1; color: #fff; }
+/* Hazard change badges — what was set/cleared this round */
+.rsa-hazard-cleared { background: #276749; color: #c6f6d5; font-weight: 700; }
+.rsa-hazard-set { background: #744210; color: #fefcbf; font-weight: 700; }
 .rsa-prob-tag { cursor: help; font-weight: 600; }
 .rsa-prob-high { background: #2f855a; color: #fff; }
 .rsa-prob-mid { background: #c05621; color: #fff; }
