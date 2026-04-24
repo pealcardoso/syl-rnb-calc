@@ -4068,8 +4068,22 @@
         var rd = line.rounds[rdIdx];
         if (rd.isDoubles || !rd.p2 || !rd.p2.damage) return; // nothing to toggle
 
+        // If critDamage wasn't stored (old round), try to compute it now from the calc form
+        if (!rd.p2.critDamage && rd.p2.moveIdx !== 'none' && rd.p2.moveIdx !== -1) {
+            rd.p2.critDamage = getCritResult(1, rd.p2.moveIdx);
+        }
+
         // Toggle the crit flag
         rd.p2Crit = !rd.p2Crit;
+
+        // If crit damage still unavailable, just toggle the label and exit
+        if (!rd.p2.critDamage) {
+            rebuildLineTeams(line);
+            renderAll();
+            syncActiveStatusToForm();
+            autoSave();
+            return;
+        }
 
         // Determine old and new P2 max damage to P1
         // P1 takes P2's max damage (worst case), so:
@@ -4495,7 +4509,67 @@
         var line = curLine();
         var p1 = getActiveEntry(line.teams.p1);
         var p2 = getActiveEntry(line.teams.p2);
-        if (!p1 || !p2 || p1.currentHP <= 0 || p2.currentHP <= 0) return '';
+        if (!p1 || p1.currentHP <= 0) return '';
+
+        // ── P2 KO panel: P2 is fainted, pick who comes in ────────────
+        if (!p2 || p2.currentHP <= 0) {
+            // Predict who P2 sends in
+            var pred = null;
+            try { pred = predictSwitchIn('$p1'); } catch (e) {}
+
+            // Build P2 roster options (available mons)
+            var p2SendOpts = '<option value="">— P2 sends... —</option>';
+            for (var si = 0; si < line.teams.p2.roster.length; si++) {
+                var se = line.teams.p2.roster[si];
+                if (se.currentHP <= 0) continue;
+                var sel = (pred && pred.name === se.name) ? ' selected' : '';
+                p2SendOpts += '<option value="' + si + '"' + sel + '>' + esc(se.name) +
+                    ' (' + se.currentHP + '/' + se.maxHP + ')</option>';
+            }
+
+            // Build P1 move options
+            var p1MoveOpts = '<option value="none">— P1 Move —</option>';
+            for (var m = 0; m < 4; m++) {
+                var ml = getMoveNames(0, m);
+                if (ml && ml !== '—' && ml !== '(No Move)') {
+                    var sel = (selectedP1Move === m) ? ' selected' : '';
+                    p1MoveOpts += '<option value="' + m + '"' + sel + '>' + esc(ml) + '</option>';
+                }
+            }
+
+            var predHtml = '';
+            if (pred) {
+                predHtml = '<div class="rsa-inline-pred">' +
+                    '<img class="rsa-inline-sprite" src="' + esc(pred.sprite) + '" alt="">' +
+                    '<span class="rsa-swpred-label">🔮 ' + esc(pred.name) + '</span>' +
+                '</div>';
+            }
+
+            var p1Sprite = p1.sprite ? '<img class="rsa-inline-sprite" src="' + esc(p1.sprite) + '" alt="">' : '';
+
+            return '<div class="rsa-inline-controls rsa-inline-p2ko">' +
+                '<div class="rsa-inline-header">⟳ P2 Fainted — Who comes in?</div>' +
+                '<div class="rsa-inline-row">' +
+                    predHtml +
+                    '<select class="rsa-inline-p2-send">' + p2SendOpts + '</select>' +
+                '</div>' +
+                '<div class="rsa-inline-row">' +
+                    p1Sprite +
+                    '<span class="rsa-inline-name">' + esc(p1.name) + '</span>' +
+                    '<select class="rsa-inline-p1-move-ko">' + p1MoveOpts + '</select>' +
+                '</div>' +
+                '<div class="rsa-inline-row">' +
+                    '<input type="text" class="rsa-inline-comment-ko" placeholder="Comment..." />' +
+                '</div>' +
+                '<div class="rsa-inline-row">' +
+                    '<button class="rsa-btn rsa-btn-primary rsa-inline-p2-switch">→ Log P2 Switch</button>' +
+                '</div>' +
+            '</div>';
+        }
+
+        // ── Normal panel: both mons alive ────────────────────────────
+        var p1Sprite = p1.sprite ? '<img class="rsa-inline-sprite" src="' + esc(p1.sprite) + '" alt="">' : '';
+        var p2Sprite = p2.sprite ? '<img class="rsa-inline-sprite" src="' + esc(p2.sprite) + '" alt="">' : '';
 
         // Build P1 move options with min damage %
         var p1MoveOpts = '';
@@ -4541,10 +4615,16 @@
         return '<div class="rsa-inline-controls">' +
             '<div class="rsa-inline-header">Next Round</div>' +
             '<div class="rsa-inline-row">' +
+                p1Sprite +
+                '<span class="rsa-inline-name">' + esc(p1.name) + '</span>' +
                 '<select class="rsa-inline-p1-move" title="P1 Move">' +
                     '<option value="none">— P1 Move —</option>' +
                     p1MoveOpts +
                 '</select>' +
+            '</div>' +
+            '<div class="rsa-inline-row">' +
+                p2Sprite +
+                '<span class="rsa-inline-name">' + esc(p2.name) + '</span>' +
                 '<select class="rsa-inline-p2-move" title="P2 Move">' +
                     '<option value="none">— P2 Move —</option>' +
                     p2MoveOpts +
@@ -6351,6 +6431,43 @@
         }
 
         // ── Inline controls (at bottom of round log) ──
+        // P1 move change in KO panel → sync to main move selector
+        $(document).on('change', '.rsa-inline-p1-move-ko', function () {
+            var val = $(this).val();
+            if (val === 'none') return;
+            $('input#resultMoveL' + (parseInt(val) + 1)).prop('checked', true).trigger('change');
+        });
+
+        // P2 KO switch button → switch P2 active mon, then log a switch round
+        $(document).on('click', '.rsa-inline-p2-switch', function () {
+            var p2SendIdx = parseInt($('.rsa-inline-p2-send').val());
+            if (isNaN(p2SendIdx)) { alert('Select who P2 sends in.'); return; }
+            var line = curLine();
+            var incomingName = line.teams.p2.roster[p2SendIdx] ? line.teams.p2.roster[p2SendIdx].name : '?';
+
+            // Sync P1 move from the KO panel's move selector
+            var koP1Move = $('.rsa-inline-p1-move-ko').val();
+            if (koP1Move && koP1Move !== 'none') {
+                $('input#resultMoveL' + (parseInt(koP1Move) + 1)).prop('checked', true).trigger('change');
+            }
+            var inlineComment = $('.rsa-inline-comment-ko').val() || ('P2 sends ' + incomingName);
+
+            // Switch P2 active mon (loads into form, resets boosts)
+            switchActive('p2', p2SendIdx);
+
+            // Wait for the form to fully load, then capture the round
+            setTimeout(function () {
+                var p1MoveIdx = selectedP1Move;
+                var rd = captureRound(p1MoveIdx, 'none', false, 0, '', inlineComment, false, false);
+                if (!rd) { return; }
+                rd.isP2Switch = true;
+                curLine().rounds.push(rd);
+                renderAll();
+                syncActiveStatusToForm();
+                autoSave();
+            }, 750);
+        });
+
         // P1 move change → sync to main move selector
         $(document).on('change', '.rsa-inline-p1-move', function () {
             var val = $(this).val();

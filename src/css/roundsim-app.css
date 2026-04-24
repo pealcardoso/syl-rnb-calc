@@ -558,7 +558,19 @@
 .rsa-inline-row:last-child { margin-bottom: 0; }
 .rsa-inline-p1-move, .rsa-inline-p2-move, .rsa-inline-switch {
     background: #2d3748; color: #e2e8f0; border: 1px solid #4a5568;
-    border-radius: 4px; padding: 3px 6px; font-size: 0.8em; max-width: 220px;
+    border-radius: 4px; padding: 3px 6px; font-size: 0.8em; max-width: 220px; flex: 1;
+}
+.rsa-inline-sprite {
+    width: 28px; height: 28px; object-fit: contain; image-rendering: pixelated; flex-shrink: 0;
+}
+.rsa-inline-name {
+    font-size: 0.78em; color: #a0aec0; white-space: nowrap; flex-shrink: 0;
+}
+.rsa-inline-pred {
+    display: flex; align-items: center; gap: 4px; flex-shrink: 0;
+}
+.rsa-inline-p2ko .rsa-inline-header {
+    color: #fc8181;
 }
 .rsa-inline-check {
     color: #a0aec0; font-size: 0.78em; display: flex; align-items: center; gap: 3px;
