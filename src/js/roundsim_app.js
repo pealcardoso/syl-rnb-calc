@@ -2448,7 +2448,7 @@
     // CAPTURE ROUND
     // ════════════════════════════════════════════════════════════
 
-    function captureRound(p1MoveIdx, p2MoveIdx, p2Crit, p1PreDmg, p1PreStatus, comment, p1ApplySecondary, p2ApplySecondary) {
+    function captureRound(p1MoveIdx, p2MoveIdx, p2Crit, p1PreDmg, p1PreStatus, comment, p1ApplySecondary, p2ApplySecondary, p1Charging, p2Charging) {
         var line = curLine();
 
         // Decrement trick room counter at the start of each singles round
@@ -2478,9 +2478,9 @@
         }
 
         // Get damage info
-        var p1Dmg = (p1MoveIdx !== 'none' && p1MoveIdx !== -1) ? getDamageInfo(0, p1MoveIdx) : null;
-        var p2Dmg = (p2MoveIdx !== 'none' && p2MoveIdx !== -1) ? getDamageInfo(1, p2MoveIdx) : null;
-        var p2CritInfo = (p2Crit && p2MoveIdx !== 'none' && p2MoveIdx !== -1) ? getCritResult(1, p2MoveIdx) : null;
+        var p1Dmg = (p1MoveIdx !== 'none' && p1MoveIdx !== -1 && !p1Charging) ? getDamageInfo(0, p1MoveIdx) : null;
+        var p2Dmg = (p2MoveIdx !== 'none' && p2MoveIdx !== -1 && !p2Charging) ? getDamageInfo(1, p2MoveIdx) : null;
+        var p2CritInfo = (p2Crit && p2MoveIdx !== 'none' && p2MoveIdx !== -1 && !p2Charging) ? getCritResult(1, p2MoveIdx) : null;
 
         // Look up RBDex move data for detailed info
         var p1MoveName = (p1MoveIdx !== 'none' && p1MoveIdx !== -1) ? getMoveNames(0, p1MoveIdx) : null;
@@ -3008,6 +3008,8 @@
             terrain: getTerrain(),
             trickRoom: speed.trickRoom,
             p2Crit: p2Crit,
+            p1Charging: !!p1Charging,
+            p2Charging: !!p2Charging,
             p1PreDmg: p1PreDmg || 0,
             p1PreStatus: p1PreStatus || '',
             comment: comment || '',
@@ -4323,6 +4325,8 @@
         if (rd.trickRoom)           tags += '<span class="rsa-tag rsa-trickroom">Trick Room</span>';
         if (rd.isSwitch)            tags += '<span class="rsa-tag rsa-switch-tag">⇄ SWITCH</span>';
         if (rd.p2Crit)              tags += '<span class="rsa-tag rsa-crit-tag">P2 CRIT</span>';
+        if (rd.p1Charging)          tags += '<span class="rsa-tag rsa-charge-tag" title="P1 is on the charge turn — no damage dealt">P1 ⬆ Charging</span>';
+        if (rd.p2Charging)          tags += '<span class="rsa-tag rsa-charge-tag" title="P2 is on the charge turn — no damage dealt">P2 ⬆ Charging</span>';
         if (rd.p1PreDmg)            tags += '<span class="rsa-tag rsa-predmg-tag">P1 Pre-Dmg: -' + rd.p1PreDmg + '</span>';
         if (rd.p1PreStatus)         tags += '<span class="rsa-tag rsa-prestatus-tag">P1 Pre: ' + esc(rd.p1PreStatus) + '</span>';
         // Hazard state badges (active at time of round)
@@ -4723,10 +4727,13 @@
             if (effects.primary) effHtml += '<div class="rsa-effect-primary">' + esc(effects.primary) + '</div>';
             if (effects.secondary) effHtml += '<div class="rsa-effect-secondary">' + esc(effects.secondary) + '</div>';
         }
+        var isChargeMove = md.flags && md.flags.charge;
+        var chargeHtml = isChargeMove ? '<div class="rsa-preview-charge-note">⬆ Two-turn move — check "' + (side === 'p1' ? 'P1' : 'P2') + ' Charging" on the charge turn</div>' : '';
         $panel.html(
             '<div class="rsa-preview-header">' + typeImg + catImg + '<span class="rsa-preview-name">' + esc(md.name) + '</span></div>' +
             '<div class="rsa-preview-stats">' + stats.join(' · ') + '</div>' +
             (md.shortDesc ? '<div class="rsa-preview-desc">' + esc(md.shortDesc) + '</div>' : '') +
+            chargeHtml +
             effHtml
         );
     }
@@ -5731,6 +5738,8 @@
                 $('#rsa-comment').val('');
                 if (!isDoubles()) {
                     $('#rsa-p1-apply-secondary').prop('checked', false);
+                    $('#rsa-p1-charging').prop('checked', false);
+                    $('#rsa-p2-charging').prop('checked', false);
                 }
             }
 
@@ -5740,9 +5749,11 @@
                 var p2Crit = $('#rsa-p2-crit').is(':checked');
                 var p1ApplySec = $('#rsa-p1-apply-secondary').is(':checked');
                 var p2ApplySec = $('#rsa-p2-apply-secondary').is(':checked');
+                var p1Charging = $('#rsa-p1-charging').is(':checked');
+                var p2Charging = $('#rsa-p2-charging').is(':checked');
                 // p1PreDmg and p1PreStatus are now edited directly on the P1 card;
                 // entry.currentHP and entry.status already reflect any changes.
-                return captureRound(p1MoveIdx, p2MoveIdx, p2Crit, 0, '', comment, p1ApplySec, p2ApplySec);
+                return captureRound(p1MoveIdx, p2MoveIdx, p2Crit, 0, '', comment, p1ApplySec, p2ApplySec, p1Charging, p2Charging);
             }
 
             if (isDoubles()) {
@@ -5952,14 +5963,40 @@
         // ── Export ──
         $('#rsa-export').on('click', function () {
             var text = exportLines();
-            if (navigator.clipboard) {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
                 navigator.clipboard.writeText(text).then(function () {
-                    alert('Log copied to clipboard!');
+                    var $btn = $('#rsa-export');
+                    var orig = $btn.text();
+                    $btn.text('✓ Copied!');
+                    setTimeout(function () { $btn.text(orig); }, 1500);
+                }).catch(function () {
+                    // Clipboard write failed — use fallback
+                    fallbackCopyText(text);
                 });
             } else {
-                prompt('Copy this log:', text);
+                fallbackCopyText(text);
             }
         });
+
+        function fallbackCopyText(text) {
+            var ta = document.createElement('textarea');
+            ta.value = text;
+            ta.style.position = 'fixed';
+            ta.style.opacity = '0';
+            document.body.appendChild(ta);
+            ta.focus();
+            ta.select();
+            try {
+                document.execCommand('copy');
+                var $btn = $('#rsa-export');
+                var orig = $btn.text();
+                $btn.text('✓ Copied!');
+                setTimeout(function () { $btn.text(orig); }, 1500);
+            } catch (e) {
+                prompt('Copy this log:', text);
+            }
+            document.body.removeChild(ta);
+        }
 
         // ── Drag & Drop from box to team ──
         $(document).on('dragstart', '.rsa-box-slot', function (e) {

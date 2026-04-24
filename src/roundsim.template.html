@@ -249,6 +249,14 @@
                 <input type="checkbox" id="rsa-p2-apply-secondary" checked />
                 <label for="rsa-p2-apply-secondary">Apply P2 Effect</label>
             </div>
+            <div class="rsa-crit-group">
+                <input type="checkbox" id="rsa-p1-charging" />
+                <label for="rsa-p1-charging" title="P1 is on the charge turn of a two-turn move (Fly, Dig, etc.) — no damage dealt this turn">P1 Charging</label>
+            </div>
+            <div class="rsa-crit-group">
+                <input type="checkbox" id="rsa-p2-charging" />
+                <label for="rsa-p2-charging" title="P2 is on the charge turn of a two-turn move (Fly, Dig, etc.) — no damage dealt this turn">P2 Charging</label>
+            </div>
         </div>
         <div class="rsa-comment-row">
             <div class="rsa-ctrl-group rsa-comment-ctrl">
@@ -284,8 +292,8 @@
         <div class="rsa-log-header">
             <span class="rsa-log-title">Round Log</span>
             <span id="rsa-round-count">0</span>
-            <button class="rsa-line-btn rsa-line-btn-danger" id="rsa-delete-all-rounds" title="Delete all rounds in this line" style="margin-left:8px">🗑 Delete All</button>
             <button class="rsa-line-btn" id="rsa-collapse-all" title="Collapse / expand all rounds" style="margin-left:auto">⊖ Collapse All</button>
+            <button class="rsa-line-btn rsa-line-btn-danger" id="rsa-delete-all-rounds" title="Delete all rounds in this line" style="margin-left:8px">🗑 Delete All</button>
         </div>
         <div id="rsa-round-log">
             <div class="rsa-empty">No rounds yet. Set your teams, load the calc, and log rounds.</div>
