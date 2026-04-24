@@ -572,6 +572,9 @@
 .rsa-inline-p2ko .rsa-inline-header {
     color: #fc8181;
 }
+.rsa-inline-hint {
+    color: #718096; font-size: 0.75em; white-space: nowrap; flex-shrink: 0;
+}
 .rsa-inline-check {
     color: #a0aec0; font-size: 0.78em; display: flex; align-items: center; gap: 3px;
     cursor: pointer; white-space: nowrap;
