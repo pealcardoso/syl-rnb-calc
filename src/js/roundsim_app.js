@@ -4552,7 +4552,7 @@
                 '<div class="rsa-inline-row">' +
                     predHtml +
                     '<select class="rsa-inline-p2-send">' + p2SendOpts + '</select>' +
-                    '<span class="rsa-inline-hint">← select to load</span>' +
+                    '<button class="rsa-btn rsa-btn-primary rsa-inline-p2-confirm">Confirm →</button>' +
                 '</div>' +
             '</div>';
         }
@@ -6291,10 +6291,16 @@
             e.stopPropagation();
             var num = ~~$(this).data('round');
             var line = curLine();
+            var oldP1 = getActiveEntry(line.teams.p1);
+            var oldP2 = getActiveEntry(line.teams.p2);
             line.rounds = line.rounds.filter(function (r) { return r.roundNum !== num; });
             rebuildLineTeams(line);
+            var newP1 = getActiveEntry(line.teams.p1);
+            var newP2 = getActiveEntry(line.teams.p2);
+            // If the active mon changed after rebuild, reload the calc form
+            if (newP1 && (!oldP1 || oldP1.name !== newP1.name)) loadPokemonIntoForm('p1', newP1);
+            if (newP2 && (!oldP2 || oldP2.name !== newP2.name)) loadPokemonIntoForm('p2', newP2);
             renderAll();
-            // Sync calc form status so the dropdown and form stay in agreement
             syncActiveStatusToForm();
             autoSave();
         });
@@ -6459,21 +6465,19 @@
             }, 750);
         });
 
-        // P2 KO: selecting who P2 sends in immediately switches them in and shows the full normal panel
-        $(document).on('change', '.rsa-inline-p2-send', function () {
-            var idx = parseInt($(this).val());
-            if (isNaN(idx)) return;
+        // P2 KO: Confirm button (or change) switches P2 in and transitions to full normal panel
+        function doP2SendIn() {
+            var idx = parseInt($('.rsa-inline-p2-send').val());
+            if (isNaN(idx)) { alert('Select who P2 sends in.'); return; }
             var line = curLine();
             var entry = line.teams.p2.roster[idx];
             if (!entry) return;
-            // Switch P2 active immediately — loadPokemonIntoForm calls renderRoundLog after 300ms,
-            // which will now show the full normal panel since the new mon has HP > 0
             switchActive('p2', idx);
-            // Pre-fill the comment box once the normal panel has rendered
             setTimeout(function () {
                 $('.rsa-inline-comment').val('P2 sends ' + entry.name);
             }, 350);
-        });
+        }
+        $(document).on('click', '.rsa-inline-p2-confirm', doP2SendIn);
 
         // P1 move change → sync to main move selector
         $(document).on('change', '.rsa-inline-p1-move', function () {
