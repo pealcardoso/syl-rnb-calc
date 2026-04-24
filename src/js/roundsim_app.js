@@ -2618,10 +2618,12 @@
             if (firstEff.volatile === 'confusion') {
                 if (!secondEntry.confused) {
                     secondEntry.confused = true;
+                    secondEntry.confuseRounds = 5; // max 5 rounds
                     // Check if Persim Berry cures confusion immediately
                     var secItlc = (secondEntry.item || '').toLowerCase().replace(/\s/g, '');
                     if (secItlc === 'persimberry' || secItlc === 'lumberry') {
                         secondEntry.confused = false;
+                        secondEntry.confuseRounds = 0;
                         secondEntry.item = ''; $('#' + (secondMover === 'p1' ? 'p1' : 'p2') + ' .item').val('');
                     }
                 }
@@ -2660,6 +2662,50 @@
         // Increment toxic counter before EOT so the correct turn count is used
         if (p1Entry.status === 'Badly Poisoned') p1Entry.toxicCounter = (p1Entry.toxicCounter || 0) + 1;
         if (p2Entry.status === 'Badly Poisoned') p2Entry.toxicCounter = (p2Entry.toxicCounter || 0) + 1;
+
+        // Confusion round tick: decrement each round; clear when reaching 0
+        // Also calculate max self-hit damage for display
+        function calcConfuseSelfHit(entry) {
+            // Confusion self-hit: 40 BP typeless physical, attacker vs own defense
+            // Standard Gen 3+ formula: floor(floor(floor(2*50/5+2)*40*Atk/Def)/50+2) * roll
+            // Returns max damage (100% roll)
+            try {
+                var poke = createPokemon(entry.setId);
+                if (!poke || !poke.stats) return null;
+                var rawAtk = poke.stats.atk || 1;
+                var rawDef = poke.stats.def || 1;
+                // Apply current boosts
+                var atkBoost = (entry.boosts && entry.boosts.at) || 0;
+                var defBoost = (entry.boosts && entry.boosts.df) || 0;
+                function applyBoostMult(base, boost) {
+                    return boost >= 0 ? Math.floor(base * (2 + boost) / 2) : Math.floor(base * 2 / (2 - boost));
+                }
+                var boostedAtk = applyBoostMult(rawAtk, atkBoost);
+                var boostedDef = applyBoostMult(rawDef, defBoost);
+                // Burn halves Attack
+                if (entry.status === 'Burn') boostedAtk = Math.floor(boostedAtk / 2);
+                // Max roll (100/100)
+                var dmg = Math.floor(Math.floor(Math.floor(2 * 50 / 5 + 2) * 40 * boostedAtk / boostedDef) / 50) + 2;
+                return Math.max(1, dmg);
+            } catch (e) { return null; }
+        }
+        var p1ConfuseSelfHitMax = null, p2ConfuseSelfHitMax = null;
+        if (p1Entry.confused) {
+            p1ConfuseSelfHitMax = calcConfuseSelfHit(p1Entry);
+            p1Entry.confuseRounds = Math.max(0, (p1Entry.confuseRounds || 1) - 1);
+            if (p1Entry.confuseRounds <= 0) {
+                p1Entry.confused = false;
+                p1Entry.confuseRounds = 0;
+            }
+        }
+        if (p2Entry.confused) {
+            p2ConfuseSelfHitMax = calcConfuseSelfHit(p2Entry);
+            p2Entry.confuseRounds = Math.max(0, (p2Entry.confuseRounds || 1) - 1);
+            if (p2Entry.confuseRounds <= 0) {
+                p2Entry.confused = false;
+                p2Entry.confuseRounds = 0;
+            }
+        }
 
         // Extra damage sources
         var p1Extras = p1Dmg ? calcExtraDamage(p1Entry, p2Entry, p1Dmg, getWeather()) : [];
@@ -2801,9 +2847,11 @@
             if (secondEff.volatile === 'confusion') {
                 if (!firstEntry.confused) {
                     firstEntry.confused = true;
+                    firstEntry.confuseRounds = 5;
                     var fstItlc = (firstEntry.item || '').toLowerCase().replace(/\s/g, '');
                     if (fstItlc === 'persimberry' || fstItlc === 'lumberry') {
                         firstEntry.confused = false;
+                        firstEntry.confuseRounds = 0;
                         firstEntry.item = ''; $('#' + (firstMover === 'p1' ? 'p1' : 'p2') + ' .item').val('');
                     }
                 }
@@ -2864,9 +2912,9 @@
 
             if (hpVar > 0) {
                 if (itlc === 'lumberry' && (entry.status || entry.confused)) {
-                    entry.status = ''; entry.toxicCounter = 0; entry.confused = false; cured = true;
+                    entry.status = ''; entry.toxicCounter = 0; entry.confused = false; entry.confuseRounds = 0; cured = true;
                 } else if (itlc === 'persimberry' && entry.confused) {
-                    entry.confused = false; cured = true;
+                    entry.confused = false; entry.confuseRounds = 0; cured = true;
                 } else if (itlc === 'rawstberry' && entry.status === 'Burn') {
                     entry.status = ''; cured = true;
                 } else if (itlc === 'pechaberry' && (entry.status === 'Poison' || entry.status === 'Badly Poisoned')) {
@@ -2975,6 +3023,8 @@
                 ability: p1Entry.ability,
                 status: p1Entry.status,
                 confused: !!p1Entry.confused,
+                confuseRounds: p1Entry.confused ? (p1Entry.confuseRounds || 0) : 0,
+                confuseSelfHitMax: p1Entry.confused ? p1ConfuseSelfHitMax : null,
                 boosts: $.extend({}, p1Entry.boosts),
                 hpBefore: { current: p1HPBefore, max: p1Entry.maxHP, bestCase: p1BestBefore },
                 hpAfter: { current: p1HPAfter, max: p1Entry.maxHP, bestCase: p1BestAfter },
@@ -3008,6 +3058,8 @@
                 ability: p2Entry.ability,
                 status: p2Entry.status,
                 confused: !!p2Entry.confused,
+                confuseRounds: p2Entry.confused ? (p2Entry.confuseRounds || 0) : 0,
+                confuseSelfHitMax: p2Entry.confused ? p2ConfuseSelfHitMax : null,
                 boosts: $.extend({}, p2Entry.boosts),
                 hpBefore: { current: p2HPBefore, max: p2Entry.maxHP, bestCase: p2BestBefore },
                 hpAfter: { current: p2HPAfter, max: p2Entry.maxHP, bestCase: p2BestAfter },
@@ -4509,7 +4561,7 @@
                         '<span class="rsa-tag rsa-item-tag" title="' + esc(getItemDesc(actor.item)) + '"><img class="rsa-item-sprite-sm" src="' + esc(getItemSpriteUrl(actor.item)) + '" alt="" onerror="this.style.display=\'none\'"> ' + esc(actor.item) + '</span>' +
                         '<span class="rsa-tag rsa-ability-tag" title="' + esc(getAbilityDesc(actor.ability)) + '">' + esc(actor.ability) + '</span>' +
                         (actor.status ? '<span class="rsa-tag rsa-status-tag rsa-status-' + actor.status.toLowerCase().replace(/\s+/g, '-') + '">' + esc(actor.status) + '</span>' : '') +
-                        (actor.confused ? '<span class="rsa-tag rsa-status-tag rsa-status-confused">Confused</span>' : '') +
+                        (actor.confused ? '<span class="rsa-tag rsa-status-tag rsa-status-confused" title="' + (actor.confuseSelfHitMax != null ? 'Max self-hit: ' + actor.confuseSelfHitMax + ' HP' : 'Confused') + '">Confused' + (actor.confuseRounds > 0 ? ' (' + actor.confuseRounds + ')' : '') + (actor.confuseSelfHitMax != null ? ' · -' + actor.confuseSelfHitMax : '') + '</span>' : '') +
                         boostHtml +
                     '</div>' +
                     '<div class="rsa-hp-bar-wrap"><div class="rsa-hp-bar" style="width:' + bPct.toFixed(0) + '%;background:' + bCol + '"></div></div>' +
