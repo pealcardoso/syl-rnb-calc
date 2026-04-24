@@ -2110,6 +2110,8 @@
             // Re-inject damage badges now that the new pokemon is loaded
             injectDamageBadges();
             injectMoveLabelSprites();
+            // Re-render inline controls so damage % is up to date
+            renderRoundLog();
         }, 300);
     }
 
@@ -2519,7 +2521,7 @@
         // Get damage info (always compute; will be nulled out below if charge/invuln rules apply)
         var p1Dmg = (p1MoveIdx !== 'none' && p1MoveIdx !== -1) ? getDamageInfo(0, p1MoveIdx) : null;
         var p2Dmg = (p2MoveIdx !== 'none' && p2MoveIdx !== -1) ? getDamageInfo(1, p2MoveIdx) : null;
-        var p2CritInfo = (p2Crit && p2MoveIdx !== 'none' && p2MoveIdx !== -1) ? getCritResult(1, p2MoveIdx) : null;
+        var p2CritInfo = (p2MoveIdx !== 'none' && p2MoveIdx !== -1) ? getCritResult(1, p2MoveIdx) : null;
 
         // Look up RBDex move data for detailed info
         var p1MoveName = (p1MoveIdx !== 'none' && p1MoveIdx !== -1) ? getMoveNames(0, p1MoveIdx) : null;
@@ -4064,7 +4066,7 @@
         }
         if (rdIdx < 0) return;
         var rd = line.rounds[rdIdx];
-        if (rd.isDoubles || !rd.p2 || !rd.p2.critDamage) return; // nothing to toggle
+        if (rd.isDoubles || !rd.p2 || !rd.p2.damage) return; // nothing to toggle
 
         // Toggle the crit flag
         rd.p2Crit = !rd.p2Crit;
@@ -4495,13 +4497,35 @@
         var p2 = getActiveEntry(line.teams.p2);
         if (!p1 || !p2 || p1.currentHP <= 0 || p2.currentHP <= 0) return '';
 
-        // Build P2 move options from the calc form
+        // Build P1 move options with min damage %
+        var p1MoveOpts = '';
+        for (var m = 0; m < 4; m++) {
+            var label = getMoveNames(0, m);
+            if (label && label !== '—' && label !== '(No Move)') {
+                var sel = (selectedP1Move === m) ? ' selected' : '';
+                var dmgTag = '';
+                var info = getDamageInfo(0, m);
+                if (info && p2.maxHP > 0) {
+                    dmgTag = ' (' + Math.floor(info.minDmg / p2.maxHP * 100) + '%)';
+                }
+                p1MoveOpts += '<option value="' + m + '"' + sel + '>' + esc(label) + dmgTag + '</option>';
+            }
+        }
+
+        // Build P2 move options with max damage % and AI probability
         var p2MoveOpts = '';
         for (var m = 0; m < 4; m++) {
             var label = getMoveNames(1, m);
             if (label && label !== '—' && label !== '(No Move)') {
                 var sel = (selectedP2Move === m) ? ' selected' : '';
-                p2MoveOpts += '<option value="' + m + '"' + sel + '>' + esc(label) + '</option>';
+                var dmgTag = '';
+                var info = getDamageInfo(1, m);
+                if (info && p1.maxHP > 0) {
+                    dmgTag = ' (' + Math.floor(info.maxDmg / p1.maxHP * 100) + '%)';
+                }
+                var aiPct = $('#resultMoveRateR' + (m + 1)).text() || '';
+                if (aiPct) dmgTag += ' ' + aiPct;
+                p2MoveOpts += '<option value="' + m + '"' + sel + '>' + esc(label) + dmgTag + '</option>';
             }
         }
 
@@ -4517,10 +4541,16 @@
         return '<div class="rsa-inline-controls">' +
             '<div class="rsa-inline-header">Next Round</div>' +
             '<div class="rsa-inline-row">' +
+                '<select class="rsa-inline-p1-move" title="P1 Move">' +
+                    '<option value="none">— P1 Move —</option>' +
+                    p1MoveOpts +
+                '</select>' +
                 '<select class="rsa-inline-p2-move" title="P2 Move">' +
                     '<option value="none">— P2 Move —</option>' +
                     p2MoveOpts +
                 '</select>' +
+            '</div>' +
+            '<div class="rsa-inline-row">' +
                 '<label class="rsa-inline-check"><input type="checkbox" class="rsa-inline-p2-crit" /> P2 Crit</label>' +
                 '<label class="rsa-inline-check"><input type="checkbox" class="rsa-inline-p1-eff" /> P1 Eff</label>' +
                 '<label class="rsa-inline-check"><input type="checkbox" class="rsa-inline-p2-eff" checked /> P2 Eff</label>' +
@@ -4538,6 +4568,11 @@
 
     /** Sync inline control values to/from main controls */
     function syncInlineControls() {
+        // Sync P1 move selection
+        var $inlineP1 = $('.rsa-inline-p1-move');
+        if ($inlineP1.length && selectedP1Move !== 'none') {
+            $inlineP1.val(selectedP1Move);
+        }
         // Sync P2 move selection
         var $inlineP2 = $('.rsa-inline-p2-move');
         if ($inlineP2.length && selectedP2Move !== 'none') {
@@ -5552,6 +5587,15 @@
                     $('[data-format="' + battleFormat + '"]').addClass('rsa-format-active');
                     $('#rsa-doubles-moves').show();
                 }
+                // Load active Pokémon from restored session into the calc form
+                // Use a delay to ensure Select2 and calc form are fully initialized
+                var _line = curLine();
+                var _p1Active = getActiveEntry(_line.teams.p1);
+                var _p2Active = getActiveEntry(_line.teams.p2);
+                setTimeout(function () {
+                    if (_p1Active) loadPokemonIntoForm('p1', _p1Active);
+                    if (_p2Active) loadPokemonIntoForm('p2', _p2Active);
+                }, 500);
             } catch (ex) {
                 console.warn('RSA: failed to restore session', ex);
             }
@@ -6251,47 +6295,70 @@
                 $btn.html('&#10003; Copied!');
                 setTimeout(function () { $btn.html(orig); }, 1500);
             }
+            // Try clipboard API first
+            var copied = false;
             try {
                 if (navigator.clipboard && navigator.clipboard.writeText) {
-                    navigator.clipboard.writeText(text).then(showCopied).catch(function () {
-                        fallbackCopyText(text, showCopied);
+                    navigator.clipboard.writeText(text).then(function () {
+                        copied = true;
+                        showCopied();
+                    }).catch(function () {
+                        showCopyModal(text);
                     });
-                } else {
-                    fallbackCopyText(text, showCopied);
+                    return;
                 }
-            } catch (e) {
-                fallbackCopyText(text, showCopied);
+            } catch (e) {}
+            // Try execCommand
+            try {
+                var ta = document.createElement('textarea');
+                ta.value = text;
+                ta.style.position = 'fixed';
+                ta.style.left = '0';
+                ta.style.top = '0';
+                ta.style.opacity = '0';
+                document.body.appendChild(ta);
+                ta.focus();
+                ta.select();
+                copied = document.execCommand('copy');
+                document.body.removeChild(ta);
+            } catch (e) {}
+            if (copied) {
+                showCopied();
+            } else {
+                showCopyModal(text);
             }
         });
 
-        function fallbackCopyText(text, onSuccess) {
-            var ta = document.createElement('textarea');
-            ta.value = text;
-            ta.style.position = 'fixed';
-            ta.style.left = '-9999px';
-            ta.style.opacity = '0';
-            document.body.appendChild(ta);
-            ta.focus();
-            ta.select();
-            var ok = false;
-            try { ok = document.execCommand('copy'); } catch (e) {}
-            document.body.removeChild(ta);
-            if (ok && onSuccess) {
-                onSuccess();
-            } else {
-                // Last resort: open a window/prompt with the text
-                var w = window.open('', '_blank', 'width=600,height=400');
-                if (w) {
-                    w.document.write('<pre style="white-space:pre-wrap;word-wrap:break-word">' +
-                        text.replace(/&/g,'&amp;').replace(/</g,'&lt;') + '</pre>');
-                    w.document.title = 'Round Log';
-                } else {
-                    prompt('Copy this log:', text);
-                }
-            }
+        function showCopyModal(text) {
+            // Remove any existing modal
+            $('.rsa-copy-modal-overlay').remove();
+            var $overlay = $('<div class="rsa-copy-modal-overlay"></div>');
+            var $modal = $('<div class="rsa-copy-modal"></div>');
+            var $header = $('<div class="rsa-copy-modal-header">Copy Log <button class="rsa-copy-modal-close">&times;</button></div>');
+            var $ta = $('<textarea class="rsa-copy-modal-text" readonly></textarea>').val(text);
+            var $hint = $('<div class="rsa-copy-modal-hint">Select All (Ctrl+A) then Copy (Ctrl+C)</div>');
+            $modal.append($header).append($ta).append($hint);
+            $overlay.append($modal);
+            $('body').append($overlay);
+            // Select all text
+            $ta[0].focus();
+            $ta[0].select();
+            // Close handlers
+            $overlay.on('click', function (e) {
+                if ($(e.target).hasClass('rsa-copy-modal-overlay')) $overlay.remove();
+            });
+            $modal.on('click', '.rsa-copy-modal-close', function () { $overlay.remove(); });
         }
 
         // ── Inline controls (at bottom of round log) ──
+        // P1 move change → sync to main move selector
+        $(document).on('change', '.rsa-inline-p1-move', function () {
+            var val = $(this).val();
+            if (val === 'none') return;
+            var idx = parseInt(val);
+            $('input#resultMoveL' + (idx + 1)).prop('checked', true).trigger('change');
+        });
+
         // P2 move change → sync to main move selector
         $(document).on('change', '.rsa-inline-p2-move', function () {
             var val = $(this).val();

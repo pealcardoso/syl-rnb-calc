@@ -556,9 +556,9 @@
     display: flex; align-items: center; gap: 8px; margin-bottom: 6px; flex-wrap: wrap;
 }
 .rsa-inline-row:last-child { margin-bottom: 0; }
-.rsa-inline-p2-move, .rsa-inline-switch {
+.rsa-inline-p1-move, .rsa-inline-p2-move, .rsa-inline-switch {
     background: #2d3748; color: #e2e8f0; border: 1px solid #4a5568;
-    border-radius: 4px; padding: 3px 6px; font-size: 0.8em; max-width: 180px;
+    border-radius: 4px; padding: 3px 6px; font-size: 0.8em; max-width: 220px;
 }
 .rsa-inline-check {
     color: #a0aec0; font-size: 0.78em; display: flex; align-items: center; gap: 3px;
@@ -1381,3 +1381,32 @@ fieldset {
 .rsa-ko-tag { background: #c53030 !important; color: #fff !important; font-size: 0.7em; }
 .rsa-sash-tag { background: #d69e2e !important; color: #1a202c !important; font-size: 0.7em; }
 .rsa-round-card-doubles { border-left: 3px solid #805ad5; }
+
+/* ── Copy Log Modal ─────────────────────────────────────── */
+.rsa-copy-modal-overlay {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0,0,0,0.6); z-index: 10000;
+    display: flex; align-items: center; justify-content: center;
+}
+.rsa-copy-modal {
+    background: #2d3748; border: 1px solid #4a5568; border-radius: 8px;
+    padding: 16px; width: 90%; max-width: 600px; max-height: 80vh;
+    display: flex; flex-direction: column;
+}
+.rsa-copy-modal-header {
+    display: flex; justify-content: space-between; align-items: center;
+    font-weight: 700; color: #63b3ed; margin-bottom: 8px; font-size: 0.95em;
+}
+.rsa-copy-modal-close {
+    background: none; border: none; color: #a0aec0; font-size: 1.4em;
+    cursor: pointer; padding: 0 4px; line-height: 1;
+}
+.rsa-copy-modal-close:hover { color: #fff; }
+.rsa-copy-modal-text {
+    background: #1a202c; color: #e2e8f0; border: 1px solid #4a5568;
+    border-radius: 4px; padding: 8px; font-family: monospace; font-size: 0.82em;
+    resize: vertical; flex: 1; min-height: 200px; white-space: pre; overflow: auto;
+}
+.rsa-copy-modal-hint {
+    color: #a0aec0; font-size: 0.78em; margin-top: 6px; text-align: center;
+}
