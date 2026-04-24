@@ -533,6 +533,44 @@
     font-size: 1.1em; padding: 0 4px; margin-left: auto;
 }
 .rsa-delete-round:hover { color: #fc8181; }
+.rsa-toggle-crit {
+    background: #2d3748; border: 1px solid #4a5568; color: #a0aec0; cursor: pointer;
+    font-size: 0.7em; padding: 1px 6px; border-radius: 4px; margin-left: 4px;
+    transition: all 0.15s;
+}
+.rsa-toggle-crit:hover { border-color: #e53e3e; color: #fc8181; }
+.rsa-toggle-crit.rsa-crit-active {
+    background: #9b2c2c; border-color: #e53e3e; color: #fff; font-weight: 700;
+}
+
+/* ── Inline Controls (bottom of round log) ──────────────── */
+.rsa-inline-controls {
+    background: #1a202c; border: 1px dashed #4a5568; border-radius: 8px;
+    padding: 10px 12px; margin-top: 8px;
+}
+.rsa-inline-header {
+    font-weight: 700; color: #63b3ed; font-size: 0.85em; margin-bottom: 6px;
+    text-transform: uppercase; letter-spacing: 0.05em;
+}
+.rsa-inline-row {
+    display: flex; align-items: center; gap: 8px; margin-bottom: 6px; flex-wrap: wrap;
+}
+.rsa-inline-row:last-child { margin-bottom: 0; }
+.rsa-inline-p2-move, .rsa-inline-switch {
+    background: #2d3748; color: #e2e8f0; border: 1px solid #4a5568;
+    border-radius: 4px; padding: 3px 6px; font-size: 0.8em; max-width: 180px;
+}
+.rsa-inline-check {
+    color: #a0aec0; font-size: 0.78em; display: flex; align-items: center; gap: 3px;
+    cursor: pointer; white-space: nowrap;
+}
+.rsa-inline-check input { margin: 0; }
+.rsa-inline-comment {
+    background: #2d3748; color: #e2e8f0; border: 1px solid #4a5568;
+    border-radius: 4px; padding: 3px 6px; font-size: 0.8em; flex: 1; min-width: 100px;
+}
+.rsa-inline-log { font-size: 0.8em !important; padding: 3px 12px !important; }
+.rsa-inline-do-switch { font-size: 0.8em !important; padding: 3px 8px !important; }
 
 /* ── Round Body ───────────────────────────────────────────── */
 .rsa-round-body {

@@ -4050,6 +4050,82 @@
     // REBUILD TEAMS (after round deletion)
     // ════════════════════════════════════════════════════════════
 
+    /**
+     * Toggle P2 crit on a specific round and cascade HP changes.
+     * When crit is enabled:  P2's damage to P1 uses critDamage.maxDmg (worst case for P1).
+     * When crit is disabled: P2's damage to P1 uses damage.maxDmg.
+     * The HP delta is propagated to all subsequent rounds for the same P1 pokemon.
+     */
+    function toggleP2Crit(roundNum) {
+        var line = curLine();
+        var rdIdx = -1;
+        for (var i = 0; i < line.rounds.length; i++) {
+            if (line.rounds[i].roundNum === roundNum) { rdIdx = i; break; }
+        }
+        if (rdIdx < 0) return;
+        var rd = line.rounds[rdIdx];
+        if (rd.isDoubles || !rd.p2 || !rd.p2.critDamage) return; // nothing to toggle
+
+        // Toggle the crit flag
+        rd.p2Crit = !rd.p2Crit;
+
+        // Determine old and new P2 max damage to P1
+        // P1 takes P2's max damage (worst case), so:
+        //   non-crit: rd.p2.damage.maxDmg
+        //   crit:     rd.p2.critDamage.maxDmg
+        var normalMax = rd.p2.damage ? rd.p2.damage.maxDmg : 0;
+        var critMax   = rd.p2.critDamage ? rd.p2.critDamage.maxDmg : 0;
+        var oldDmg = rd.p2Crit ? normalMax : critMax;   // what it was before toggle
+        var newDmg = rd.p2Crit ? critMax   : normalMax;  // what it is now
+
+        var delta = newDmg - oldDmg;  // positive = more damage to P1
+
+        // Apply delta to this round's P1 HP
+        if (delta !== 0) {
+            var p1Name = rd.p1.name;
+            // Check if P2 was alive to attack (P2 hp > 0 after P1's attack)
+            var p2Alive = rd.p2.hpAfter.current > 0 || rd.p2.sashed || rd.p2.sturdied;
+            // If P1 goes first and KO'd P2, P2 doesn't attack — delta does not apply
+            var p1First = rd.speed.faster === 'p1' || rd.speed.faster === 'tie';
+            if (p1First && !p2Alive) delta = 0;
+
+            if (delta !== 0) {
+                // Adjust this round's P1 HP
+                rd.p1.hpAfter.current = Math.max(0, rd.p1.hpAfter.current - delta);
+                // Adjust bestCase too (opposite direction for P1 best case)
+                // Best case uses min damage, but for crit toggle the min also changes
+                var normalMin = rd.p2.damage ? rd.p2.damage.minDmg : 0;
+                var critMin   = rd.p2.critDamage ? rd.p2.critDamage.minDmg : 0;
+                var bestDelta = (rd.p2Crit ? critMin : normalMin) - (rd.p2Crit ? normalMin : critMin);
+                if (rd.p1.hpAfter.bestCase != null) {
+                    rd.p1.hpAfter.bestCase = Math.max(0, rd.p1.hpAfter.bestCase - bestDelta);
+                }
+
+                // Cascade delta to subsequent rounds for the same P1 pokemon
+                for (var j = rdIdx + 1; j < line.rounds.length; j++) {
+                    var next = line.rounds[j];
+                    if (next.isDoubles) continue;
+                    if (next.p1.name !== p1Name) break; // different mon, stop cascade
+                    // Shift HP before and after
+                    next.p1.hpBefore.current = Math.max(0, next.p1.hpBefore.current - delta);
+                    next.p1.hpAfter.current  = Math.max(0, next.p1.hpAfter.current - delta);
+                    if (next.p1.hpBefore.bestCase != null) {
+                        next.p1.hpBefore.bestCase = Math.max(0, next.p1.hpBefore.bestCase - bestDelta);
+                    }
+                    if (next.p1.hpAfter.bestCase != null) {
+                        next.p1.hpAfter.bestCase = Math.max(0, next.p1.hpAfter.bestCase - bestDelta);
+                    }
+                }
+            }
+        }
+
+        // Rebuild team state from the modified rounds
+        rebuildLineTeams(line);
+        renderAll();
+        syncActiveStatusToForm();
+        autoSave();
+    }
+
     function rebuildLineTeams(line) {
         // Reset all roster HP/status/items to initial state
         for (var s = 0; s < 2; s++) {
@@ -4401,9 +4477,72 @@
             var rd = line.rounds[i];
             html += rd.isDoubles ? renderDoublesRoundCard(rd) : renderRoundCard(rd);
         }
+        // Inline quick-controls at the bottom of the log
+        if (!isDoubles()) {
+            html += renderInlineControls();
+        }
         $log.html(html);
         // Update round counter badge
         $('#rsa-round-count').text(line.rounds.length);
+        // Sync inline controls with main controls
+        syncInlineControls();
+    }
+
+    /** Render inline quick-controls at the bottom of the round log */
+    function renderInlineControls() {
+        var line = curLine();
+        var p1 = getActiveEntry(line.teams.p1);
+        var p2 = getActiveEntry(line.teams.p2);
+        if (!p1 || !p2 || p1.currentHP <= 0 || p2.currentHP <= 0) return '';
+
+        // Build P2 move options from the calc form
+        var p2MoveOpts = '';
+        for (var m = 0; m < 4; m++) {
+            var label = getMoveNames(1, m);
+            if (label && label !== '—' && label !== '(No Move)') {
+                var sel = (selectedP2Move === m) ? ' selected' : '';
+                p2MoveOpts += '<option value="' + m + '"' + sel + '>' + esc(label) + '</option>';
+            }
+        }
+
+        // Build P1 switch options
+        var switchOpts = '<option value="">— Switch P1 —</option>';
+        for (var si = 0; si < line.teams.p1.roster.length; si++) {
+            var se = line.teams.p1.roster[si];
+            if (si === line.teams.p1.activeIdx) continue;
+            if (se.currentHP <= 0) continue;
+            switchOpts += '<option value="' + si + '">' + esc(se.name) + ' (' + se.currentHP + '/' + se.maxHP + ')</option>';
+        }
+
+        return '<div class="rsa-inline-controls">' +
+            '<div class="rsa-inline-header">Next Round</div>' +
+            '<div class="rsa-inline-row">' +
+                '<select class="rsa-inline-p2-move" title="P2 Move">' +
+                    '<option value="none">— P2 Move —</option>' +
+                    p2MoveOpts +
+                '</select>' +
+                '<label class="rsa-inline-check"><input type="checkbox" class="rsa-inline-p2-crit" /> P2 Crit</label>' +
+                '<label class="rsa-inline-check"><input type="checkbox" class="rsa-inline-p1-eff" /> P1 Eff</label>' +
+                '<label class="rsa-inline-check"><input type="checkbox" class="rsa-inline-p2-eff" checked /> P2 Eff</label>' +
+            '</div>' +
+            '<div class="rsa-inline-row">' +
+                '<input type="text" class="rsa-inline-comment" placeholder="Comment..." />' +
+            '</div>' +
+            '<div class="rsa-inline-row">' +
+                '<button class="rsa-btn rsa-btn-primary rsa-inline-log">▶ Log Round</button>' +
+                '<select class="rsa-inline-switch" title="Switch P1">' + switchOpts + '</select>' +
+                '<button class="rsa-btn rsa-btn-switch rsa-inline-do-switch">⇄ Switch</button>' +
+            '</div>' +
+        '</div>';
+    }
+
+    /** Sync inline control values to/from main controls */
+    function syncInlineControls() {
+        // Sync P2 move selection
+        var $inlineP2 = $('.rsa-inline-p2-move');
+        if ($inlineP2.length && selectedP2Move !== 'none') {
+            $inlineP2.val(selectedP2Move);
+        }
     }
 
     function renderRoundCard(rd) {
@@ -4504,6 +4643,7 @@
                 '<span class="rsa-speed">⚡ ' + rd.speed.p1 + ' vs ' + rd.speed.p2 + ' — ' + speedLabel + '</span>' +
                 tags +
                 probHtml +
+                (rd.isDoubles ? '' : '<button class="rsa-toggle-crit' + (rd.p2Crit ? ' rsa-crit-active' : '') + '" data-round="' + rd.roundNum + '" title="Toggle P2 critical hit and recalculate">⚔ Crit</button>') +
                 '<button class="rsa-delete-round" data-round="' + rd.roundNum + '" title="Delete round">×</button>' +
             '</div>' +
             '<div class="rsa-round-body">' +
@@ -6018,9 +6158,17 @@
 
         // ── Click header to toggle individual round card collapse ──
         $(document).on('click', '.rsa-round-header', function (e) {
-            // Don't toggle when clicking the delete button
+            // Don't toggle when clicking the delete or crit button
             if ($(e.target).hasClass('rsa-delete-round')) return;
+            if ($(e.target).hasClass('rsa-toggle-crit')) return;
             $(this).closest('.rsa-round-card').toggleClass('rsa-collapsed');
+        });
+
+        // ── Toggle P2 Crit on a round ──
+        $(document).on('click', '.rsa-toggle-crit', function (e) {
+            e.stopPropagation();
+            var num = ~~$(this).data('round');
+            toggleP2Crit(num);
         });
 
         // ── Delete round ──
@@ -6097,40 +6245,92 @@
         // ── Export ──
         $('#rsa-export').on('click', function () {
             var text = exportLines();
-            if (navigator.clipboard && navigator.clipboard.writeText) {
-                navigator.clipboard.writeText(text).then(function () {
-                    var $btn = $('#rsa-export');
-                    var orig = $btn.text();
-                    $btn.text('✓ Copied!');
-                    setTimeout(function () { $btn.text(orig); }, 1500);
-                }).catch(function () {
-                    // Clipboard write failed — use fallback
-                    fallbackCopyText(text);
-                });
-            } else {
-                fallbackCopyText(text);
+            var $btn = $(this);
+            function showCopied() {
+                var orig = $btn.html();
+                $btn.html('&#10003; Copied!');
+                setTimeout(function () { $btn.html(orig); }, 1500);
+            }
+            try {
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText(text).then(showCopied).catch(function () {
+                        fallbackCopyText(text, showCopied);
+                    });
+                } else {
+                    fallbackCopyText(text, showCopied);
+                }
+            } catch (e) {
+                fallbackCopyText(text, showCopied);
             }
         });
 
-        function fallbackCopyText(text) {
+        function fallbackCopyText(text, onSuccess) {
             var ta = document.createElement('textarea');
             ta.value = text;
             ta.style.position = 'fixed';
+            ta.style.left = '-9999px';
             ta.style.opacity = '0';
             document.body.appendChild(ta);
             ta.focus();
             ta.select();
-            try {
-                document.execCommand('copy');
-                var $btn = $('#rsa-export');
-                var orig = $btn.text();
-                $btn.text('✓ Copied!');
-                setTimeout(function () { $btn.text(orig); }, 1500);
-            } catch (e) {
-                prompt('Copy this log:', text);
-            }
+            var ok = false;
+            try { ok = document.execCommand('copy'); } catch (e) {}
             document.body.removeChild(ta);
+            if (ok && onSuccess) {
+                onSuccess();
+            } else {
+                // Last resort: open a window/prompt with the text
+                var w = window.open('', '_blank', 'width=600,height=400');
+                if (w) {
+                    w.document.write('<pre style="white-space:pre-wrap;word-wrap:break-word">' +
+                        text.replace(/&/g,'&amp;').replace(/</g,'&lt;') + '</pre>');
+                    w.document.title = 'Round Log';
+                } else {
+                    prompt('Copy this log:', text);
+                }
+            }
         }
+
+        // ── Inline controls (at bottom of round log) ──
+        // P2 move change → sync to main move selector
+        $(document).on('change', '.rsa-inline-p2-move', function () {
+            var val = $(this).val();
+            if (val === 'none') return;
+            var idx = parseInt(val);
+            // Click the main move radio to trigger the move selection
+            $('input#resultMoveR' + (idx + 1)).prop('checked', true).trigger('change');
+        });
+
+        // Log round via inline button
+        $(document).on('click', '.rsa-inline-log', function () {
+            // Sync inline options to main controls
+            var inlineP2Crit = $('.rsa-inline-p2-crit').is(':checked');
+            var inlineP1Eff  = $('.rsa-inline-p1-eff').is(':checked');
+            var inlineP2Eff  = $('.rsa-inline-p2-eff').is(':checked');
+            var inlineComment = $('.rsa-inline-comment').val() || '';
+            $('#rsa-p2-crit').prop('checked', inlineP2Crit);
+            $('#rsa-p1-apply-secondary').prop('checked', inlineP1Eff);
+            $('#rsa-p2-apply-secondary').prop('checked', inlineP2Eff);
+            $('#rsa-comment').val(inlineComment);
+            // Trigger the main log button
+            $('#rsa-log-round').trigger('click');
+        });
+
+        // Switch via inline button
+        $(document).on('click', '.rsa-inline-do-switch', function () {
+            var val = $('.rsa-inline-switch').val();
+            if (!val) return;
+            $('#rsa-switch-p1').val(val);
+            // Sync crit/eff from inline
+            var inlineP2Crit = $('.rsa-inline-p2-crit').is(':checked');
+            var inlineP2Eff  = $('.rsa-inline-p2-eff').is(':checked');
+            var inlineComment = $('.rsa-inline-comment').val() || '';
+            $('#rsa-p2-crit').prop('checked', inlineP2Crit);
+            $('#rsa-p2-apply-secondary').prop('checked', inlineP2Eff);
+            $('#rsa-comment').val(inlineComment);
+            // Trigger the main switch button
+            $('#rsa-do-switch').trigger('click');
+        });
 
         // ── Drag & Drop from box to team ──
         $(document).on('dragstart', '.rsa-box-slot', function (e) {
