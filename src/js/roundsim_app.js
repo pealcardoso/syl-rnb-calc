@@ -2566,6 +2566,17 @@
             return false;
         }
 
+        // Helper: check type-based status immunity
+        function isStatusImmune(entry, status) {
+            var types = entry.types || [];
+            if (status === 'Burn'    && types.indexOf('Fire')  !== -1) return true;
+            if (status === 'Poison'  && (types.indexOf('Poison')  !== -1 || types.indexOf('Steel') !== -1)) return true;
+            if (status === 'Badly Poisoned' && (types.indexOf('Poison') !== -1 || types.indexOf('Steel') !== -1)) return true;
+            if (status === 'Freeze'  && types.indexOf('Ice')   !== -1) return true;
+            if (status === 'Paralysis' && types.indexOf('Electric') !== -1 && gen >= 6) return true; // Gen 6+ Electric immune to paralysis
+            return false;
+        }
+
         // Apply effects in turn order: first mover applies effects, then check blocking
         var firstMover  = (speed.faster === 'p2') ? 'p2' : 'p1';
         var secondMover = (firstMover === 'p1') ? 'p2' : 'p1';
@@ -2586,6 +2597,7 @@
                 var blocked = false;
                 if (firstEff.status === 'Sleep' && isSleepImmune(secondEntry)) blocked = true;
                 if (firstEff.status === 'Freeze' && isFreezeImmune(secondEntry)) blocked = true;
+                if (isStatusImmune(secondEntry, firstEff.status)) blocked = true;
                 if (!blocked) {
                     secondEntry.status = firstEff.status;
                     // Check if status blocks second mover from attacking
@@ -2599,6 +2611,18 @@
                             secondMoverBlocked = true;
                             secondMoverBlockReason = 'freeze';
                         }
+                    }
+                }
+            }
+            // Confusion applied to second mover
+            if (firstEff.volatile === 'confusion') {
+                if (!secondEntry.confused) {
+                    secondEntry.confused = true;
+                    // Check if Persim Berry cures confusion immediately
+                    var secItlc = (secondEntry.item || '').toLowerCase().replace(/\s/g, '');
+                    if (secItlc === 'persimberry' || secItlc === 'lumberry') {
+                        secondEntry.confused = false;
+                        secondEntry.item = ''; $('#' + (secondMover === 'p1' ? 'p1' : 'p2') + ' .item').val('');
                     }
                 }
             }
@@ -2616,22 +2640,8 @@
             }
         }
 
-        // Apply second mover's secondary effects ONLY if they are not blocked
-        if (secondEff && !secondMoverBlocked) {
-            if (secondMover === 'p1') p1SecondaryApplied = secondEff;
-            else p2SecondaryApplied = secondEff;
-
-            if (secondEff.status && !firstEntry.status) {
-                firstEntry.status = secondEff.status;
-            }
-            if (secondEff.boosts) {
-                applyBoosts(firstEntry, secondEff.boosts);
-            }
-            if (secondEff.selfBoosts) {
-                applyBoosts(secondEntry, secondEff.selfBoosts);
-            }
-            // Flinch from second mover doesn't matter (first mover already attacked)
-        }
+        // NOTE: Second mover's target effects are deferred until after HP calculation
+        // (we must know if the second mover is KO'd before applying their effects)
 
         // Set blocked flags for HP calculation
         var p1Flinched = secondMoverBlocked && (secondMover === 'p1');
@@ -2773,6 +2783,35 @@
         if (p1Custap) { p1Entry.item = ''; $('#p1 .item').val(''); }
         if (p2Custap) { p2Entry.item = ''; $('#p2 .item').val(''); }
 
+        // Apply second mover's secondary effects ONLY if they are not blocked AND survived
+        // (deferred until here so we can check if the second mover was KO'd)
+        var secondMoverHPAfter = (secondMover === 'p1') ? p1HPAfter : p2HPAfter;
+        if (secondEff && !secondMoverBlocked && secondMoverHPAfter > 0) {
+            if (secondMover === 'p1') p1SecondaryApplied = secondEff;
+            else p2SecondaryApplied = secondEff;
+
+            if (secondEff.status && !firstEntry.status) {
+                var blocked2 = false;
+                if (secondEff.status === 'Sleep'  && isSleepImmune(firstEntry))  blocked2 = true;
+                if (secondEff.status === 'Freeze' && isFreezeImmune(firstEntry)) blocked2 = true;
+                if (isStatusImmune(firstEntry, secondEff.status))                blocked2 = true;
+                if (!blocked2) firstEntry.status = secondEff.status;
+            }
+            // Confusion applied to first mover
+            if (secondEff.volatile === 'confusion') {
+                if (!firstEntry.confused) {
+                    firstEntry.confused = true;
+                    var fstItlc = (firstEntry.item || '').toLowerCase().replace(/\s/g, '');
+                    if (fstItlc === 'persimberry' || fstItlc === 'lumberry') {
+                        firstEntry.confused = false;
+                        firstEntry.item = ''; $('#' + (firstMover === 'p1' ? 'p1' : 'p2') + ' .item').val('');
+                    }
+                }
+            }
+            if (secondEff.boosts)     applyBoosts(firstEntry,  secondEff.boosts);
+            if (secondEff.selfBoosts) applyBoosts(secondEntry, secondEff.selfBoosts);
+        }
+
         // Apply extra damage from attacks (same for worst and best — extras are fixed values)
         for (var i = 0; i < p1Extras.length; i++) {
             var ex = p1Extras[i];
@@ -2824,8 +2863,10 @@
             var cured = false;
 
             if (hpVar > 0) {
-                if (itlc === 'lumberry' && entry.status) {
-                    entry.status = ''; entry.toxicCounter = 0; cured = true;
+                if (itlc === 'lumberry' && (entry.status || entry.confused)) {
+                    entry.status = ''; entry.toxicCounter = 0; entry.confused = false; cured = true;
+                } else if (itlc === 'persimberry' && entry.confused) {
+                    entry.confused = false; cured = true;
                 } else if (itlc === 'rawstberry' && entry.status === 'Burn') {
                     entry.status = ''; cured = true;
                 } else if (itlc === 'pechaberry' && (entry.status === 'Poison' || entry.status === 'Badly Poisoned')) {
@@ -2933,6 +2974,7 @@
                 item: p1Entry.item,
                 ability: p1Entry.ability,
                 status: p1Entry.status,
+                confused: !!p1Entry.confused,
                 boosts: $.extend({}, p1Entry.boosts),
                 hpBefore: { current: p1HPBefore, max: p1Entry.maxHP, bestCase: p1BestBefore },
                 hpAfter: { current: p1HPAfter, max: p1Entry.maxHP, bestCase: p1BestAfter },
@@ -2965,6 +3007,7 @@
                 item: p2Entry.item,
                 ability: p2Entry.ability,
                 status: p2Entry.status,
+                confused: !!p2Entry.confused,
                 boosts: $.extend({}, p2Entry.boosts),
                 hpBefore: { current: p2HPBefore, max: p2Entry.maxHP, bestCase: p2BestBefore },
                 hpAfter: { current: p2HPAfter, max: p2Entry.maxHP, bestCase: p2BestAfter },
@@ -4466,6 +4509,7 @@
                         '<span class="rsa-tag rsa-item-tag" title="' + esc(getItemDesc(actor.item)) + '"><img class="rsa-item-sprite-sm" src="' + esc(getItemSpriteUrl(actor.item)) + '" alt="" onerror="this.style.display=\'none\'"> ' + esc(actor.item) + '</span>' +
                         '<span class="rsa-tag rsa-ability-tag" title="' + esc(getAbilityDesc(actor.ability)) + '">' + esc(actor.ability) + '</span>' +
                         (actor.status ? '<span class="rsa-tag rsa-status-tag rsa-status-' + actor.status.toLowerCase().replace(/\s+/g, '-') + '">' + esc(actor.status) + '</span>' : '') +
+                        (actor.confused ? '<span class="rsa-tag rsa-status-tag rsa-status-confused">Confused</span>' : '') +
                         boostHtml +
                     '</div>' +
                     '<div class="rsa-hp-bar-wrap"><div class="rsa-hp-bar" style="width:' + bPct.toFixed(0) + '%;background:' + bCol + '"></div></div>' +
