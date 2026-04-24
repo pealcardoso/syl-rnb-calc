@@ -392,7 +392,12 @@
 .rsa-status-freeze { background: #4299e1; color: #fff; }
 .rsa-status-confused { background: #e78c3a; color: #fff; }
 .rsa-charge-tag { background: #3182ce; color: #fff; font-weight: 700; }
-.rsa-preview-charge-note { color: #63b3ed; font-size: 0.8em; margin-top: 3px; font-style: italic; }
+.rsa-strike-tag { background: #276749; color: #9ae6b4; font-weight: 700; }
+.rsa-invuln-tag { background: #553c9a; color: #e9d8fd; font-weight: 700; }
+.rsa-preview-charge-note  { color: #63b3ed; font-size: 0.8em; margin-top: 3px; font-style: italic; }
+.rsa-preview-strike-note  { color: #68d391; font-size: 0.8em; margin-top: 3px; font-style: italic; }
+.rsa-preview-invuln-note  { color: #fc8181; font-size: 0.8em; margin-top: 3px; font-style: italic; }
+.rsa-preview-bypass-note  { color: #68d391; font-size: 0.8em; margin-top: 3px; font-style: italic; }
 .rsa-boost-tag { background: #2b6cb0; color: #bee3f8; font-size: 0.65em; }
 
 /* ── Round Controls ───────────────────────────────────────── */

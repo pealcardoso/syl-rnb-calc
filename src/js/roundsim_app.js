@@ -15,6 +15,40 @@
     var CATEGORY_SPRITE_BASE = 'https://play.pokemonshowdown.com/sprites/categories/';
     var MAX_TEAM_SIZE = 6;
 
+    // ── Two-turn (charge) move constants ───────────────────────
+    // Moves that make the user semi-invulnerable on the charge turn.
+    // Maps normalised move key → invulnerability bucket.
+    var CHARGE_SEMI_INVULN = {
+        'fly':          'air',
+        'bounce':       'air',
+        'skydrop':      'air',
+        'dig':          'underground',
+        'dive':         'underwater',
+        'phantomforce': 'phantom',
+        'shadowforce':  'phantom'
+    };
+    // Non-semi-invulnerable charge moves (Solar Beam, etc.).
+    // The user still charges for one turn, but CAN be hit normally while charging.
+    var CHARGE_ONLY_MOVES = {
+        'solarbeam': true, 'solarblade': true,
+        'skullbash': true, 'razorwind': true,
+        'skyattack': true, 'freezeshock': true, 'iceburn': true
+    };
+    // Moves that bypass each invulnerability type.
+    var INVULN_BYPASSES = {
+        'air':          ['thunder', 'hurricane', 'gust', 'twister', 'skyuppercut', 'smackdown', 'thousandarrows'],
+        'underground':  ['earthquake', 'magnitude'],
+        'underwater':   ['surf', 'whirlpool'],
+        'phantom':      []   // nothing bypasses Phantom/Shadow Force
+    };
+    // Human-readable names for invulnerability types (for badges / tooltips).
+    var INVULN_LABEL = {
+        'air':         'In the air',
+        'underground': 'Underground',
+        'underwater':  'Underwater',
+        'phantom':     'Shadow realm'
+    };
+
     // ── RBDex move data lookup ──────────────────────────────────
     function lookupMoveData(moveName) {
         if (!moveName || !window.BattleMovedex) return null;
@@ -2348,6 +2382,11 @@
         var outgoing = getActiveEntry(team);
         if (outgoing) {
             outgoing.boosts = { at: 0, df: 0, sa: 0, sd: 0, sp: 0 };
+            // Semi-invulnerability and confusion are volatile — clear on switch out
+            outgoing.chargingMove   = null;
+            outgoing.semiInvulnType = null;
+            outgoing.confused       = false;
+            outgoing.confuseRounds  = 0;
         }
 
         team.activeIdx = idx;
@@ -2448,7 +2487,7 @@
     // CAPTURE ROUND
     // ════════════════════════════════════════════════════════════
 
-    function captureRound(p1MoveIdx, p2MoveIdx, p2Crit, p1PreDmg, p1PreStatus, comment, p1ApplySecondary, p2ApplySecondary, p1Charging, p2Charging) {
+    function captureRound(p1MoveIdx, p2MoveIdx, p2Crit, p1PreDmg, p1PreStatus, comment, p1ApplySecondary, p2ApplySecondary) {
         var line = curLine();
 
         // Decrement trick room counter at the start of each singles round
@@ -2477,10 +2516,10 @@
             return null;
         }
 
-        // Get damage info
-        var p1Dmg = (p1MoveIdx !== 'none' && p1MoveIdx !== -1 && !p1Charging) ? getDamageInfo(0, p1MoveIdx) : null;
-        var p2Dmg = (p2MoveIdx !== 'none' && p2MoveIdx !== -1 && !p2Charging) ? getDamageInfo(1, p2MoveIdx) : null;
-        var p2CritInfo = (p2Crit && p2MoveIdx !== 'none' && p2MoveIdx !== -1 && !p2Charging) ? getCritResult(1, p2MoveIdx) : null;
+        // Get damage info (always compute; will be nulled out below if charge/invuln rules apply)
+        var p1Dmg = (p1MoveIdx !== 'none' && p1MoveIdx !== -1) ? getDamageInfo(0, p1MoveIdx) : null;
+        var p2Dmg = (p2MoveIdx !== 'none' && p2MoveIdx !== -1) ? getDamageInfo(1, p2MoveIdx) : null;
+        var p2CritInfo = (p2Crit && p2MoveIdx !== 'none' && p2MoveIdx !== -1) ? getCritResult(1, p2MoveIdx) : null;
 
         // Look up RBDex move data for detailed info
         var p1MoveName = (p1MoveIdx !== 'none' && p1MoveIdx !== -1) ? getMoveNames(0, p1MoveIdx) : null;
@@ -2488,7 +2527,44 @@
         var p1MoveData = p1MoveName ? lookupMoveData(p1MoveName) : null;
         var p2MoveData = p2MoveName ? lookupMoveData(p2MoveName) : null;
 
-        // ── Move priority determines turn order ──
+        // ── Two-turn charge move state detection ──────────────────
+        // Normalise move keys (same scheme as lookupMoveData)
+        var p1MoveKey = p1MoveName ? p1MoveName.toLowerCase().replace(/[\s\-\']+/g, '') : '';
+        var p2MoveKey = p2MoveName ? p2MoveName.toLowerCase().replace(/[\s\-\']+/g, '') : '';
+
+        // Is this a semi-invulnerable charge move?
+        var p1HasSemiInvuln = CHARGE_SEMI_INVULN.hasOwnProperty(p1MoveKey);
+        var p2HasSemiInvuln = CHARGE_SEMI_INVULN.hasOwnProperty(p2MoveKey);
+        // Is this ANY charge move (including Solar Beam etc.)?
+        var p1IsAnyChargeMove = (p1MoveData && p1MoveData.flags && p1MoveData.flags.charge) || CHARGE_ONLY_MOVES[p1MoveKey];
+        var p2IsAnyChargeMove = (p2MoveData && p2MoveData.flags && p2MoveData.flags.charge) || CHARGE_ONLY_MOVES[p2MoveKey];
+
+        // Determine charge turn vs strike turn based on persisted entry state
+        var p1ChargeTurn = !!(p1IsAnyChargeMove && !p1Entry.chargingMove);
+        var p1StrikeTurn = !!(p1IsAnyChargeMove && p1Entry.chargingMove === p1MoveKey);
+        var p2ChargeTurn = !!(p2IsAnyChargeMove && !p2Entry.chargingMove);
+        var p2StrikeTurn = !!(p2IsAnyChargeMove && p2Entry.chargingMove === p2MoveKey);
+
+        // On the charge turn the attacker deals NO damage
+        if (p1ChargeTurn) { p1Dmg = null; }
+        if (p2ChargeTurn) { p2Dmg = null; p2CritInfo = null; }
+
+        // Semi-invulnerability: if the DEFENDER was in a semi-invuln state at the START
+        // of this round, the attacker deals 0 unless their move bypasses it.
+        // Invulnerability persists across both the charge round (set at end) and the
+        // entire strike round until the defender attacks — so it applies here always.
+        var p1WasBypassed = false; // whether P1 bypassed P2's invuln
+        var p2WasBypassed = false;
+        if (p2Entry.semiInvulnType) {
+            var bypP2 = INVULN_BYPASSES[p2Entry.semiInvulnType] || [];
+            p1WasBypassed = bypP2.indexOf(p1MoveKey) !== -1;
+            if (!p1WasBypassed) p1Dmg = null;
+        }
+        if (p1Entry.semiInvulnType) {
+            var bypP1 = INVULN_BYPASSES[p1Entry.semiInvulnType] || [];
+            p2WasBypassed = bypP1.indexOf(p2MoveKey) !== -1;
+            if (!p2WasBypassed) { p2Dmg = null; p2CritInfo = null; }
+        }
         var p1Priority = (p1MoveData && typeof p1MoveData.priority === 'number') ? p1MoveData.priority : 0;
         var p2Priority = (p2MoveData && typeof p2MoveData.priority === 'number') ? p2MoveData.priority : 0;
 
@@ -3008,8 +3084,14 @@
             terrain: getTerrain(),
             trickRoom: speed.trickRoom,
             p2Crit: p2Crit,
-            p1Charging: !!p1Charging,
-            p2Charging: !!p2Charging,
+            p1Charging: p1ChargeTurn,
+            p2Charging: p2ChargeTurn,
+            p1StrikeTurn: p1StrikeTurn,
+            p2StrikeTurn: p2StrikeTurn,
+            p1SemiInvuln: !!(p2Entry.semiInvulnType),   // P2 was invuln when P1 attacked
+            p2SemiInvuln: !!(p1Entry.semiInvulnType),   // P1 was invuln when P2 attacked
+            p1InvulnType: p2Entry.semiInvulnType || null,
+            p2InvulnType: p1Entry.semiInvulnType || null,
             p1PreDmg: p1PreDmg || 0,
             p1PreStatus: p1PreStatus || '',
             comment: comment || '',
@@ -3112,6 +3194,23 @@
             try {
                 rd.switchPred = predictSwitchIn('$p1');
             } catch (e) { rd.switchPred = null; }
+        }
+
+        // ── Update two-turn charge/invuln state on entries (after rd is built) ──
+        // Charge turn: mark the pokemon as charging + set semi-invuln for next round
+        if (p2ChargeTurn) {
+            p2Entry.chargingMove   = p2MoveKey;
+            p2Entry.semiInvulnType = CHARGE_SEMI_INVULN[p2MoveKey] || null;
+        } else if (p2StrikeTurn || (p2MoveIdx !== 'none' && !p2IsAnyChargeMove)) {
+            p2Entry.chargingMove   = null;
+            p2Entry.semiInvulnType = null;
+        }
+        if (p1ChargeTurn) {
+            p1Entry.chargingMove   = p1MoveKey;
+            p1Entry.semiInvulnType = CHARGE_SEMI_INVULN[p1MoveKey] || null;
+        } else if (p1StrikeTurn || (p1MoveIdx !== 'none' && !p1IsAnyChargeMove)) {
+            p1Entry.chargingMove   = null;
+            p1Entry.semiInvulnType = null;
         }
 
         return rd;
@@ -4325,8 +4424,18 @@
         if (rd.trickRoom)           tags += '<span class="rsa-tag rsa-trickroom">Trick Room</span>';
         if (rd.isSwitch)            tags += '<span class="rsa-tag rsa-switch-tag">⇄ SWITCH</span>';
         if (rd.p2Crit)              tags += '<span class="rsa-tag rsa-crit-tag">P2 CRIT</span>';
-        if (rd.p1Charging)          tags += '<span class="rsa-tag rsa-charge-tag" title="P1 is on the charge turn — no damage dealt">P1 ⬆ Charging</span>';
-        if (rd.p2Charging)          tags += '<span class="rsa-tag rsa-charge-tag" title="P2 is on the charge turn — no damage dealt">P2 ⬆ Charging</span>';
+        if (rd.p1Charging)          tags += '<span class="rsa-tag rsa-charge-tag" title="P1 is charging — no damage dealt this turn">P1 ⬆ Charging</span>';
+        if (rd.p2Charging)          tags += '<span class="rsa-tag rsa-charge-tag" title="P2 is charging — no damage dealt this turn">P2 ⬆ Charging</span>';
+        if (rd.p1StrikeTurn)        tags += '<span class="rsa-tag rsa-strike-tag" title="P1 executes the two-turn move">P1 ⬇ Strikes</span>';
+        if (rd.p2StrikeTurn)        tags += '<span class="rsa-tag rsa-strike-tag" title="P2 executes the two-turn move">P2 ⬇ Strikes</span>';
+        if (rd.p1SemiInvuln && !rd.p1Charging) {
+            var invLabel1 = rd.p1InvulnType ? (INVULN_LABEL[rd.p1InvulnType] || rd.p1InvulnType) : 'Invulnerable';
+            tags += '<span class="rsa-tag rsa-invuln-tag" title="P2 is semi-invulnerable — P1\'s attack misses">P2 🛡 ' + invLabel1 + '</span>';
+        }
+        if (rd.p2SemiInvuln && !rd.p2Charging) {
+            var invLabel2 = rd.p2InvulnType ? (INVULN_LABEL[rd.p2InvulnType] || rd.p2InvulnType) : 'Invulnerable';
+            tags += '<span class="rsa-tag rsa-invuln-tag" title="P1 is semi-invulnerable — P2\'s attack misses">P1 🛡 ' + invLabel2 + '</span>';
+        }
         if (rd.p1PreDmg)            tags += '<span class="rsa-tag rsa-predmg-tag">P1 Pre-Dmg: -' + rd.p1PreDmg + '</span>';
         if (rd.p1PreStatus)         tags += '<span class="rsa-tag rsa-prestatus-tag">P1 Pre: ' + esc(rd.p1PreStatus) + '</span>';
         // Hazard state badges (active at time of round)
@@ -4728,12 +4837,41 @@
             if (effects.secondary) effHtml += '<div class="rsa-effect-secondary">' + esc(effects.secondary) + '</div>';
         }
         var isChargeMove = md.flags && md.flags.charge;
-        var chargeHtml = isChargeMove ? '<div class="rsa-preview-charge-note">⬆ Two-turn move — check "' + (side === 'p1' ? 'P1' : 'P2') + ' Charging" on the charge turn</div>' : '';
+        var chargeHtml = '';
+        if (isChargeMove) {
+            var line = curLine();
+            var entry = side === 'p1' ? getActiveEntry(line.teams.p1) : getActiveEntry(line.teams.p2);
+            var mKey = moveName.toLowerCase().replace(/[\s\-\']+/g, '');
+            var hasSemiInvuln = CHARGE_SEMI_INVULN.hasOwnProperty(mKey);
+            if (entry && entry.chargingMove === mKey) {
+                // Strike turn coming
+                chargeHtml = '<div class="rsa-preview-strike-note">⬇ Strike turn — ' + esc(md.name) + ' will land this round</div>';
+            } else if (entry) {
+                // About to charge
+                var invDesc = hasSemiInvuln ? ' · ' + (INVULN_LABEL[CHARGE_SEMI_INVULN[mKey]] || '') : '';
+                chargeHtml = '<div class="rsa-preview-charge-note">⬆ Charge turn (1st turn) — no damage dealt' + invDesc + '</div>';
+            }
+        }
+        // Show warning if the OPPONENT is semi-invulnerable and this move won't hit
+        var opponentInvulnHtml = '';
+        var line2 = curLine();
+        var oppEntry = side === 'p1' ? getActiveEntry(line2.teams.p2) : getActiveEntry(line2.teams.p1);
+        if (oppEntry && oppEntry.semiInvulnType) {
+            var bypList = INVULN_BYPASSES[oppEntry.semiInvulnType] || [];
+            var thisMoveKey = moveName.toLowerCase().replace(/[\s\-\']+/g, '');
+            var invLbl = INVULN_LABEL[oppEntry.semiInvulnType] || oppEntry.semiInvulnType;
+            if (bypList.indexOf(thisMoveKey) !== -1) {
+                opponentInvulnHtml = '<div class="rsa-preview-bypass-note">✓ Hits through ' + esc(invLbl) + '!</div>';
+            } else {
+                opponentInvulnHtml = '<div class="rsa-preview-invuln-note">✗ Opponent is ' + esc(invLbl) + ' — will deal 0</div>';
+            }
+        }
         $panel.html(
             '<div class="rsa-preview-header">' + typeImg + catImg + '<span class="rsa-preview-name">' + esc(md.name) + '</span></div>' +
             '<div class="rsa-preview-stats">' + stats.join(' · ') + '</div>' +
             (md.shortDesc ? '<div class="rsa-preview-desc">' + esc(md.shortDesc) + '</div>' : '') +
             chargeHtml +
+            opponentInvulnHtml +
             effHtml
         );
     }
@@ -5738,8 +5876,6 @@
                 $('#rsa-comment').val('');
                 if (!isDoubles()) {
                     $('#rsa-p1-apply-secondary').prop('checked', false);
-                    $('#rsa-p1-charging').prop('checked', false);
-                    $('#rsa-p2-charging').prop('checked', false);
                 }
             }
 
@@ -5749,11 +5885,9 @@
                 var p2Crit = $('#rsa-p2-crit').is(':checked');
                 var p1ApplySec = $('#rsa-p1-apply-secondary').is(':checked');
                 var p2ApplySec = $('#rsa-p2-apply-secondary').is(':checked');
-                var p1Charging = $('#rsa-p1-charging').is(':checked');
-                var p2Charging = $('#rsa-p2-charging').is(':checked');
                 // p1PreDmg and p1PreStatus are now edited directly on the P1 card;
                 // entry.currentHP and entry.status already reflect any changes.
-                return captureRound(p1MoveIdx, p2MoveIdx, p2Crit, 0, '', comment, p1ApplySec, p2ApplySec, p1Charging, p2Charging);
+                return captureRound(p1MoveIdx, p2MoveIdx, p2Crit, 0, '', comment, p1ApplySec, p2ApplySec);
             }
 
             if (isDoubles()) {
