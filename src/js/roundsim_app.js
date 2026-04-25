@@ -2622,6 +2622,18 @@
         var p1Eff = ((p1ApplySecondary || p1Guaranteed) && p1MoveData) ? resolveSecondaryEffects(p1MoveData, 'p2', p1Guaranteed) : null;
         var p2Eff = ((p2ApplySecondary || p2Guaranteed) && p2MoveData) ? resolveSecondaryEffects(p2MoveData, 'p1', p2Guaranteed) : null;
 
+        // Bug fix: if P2's move type has 0 effectiveness against P1 (type immunity),
+        // the move fails entirely — no secondary effects should be applied to P1.
+        if (p2Eff && p2MoveData && p2MoveData.type) {
+            var p2MoveTypeMult = getTypeMultiplier(p2MoveData.type, p1Entry.types || [], p1Entry.ability || '');
+            if (p2MoveTypeMult === 0) p2Eff = null;
+        }
+        // Similarly, if P1's move type has 0 effectiveness against P2, skip P1's secondary effects.
+        if (p1Eff && p1MoveData && p1MoveData.type) {
+            var p1MoveTypeMult = getTypeMultiplier(p1MoveData.type, p2Entry.types || [], p2Entry.ability || '');
+            if (p1MoveTypeMult === 0) p1Eff = null;
+        }
+
         // Helper: check if a pokemon is immune to sleep
         function isSleepImmune(entry) {
             var ab = (entry.ability || '').toLowerCase().replace(/\s/g, '');
@@ -4513,6 +4525,19 @@
 
         // ── P2 KO panel: P2 is fainted, pick who comes in ────────────
         if (!p2 || p2.currentHP <= 0) {
+            // Check if any P2 pokemon are still alive
+            var p2HasAlive = false;
+            for (var si = 0; si < line.teams.p2.roster.length; si++) {
+                if (line.teams.p2.roster[si].currentHP > 0) { p2HasAlive = true; break; }
+            }
+
+            // No more P2 pokemon — battle is over
+            if (!p2HasAlive) {
+                return '<div class="rsa-inline-controls rsa-inline-battle-ended">' +
+                    '<div class="rsa-inline-header rsa-battle-ended-header">🏆 Battle Ended — User team wins!</div>' +
+                '</div>';
+            }
+
             // Predict who P2 sends in
             var pred = null;
             try { pred = predictSwitchIn('$p1'); } catch (e) {}
