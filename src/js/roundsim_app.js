@@ -6601,13 +6601,14 @@
 
                 var set = lookupSet(data.setId);
                 var maxHP = set ? calcMaxHP(data.name, set) : 100;
+                var typeInfo = getMonTypeInfo(data.name, data.setId);
                 var entry = createRosterEntry(
                     data.name, data.setId,
                     getSprite(data.name),
                     set ? (set.item || '') : '',
                     set ? (set.ability || '') : '',
                     set ? (set.moves || []) : [],
-                    maxHP, []
+                    maxHP, typeInfo.types
                 );
                 team.roster.push(entry);
                 var newIdx = team.roster.length - 1;
