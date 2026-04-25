@@ -702,6 +702,26 @@
 }
 .rsa-import-btns { display: flex; gap: 6px; margin-top: 4px; }
 
+/* ── Trainer search ───────────────────────────────────────── */
+.rsa-trainer-search-wrap {
+    position: relative; margin-bottom: 8px;
+}
+#rsa-trainer-search {
+    background: #2d3748; border: 1px solid #4a5568; color: #e2e8f0;
+    padding: 4px 8px; border-radius: 4px; font-size: 0.82em;
+    width: 100%; box-sizing: border-box;
+}
+#rsa-trainer-search:focus { outline: none; border-color: #fc8181; }
+.rsa-trainer-suggestions {
+    position: absolute; top: 100%; left: 0; right: 0; z-index: 200;
+    background: #2d3748; border: 1px solid #4a5568; border-radius: 4px;
+    max-height: 180px; overflow-y: auto; display: none;
+}
+.rsa-trainer-sugg-item {
+    padding: 5px 10px; font-size: 0.82em; color: #e2e8f0; cursor: pointer;
+}
+.rsa-trainer-sugg-item:hover { background: #4a5568; }
+
 /* ── Trainer nav buttons in P2 header ─────────────────────── */
 .rsa-trainer-nav {
     display: flex; gap: 4px; margin-left: auto;

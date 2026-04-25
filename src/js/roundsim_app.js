@@ -6388,6 +6388,75 @@
             renderAll();
         });
 
+        // ── Trainer search ──
+        (function () {
+            var $input = $('#rsa-trainer-search');
+            var $sugg  = $('#rsa-trainer-suggestions');
+
+            $input.on('input', function () {
+                var query = $(this).val().trim().toLowerCase();
+                $sugg.empty();
+                if (!query) { $sugg.hide(); return; }
+
+                // TR_NAMES entries: "[index]MonName (Trainer Name)"
+                var seen = {};
+                var results = [];
+                (window.TR_NAMES || []).forEach(function (entry) {
+                    var idxMatch     = entry.match(/^\[(\d+)\]/);
+                    var trainerMatch = entry.match(/\(([^)]+)\)$/);
+                    if (!idxMatch || !trainerMatch) return;
+                    var idx  = parseInt(idxMatch[1], 10);
+                    var name = trainerMatch[1];
+                    if (seen[idx]) return;
+                    if (name.toLowerCase().includes(query)) {
+                        seen[idx] = true;
+                        results.push({ idx: idx, name: name });
+                    }
+                });
+
+                if (!results.length) { $sugg.hide(); return; }
+
+                results.slice(0, 20).forEach(function (r) {
+                    $('<div class="rsa-trainer-sugg-item">')
+                        .text(r.name)
+                        .on('click', function () {
+                            $input.val(r.name);
+                            $sugg.hide();
+                            var line = curLine();
+                            if (line.rounds.length > 0) {
+                                var save = confirm(
+                                    'You have ' + line.rounds.length + ' round(s) logged in "' + line.name + '".\n\n' +
+                                    'OK = Save this line and start a new one\n' +
+                                    'Cancel = Discard rounds and load next opponent'
+                                );
+                                if (save) {
+                                    lines.push(createLine('Line ' + String.fromCharCode(65 + lines.length)));
+                                    currentLineIdx = lines.length - 1;
+                                } else {
+                                    line.rounds = [];
+                                    line.roundCounter = 0;
+                                    line.teams = { p1: { roster: [], activeIdx: -1 }, p2: { roster: [], activeIdx: -1 } };
+                                }
+                                renderAll();
+                            }
+                            selectTrainer(r.idx);
+                            setTimeout(function () {
+                                syncP2Team();
+                                setTimeout(autoSelectP2MostProbable, 500);
+                            }, 500);
+                        })
+                        .appendTo($sugg);
+                });
+                $sugg.show();
+            });
+
+            $(document).on('click', function (e) {
+                if (!$(e.target).closest('.rsa-trainer-search-wrap').length) {
+                    $sugg.hide();
+                }
+            });
+        })();
+
         // ── Export ──
         $('#rsa-export').on('click', function () {
             var text = exportLines();
