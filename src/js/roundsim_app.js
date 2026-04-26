@@ -2808,6 +2808,10 @@
         var firstEntry  = (firstMover === 'p1') ? p1Entry : p2Entry;
         var secondEntry = (firstMover === 'p1') ? p2Entry : p1Entry;
 
+        // Track berry-nullified status/confusion for display in round card
+        var p1StatusNullifiedByBerry = null; // { status, berry }
+        var p2StatusNullifiedByBerry = null;
+
         // Apply first mover's secondary effects
         var secondMoverBlocked = false;
         var secondMoverBlockReason = '';
@@ -2828,11 +2832,24 @@
                         if (!itemCuresStatus(secondEntry, 'Sleep')) {
                             secondMoverBlocked = true;
                             secondMoverBlockReason = 'sleep';
+                        } else {
+                            // Berry cured the sleep before it could block action
+                            var _sleepBerry = (secondEntry.item || '');
+                            secondEntry.status = '';
+                            secondEntry.item = ''; $('#' + (secondMover === 'p1' ? 'p1' : 'p2') + ' .item').val('');
+                            if (secondMover === 'p1') p1StatusNullifiedByBerry = { status: 'Sleep', berry: _sleepBerry };
+                            else p2StatusNullifiedByBerry = { status: 'Sleep', berry: _sleepBerry };
                         }
                     } else if (firstEff.status === 'Freeze') {
                         if (!itemCuresStatus(secondEntry, 'Freeze')) {
                             secondMoverBlocked = true;
                             secondMoverBlockReason = 'freeze';
+                        } else {
+                            var _freezeBerry = (secondEntry.item || '');
+                            secondEntry.status = '';
+                            secondEntry.item = ''; $('#' + (secondMover === 'p1' ? 'p1' : 'p2') + ' .item').val('');
+                            if (secondMover === 'p1') p1StatusNullifiedByBerry = { status: 'Freeze', berry: _freezeBerry };
+                            else p2StatusNullifiedByBerry = { status: 'Freeze', berry: _freezeBerry };
                         }
                     }
                 }
@@ -2847,7 +2864,10 @@
                     if (secItlc === 'persimberry' || secItlc === 'lumberry') {
                         secondEntry.confused = false;
                         secondEntry.confuseRounds = 0;
+                        var _confBerry1 = secondEntry.item;
                         secondEntry.item = ''; $('#' + (secondMover === 'p1' ? 'p1' : 'p2') + ' .item').val('');
+                        if (secondMover === 'p1') p1StatusNullifiedByBerry = { status: 'Confusion', berry: _confBerry1 };
+                        else p2StatusNullifiedByBerry = { status: 'Confusion', berry: _confBerry1 };
                     }
                 }
             }
@@ -3064,7 +3084,17 @@
                 if (secondEff.status === 'Sleep'  && isSleepImmune(firstEntry))  blocked2 = true;
                 if (secondEff.status === 'Freeze' && isFreezeImmune(firstEntry)) blocked2 = true;
                 if (isStatusImmune(firstEntry, secondEff.status))                blocked2 = true;
-                if (!blocked2) firstEntry.status = secondEff.status;
+                if (!blocked2) {
+                    firstEntry.status = secondEff.status;
+                    // Check if first mover's berry cures the status immediately
+                    if (itemCuresStatus(firstEntry, secondEff.status)) {
+                        var _berry2 = firstEntry.item;
+                        firstEntry.status = '';
+                        firstEntry.item = ''; $('#' + (firstMover === 'p1' ? 'p1' : 'p2') + ' .item').val('');
+                        if (firstMover === 'p1') p1StatusNullifiedByBerry = { status: secondEff.status, berry: _berry2 };
+                        else p2StatusNullifiedByBerry = { status: secondEff.status, berry: _berry2 };
+                    }
+                }
             }
             // Confusion applied to first mover
             if (secondEff.volatile === 'confusion') {
@@ -3075,7 +3105,10 @@
                     if (fstItlc === 'persimberry' || fstItlc === 'lumberry') {
                         firstEntry.confused = false;
                         firstEntry.confuseRounds = 0;
+                        var _confBerry2 = firstEntry.item;
                         firstEntry.item = ''; $('#' + (firstMover === 'p1' ? 'p1' : 'p2') + ' .item').val('');
+                        if (firstMover === 'p1') p1StatusNullifiedByBerry = { status: 'Confusion', berry: _confBerry2 };
+                        else p2StatusNullifiedByBerry = { status: 'Confusion', berry: _confBerry2 };
                     }
                 }
             }
@@ -3131,24 +3164,32 @@
         // Status-curing berries activate end-of-turn (after EOT status damage)
         // Sitrus Berry heals 25% max HP when at ≤ 50% HP
         function applyPostEOTBerries(entry, hpVar, bestVar, eotList, side) {
-            if (!entry.item || entry.currentHP <= 0) return { hp: hpVar, best: bestVar };
+            if (!entry.item || entry.currentHP <= 0) return { hp: hpVar, best: bestVar, berryCured: null };
             var itlc = entry.item.toLowerCase().replace(/\s/g, '');
             var cured = false;
+            var curedStatus = null;
 
             if (hpVar > 0) {
                 if (itlc === 'lumberry' && (entry.status || entry.confused)) {
+                    curedStatus = entry.status || 'Confusion';
                     entry.status = ''; entry.toxicCounter = 0; entry.confused = false; entry.confuseRounds = 0; cured = true;
                 } else if (itlc === 'persimberry' && entry.confused) {
+                    curedStatus = 'Confusion';
                     entry.confused = false; entry.confuseRounds = 0; cured = true;
                 } else if (itlc === 'rawstberry' && entry.status === 'Burn') {
+                    curedStatus = 'Burn';
                     entry.status = ''; cured = true;
                 } else if (itlc === 'pechaberry' && (entry.status === 'Poison' || entry.status === 'Badly Poisoned')) {
+                    curedStatus = entry.status;
                     entry.status = ''; entry.toxicCounter = 0; cured = true;
                 } else if (itlc === 'cheriberry' && entry.status === 'Paralysis') {
+                    curedStatus = 'Paralysis';
                     entry.status = ''; cured = true;
                 } else if (itlc === 'chestoberry' && entry.status === 'Sleep') {
+                    curedStatus = 'Sleep';
                     entry.status = ''; cured = true;
                 } else if (itlc === 'aspearberry' && entry.status === 'Freeze') {
+                    curedStatus = 'Freeze';
                     entry.status = ''; cured = true;
                 }
                 if (cured) consumeItem(entry, side);
@@ -3162,13 +3203,15 @@
                     consumeItem(entry, side);
                 }
             }
-            return { hp: hpVar, best: bestVar };
+            return { hp: hpVar, best: bestVar, berryCured: cured ? { status: curedStatus, berry: itlc } : null };
         }
 
         var p1PostEOT = applyPostEOTBerries(p1Entry, p1HPAfter, p1BestAfter, p1EOT, 'p1');
         p1HPAfter = p1PostEOT.hp; p1BestAfter = p1PostEOT.best;
+        if (p1PostEOT.berryCured && !p1StatusNullifiedByBerry) p1StatusNullifiedByBerry = p1PostEOT.berryCured;
         var p2PostEOT = applyPostEOTBerries(p2Entry, p2HPAfter, p2BestAfter, p2EOT, 'p2');
         p2HPAfter = p2PostEOT.hp; p2BestAfter = p2PostEOT.best;
+        if (p2PostEOT.berryCured && !p2StatusNullifiedByBerry) p2StatusNullifiedByBerry = p2PostEOT.berryCured;
 
         // Toxic Orb / Flame Orb: inflict status at end of turn (no damage this turn; starts next)
         if (!p1Entry.status) {
@@ -3279,6 +3322,7 @@
                 flinched: p1Flinched,
                 blockReason: (secondMover === 'p1') ? secondMoverBlockReason : '',
                 secondaryApplied: p1ApplySecondary && p1SecondaryApplied,
+                statusNullifiedByBerry: p1StatusNullifiedByBerry,
                 sashed: p1Sashed,
                 sturdied: p1Sturdied,
                 custap: p1Custap,
@@ -3314,6 +3358,7 @@
                 flinched: p2Flinched,
                 blockReason: (secondMover === 'p2') ? secondMoverBlockReason : '',
                 secondaryApplied: p2ApplySecondary && p2SecondaryApplied,
+                statusNullifiedByBerry: p2StatusNullifiedByBerry,
                 sashed: p2Sashed,
                 custap: p2Custap,
                 sturdied: p2Sturdied,
@@ -5075,11 +5120,21 @@
                 blockedHtml = '<span class="rsa-tag rsa-flinch-tag">' + label + '</span>';
             }
 
+            // Berry-nullified status tag
+            var berryNullHtml = '';
+            if (actor.statusNullifiedByBerry && actor.statusNullifiedByBerry.status) {
+                var _bn = actor.statusNullifiedByBerry;
+                var _berryName = (_bn.berry || 'Berry').replace(/berry$/i, ' Berry');
+                berryNullHtml = '<span class="rsa-tag rsa-berry-cure-tag" title="' +
+                    esc(_bn.status) + ' was nullified by ' + esc(_berryName) + '">🍓 ' +
+                    esc(_bn.status) + ' → ' + esc(_berryName) + '</span>';
+            }
+
             moveHtml = '<div class="rsa-move-line">' +
                 '<div class="rsa-move-name">' + typeSprite + catSprite + ' ' + esc(actor.move) + '</div>' +
                 moveStats +
             '</div>' +
-            effectsHtml + blockedHtml +
+            effectsHtml + blockedHtml + berryNullHtml +
             '<div class="rsa-damage-inline">' + rng + crit + '</div>';
         }
 
