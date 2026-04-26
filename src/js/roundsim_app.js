@@ -2296,6 +2296,9 @@
         if (suppressP2Sync) return;
         var line = curLine();
         var team = line.teams.p2;
+        // Rebuild from round history first so oldEntries has accurate (post-replay) HP.
+        // This prevents stale 0-HP values from a previous deleted sim from leaking in.
+        rebuildLineTeams(line);
         // Preserve HP/status only for pokemon that have been involved in logged rounds
         var oldEntries = {};
         for (var i = 0; i < team.roster.length; i++) {
