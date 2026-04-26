@@ -1161,10 +1161,120 @@
             },
             fieldState: {},  // track field conditions per line
             teamSplit: null,  // for doubles-2t: { left: number } — first N mons are left team
-            battleFormat: 'singles'  // per-line format
+            battleFormat: 'singles',  // per-line format
+            // ── Branch support ──
+            branches: [],       // array of { id, name, forkRoundIdx, rounds[] }
+            activeBranchIdx: -1 // -1 = main line, >=0 = index into branches[]
         };
     }
     function curLine() { return lines[currentLineIdx]; }
+
+    // ── Branch helpers ──────────────────────────────────────
+    function createBranch(line, forkRoundIdx, name) {
+        var branchNum = line.branches.length + 1;
+        var branch = {
+            id: Date.now() + Math.random(),
+            name: name || (line.name + ' → B' + branchNum),
+            forkRoundIdx: forkRoundIdx, // rounds[0..forkRoundIdx-1] inherited from main
+            rounds: []                  // only rounds from forkRoundIdx onward
+        };
+        line.branches.push(branch);
+        return line.branches.length - 1;
+    }
+
+    /** Get the full round list for a branch (inherited + own) */
+    function getBranchRounds(line, branchIdx) {
+        if (branchIdx < 0) return line.rounds; // main line
+        var branch = line.branches[branchIdx];
+        if (!branch) return line.rounds;
+        return line.rounds.slice(0, branch.forkRoundIdx).concat(branch.rounds);
+    }
+
+    /** Get the rounds array that should be appended to (for logging new rounds) */
+    function getActiveRounds(line) {
+        if (line.activeBranchIdx < 0) return line.rounds;
+        var branch = line.branches[line.activeBranchIdx];
+        return branch ? branch.rounds : line.rounds;
+    }
+
+    /** Get all display columns: main + visible branches */
+    function getVisibleColumns(line) {
+        var cols = [{ idx: -1, name: 'Main', rounds: line.rounds, forkRoundIdx: 0 }];
+        for (var i = 0; i < line.branches.length; i++) {
+            cols.push({
+                idx: i,
+                name: line.branches[i].name,
+                rounds: getBranchRounds(line, i),
+                forkRoundIdx: line.branches[i].forkRoundIdx
+            });
+        }
+        return cols;
+    }
+
+    /** Rebuild teams state for a specific branch view */
+    function rebuildBranchTeams(line, branchIdx) {
+        var rounds = getBranchRounds(line, branchIdx);
+        // Reset all roster HP/status/items to initial state
+        for (var s = 0; s < 2; s++) {
+            var side = s === 0 ? 'p1' : 'p2';
+            var team = line.teams[side];
+            for (var ri = 0; ri < team.roster.length; ri++) {
+                var entry = team.roster[ri];
+                entry.currentHP = entry.maxHP;
+                entry.bestCaseHP = entry.maxHP;
+                entry.status = '';
+                entry.toxicCounter = 0;
+                entry.boosts = { at: 0, df: 0, sa: 0, sd: 0, sp: 0 };
+                if (entry.initialItem !== undefined) entry.item = entry.initialItem;
+            }
+        }
+        // Replay this branch's rounds
+        for (var i = 0; i < rounds.length; i++) {
+            var rd = rounds[i];
+            if (rd.isDoubles && rd.fighters) {
+                var slotToTeam = {
+                    p1a: { team: line.teams.p1, idxKey: 'activeIdx' },
+                    p1b: { team: line.teams.p1, idxKey: 'activeIdxB' },
+                    p2a: { team: line.teams.p2, idxKey: 'activeIdx' },
+                    p2b: { team: line.teams.p2, idxKey: 'activeIdxB' }
+                };
+                for (var sid in rd.fighters) {
+                    var f = rd.fighters[sid];
+                    var mapping = slotToTeam[sid];
+                    if (!f || !mapping) continue;
+                    var idx = findInRoster(mapping.team, f.name);
+                    if (idx >= 0) {
+                        var fHpCur = typeof f.hpAfter === 'object' ? f.hpAfter.current : f.hpAfter;
+                        var fHpBest = typeof f.hpAfter === 'object' ? (f.hpAfter.bestCase != null ? f.hpAfter.bestCase : fHpCur) : fHpCur;
+                        mapping.team.roster[idx].currentHP = fHpCur;
+                        mapping.team.roster[idx].bestCaseHP = fHpBest;
+                        if (f.item !== undefined) mapping.team.roster[idx].item = f.item;
+                        if (f.status !== undefined) mapping.team.roster[idx].status = f.status;
+                        mapping.team[mapping.idxKey] = idx;
+                    }
+                }
+            } else {
+                var p1i = findInRoster(line.teams.p1, rd.p1.name);
+                if (p1i >= 0) {
+                    line.teams.p1.roster[p1i].currentHP = rd.p1.hpAfter.current;
+                    line.teams.p1.roster[p1i].bestCaseHP = rd.p1.hpAfter.bestCase != null ? rd.p1.hpAfter.bestCase : rd.p1.hpAfter.current;
+                    if (rd.p1.status) line.teams.p1.roster[p1i].status = rd.p1.status;
+                    if (rd.p1.boosts) line.teams.p1.roster[p1i].boosts = $.extend({}, rd.p1.boosts);
+                    if (rd.p1.item !== undefined) line.teams.p1.roster[p1i].item = rd.p1.item;
+                    line.teams.p1.activeIdx = p1i;
+                }
+                var p2i = findInRoster(line.teams.p2, rd.p2.name);
+                if (p2i >= 0) {
+                    line.teams.p2.roster[p2i].currentHP = rd.p2.hpAfter.current;
+                    line.teams.p2.roster[p2i].bestCaseHP = rd.p2.hpAfter.bestCase != null ? rd.p2.hpAfter.bestCase : rd.p2.hpAfter.current;
+                    if (rd.p2.status) line.teams.p2.roster[p2i].status = rd.p2.status;
+                    if (rd.p2.boosts) line.teams.p2.roster[p2i].boosts = $.extend({}, rd.p2.boosts);
+                    if (rd.p2.item !== undefined) line.teams.p2.roster[p2i].item = rd.p2.item;
+                    line.teams.p2.activeIdx = p2i;
+                }
+            }
+        }
+    }
 
     // ════════════════════════════════════════════════════════════
     // ROSTER MANAGEMENT
@@ -2977,13 +3087,15 @@
         }
 
         // Apply end-of-turn damage (same for both — EOT is fixed)
+        // Skip EOT effects (including healing) for a tracker already at 0 HP — a fainted
+        // Pokémon cannot receive end-of-turn healing (e.g. Black Sludge, Leftovers).
         for (var i = 0; i < p1EOT.length; i++) {
-            p1HPAfter = Math.max(0, Math.min(p1Entry.maxHP, p1HPAfter - p1EOT[i].damage));
-            p1BestAfter = Math.max(0, Math.min(p1Entry.maxHP, p1BestAfter - p1EOT[i].damage));
+            if (p1HPAfter > 0) p1HPAfter = Math.max(0, Math.min(p1Entry.maxHP, p1HPAfter - p1EOT[i].damage));
+            if (p1BestAfter > 0) p1BestAfter = Math.max(0, Math.min(p1Entry.maxHP, p1BestAfter - p1EOT[i].damage));
         }
         for (var i = 0; i < p2EOT.length; i++) {
-            p2HPAfter = Math.max(0, Math.min(p2Entry.maxHP, p2HPAfter - p2EOT[i].damage));
-            p2BestAfter = Math.max(0, Math.min(p2Entry.maxHP, p2BestAfter - p2EOT[i].damage));
+            if (p2HPAfter > 0) p2HPAfter = Math.max(0, Math.min(p2Entry.maxHP, p2HPAfter - p2EOT[i].damage));
+            if (p2BestAfter > 0) p2BestAfter = Math.max(0, Math.min(p2Entry.maxHP, p2BestAfter - p2EOT[i].damage));
         }
 
         // ── Post-EOT item effects ──
@@ -4496,23 +4608,84 @@
     function renderRoundLog() {
         var line = curLine();
         var $log = $('#rsa-round-log');
-        if (line.rounds.length === 0) {
+        var hasBranches = line.branches && line.branches.length > 0;
+
+        if (line.rounds.length === 0 && !hasBranches) {
             $log.html('<div class="rsa-empty">No rounds yet. Set your teams, load the calc, and log rounds.</div>');
             return;
         }
-        var html = '';
-        for (var i = 0; i < line.rounds.length; i++) {
-            var rd = line.rounds[i];
-            html += rd.isDoubles ? renderDoublesRoundCard(rd) : renderRoundCard(rd);
+
+        if (!hasBranches) {
+            // Single column (original behavior)
+            var html = '';
+            for (var i = 0; i < line.rounds.length; i++) {
+                var rd = line.rounds[i];
+                html += rd.isDoubles ? renderDoublesRoundCard(rd) : renderRoundCard(rd, -1);
+            }
+            if (!isDoubles()) html += renderInlineControls();
+            $log.html(html);
+            $('#rsa-round-count').text(line.rounds.length);
+            syncInlineControls();
+            return;
         }
-        // Inline quick-controls at the bottom of the log
-        if (!isDoubles()) {
-            html += renderInlineControls();
+
+        // ── Multi-column branch layout ───────────────────────────
+        var cols = getVisibleColumns(line);
+        var maxVisible = 3;
+        var visibleCols = cols.slice(0, maxVisible);
+        var hiddenCols = cols.slice(maxVisible);
+
+        var html = '<div class="rsa-branch-bar">';
+        for (var ci = 0; ci < cols.length; ci++) {
+            var col = cols[ci];
+            var active = col.idx === line.activeBranchIdx ? ' rsa-branch-tab-active' : '';
+            var hidden = ci >= maxVisible ? ' rsa-branch-tab-hidden' : '';
+            html += '<button class="rsa-branch-tab' + active + hidden + '" data-branch-idx="' + col.idx + '">' +
+                esc(col.name) + ' <small>(' + col.rounds.length + ')</small></button>';
         }
+        html += '</div>';
+
+        html += '<div class="rsa-branch-columns" style="--branch-count:' + Math.min(cols.length, maxVisible) + '">';
+
+        for (var ci = 0; ci < visibleCols.length; ci++) {
+            var col = visibleCols[ci];
+            var isActive = col.idx === line.activeBranchIdx;
+            var colClass = 'rsa-branch-col' + (isActive ? ' rsa-branch-col-active' : '');
+            html += '<div class="' + colClass + '" data-branch-idx="' + col.idx + '">';
+            html += '<div class="rsa-branch-col-header">' +
+                '<span class="rsa-branch-col-title">' + esc(col.name) + '</span>' +
+                (col.idx >= 0 ? '<button class="rsa-branch-delete" data-branch-idx="' + col.idx + '" title="Delete branch">×</button>' : '') +
+            '</div>';
+
+            // Rebuild teams for this branch to get correct HP state
+            rebuildBranchTeams(line, col.idx);
+
+            for (var ri = 0; ri < col.rounds.length; ri++) {
+                var rd = col.rounds[ri];
+                var inherited = (col.idx >= 0 && ri < col.forkRoundIdx);
+                var cardHtml = rd.isDoubles ? renderDoublesRoundCard(rd) : renderRoundCard(rd, col.idx);
+                if (inherited) {
+                    cardHtml = '<div class="rsa-inherited-round">' + cardHtml + '</div>';
+                }
+                html += cardHtml;
+            }
+
+            // Inline controls for this column (only for active branch)
+            if (isActive && !isDoubles()) {
+                html += renderInlineControls();
+            }
+
+            html += '</div>'; // .rsa-branch-col
+        }
+
+        html += '</div>'; // .rsa-branch-columns
+
+        // Rebuild teams for the active branch so team panel shows correct state
+        rebuildBranchTeams(line, line.activeBranchIdx);
+
         $log.html(html);
-        // Update round counter badge
-        $('#rsa-round-count').text(line.rounds.length);
-        // Sync inline controls with main controls
+        var activeRounds = getBranchRounds(line, line.activeBranchIdx);
+        $('#rsa-round-count').text(activeRounds.length);
         syncInlineControls();
     }
 
@@ -4675,7 +4848,7 @@
         }
     }
 
-    function renderRoundCard(rd) {
+    function renderRoundCard(rd, branchIdx) {
         var speedLabel;
         var priorityOverride = (rd.p1Priority !== undefined && rd.p2Priority !== undefined && rd.p1Priority !== rd.p2Priority);
         if (rd.speed.faster === 'tie') speedLabel = 'Speed Tie';
@@ -4774,6 +4947,7 @@
                 tags +
                 probHtml +
                 (rd.isDoubles ? '' : '<button class="rsa-toggle-crit' + (rd.p2Crit ? ' rsa-crit-active' : '') + '" data-round="' + rd.roundNum + '" title="Toggle P2 critical hit and recalculate">⚔ Crit</button>') +
+                '<button class="rsa-branch-round" data-round="' + rd.roundNum + '" data-branch-idx="' + (branchIdx != null ? branchIdx : -1) + '" title="Branch from this round">🔀</button>' +
                 '<button class="rsa-delete-round" data-round="' + rd.roundNum + '" title="Delete round">×</button>' +
             '</div>' +
             '<div class="rsa-round-body">' +
@@ -6120,7 +6294,7 @@
 
             function finishRound(rd) {
                 if (!rd) return;
-                curLine().rounds.push(rd);
+                getActiveRounds(curLine()).push(rd);
 
                 // Snapshot hazard state before applying move effects
                 var hazBefore = {
@@ -6318,8 +6492,16 @@
             var line = curLine();
             var oldP1 = getActiveEntry(line.teams.p1);
             var oldP2 = getActiveEntry(line.teams.p2);
-            line.rounds = line.rounds.filter(function (r) { return r.roundNum !== num; });
-            rebuildLineTeams(line);
+            // Delete from the correct round array (main or active branch)
+            if (line.activeBranchIdx >= 0) {
+                var branch = line.branches[line.activeBranchIdx];
+                if (branch) {
+                    branch.rounds = branch.rounds.filter(function (r) { return r.roundNum !== num; });
+                }
+            } else {
+                line.rounds = line.rounds.filter(function (r) { return r.roundNum !== num; });
+            }
+            rebuildBranchTeams(line, line.activeBranchIdx);
             var newP1 = getActiveEntry(line.teams.p1);
             var newP2 = getActiveEntry(line.teams.p2);
             // If the active mon changed after rebuild, reload the calc form
@@ -6327,6 +6509,78 @@
             if (newP2 && (!oldP2 || oldP2.name !== newP2.name)) loadPokemonIntoForm('p2', newP2);
             renderAll();
             syncActiveStatusToForm();
+            autoSave();
+        });
+
+        // ── Branch from round (🔀 button) ──
+        $(document).on('click', '.rsa-branch-round', function (e) {
+            e.stopPropagation();
+            var roundNum = ~~$(this).data('round');
+            var line = curLine();
+            // Find forkRoundIdx: how many rounds to inherit (rounds before this one)
+            var forkIdx = 0;
+            for (var i = 0; i < line.rounds.length; i++) {
+                if (line.rounds[i].roundNum === roundNum) { forkIdx = i; break; }
+            }
+            var newIdx = createBranch(line, forkIdx);
+            line.activeBranchIdx = newIdx;
+            rebuildBranchTeams(line, newIdx);
+            renderAll();
+            syncActiveStatusToForm();
+            autoSave();
+        });
+
+        // ── Branch tab click (switch active branch) ──
+        $(document).on('click', '.rsa-branch-tab', function (e) {
+            e.stopPropagation();
+            var branchIdx = ~~$(this).data('branch-idx');
+            var line = curLine();
+            line.activeBranchIdx = branchIdx;
+            rebuildBranchTeams(line, branchIdx);
+            var p1 = getActiveEntry(line.teams.p1);
+            var p2 = getActiveEntry(line.teams.p2);
+            if (p1) loadPokemonIntoForm('p1', p1);
+            if (p2) loadPokemonIntoForm('p2', p2);
+            renderAll();
+            syncActiveStatusToForm();
+            autoSave();
+        });
+
+        // ── Branch delete ──
+        $(document).on('click', '.rsa-branch-delete', function (e) {
+            e.stopPropagation();
+            var branchIdx = ~~$(this).data('branch-idx');
+            var line = curLine();
+            if (branchIdx < 0 || branchIdx >= line.branches.length) return;
+            var branchName = line.branches[branchIdx].name;
+            if (!confirm('Delete branch "' + branchName + '"?')) return;
+            line.branches.splice(branchIdx, 1);
+            // Fix activeBranchIdx after removal
+            if (line.activeBranchIdx === branchIdx) {
+                line.activeBranchIdx = -1; // back to main
+            } else if (line.activeBranchIdx > branchIdx) {
+                line.activeBranchIdx--;
+            }
+            rebuildBranchTeams(line, line.activeBranchIdx);
+            renderAll();
+            syncActiveStatusToForm();
+            autoSave();
+        });
+
+        // ── Branch rename (double-click tab) ──
+        $(document).on('dblclick', '.rsa-branch-tab', function (e) {
+            e.stopPropagation();
+            var branchIdx = ~~$(this).data('branch-idx');
+            var line = curLine();
+            if (branchIdx < 0) {
+                // Rename main line
+                var newName = prompt('Rename main line:', line.name);
+                if (newName && newName.trim()) { line.name = newName.trim(); }
+            } else if (line.branches[branchIdx]) {
+                var newName = prompt('Rename branch:', line.branches[branchIdx].name);
+                if (newName && newName.trim()) { line.branches[branchIdx].name = newName.trim(); }
+            }
+            renderAll();
             autoSave();
         });
 
@@ -6552,7 +6806,7 @@
                 var rd = captureRound(p1MoveIdx, 'none', false, 0, '', inlineComment, false, false);
                 if (!rd) { return; }
                 rd.isP2Switch = true;
-                curLine().rounds.push(rd);
+                getActiveRounds(curLine()).push(rd);
                 renderAll();
                 syncActiveStatusToForm();
                 autoSave();
