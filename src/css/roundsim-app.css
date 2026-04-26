@@ -1557,6 +1557,26 @@ fieldset {
     border-style: dashed;
 }
 
+/* ── Fork separator between inherited and branch-own rounds ── */
+.rsa-fork-separator {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 6px 2px;
+    color: #f6ad55;
+    font-size: 0.75em;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+.rsa-fork-separator::before,
+.rsa-fork-separator::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, #f6ad55 40%, transparent);
+}
+
 /* ── Compact round cards inside branch columns ── */
 .rsa-branch-col .rsa-round-card {
     font-size: 0.9em;

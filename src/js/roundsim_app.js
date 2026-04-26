@@ -1223,6 +1223,11 @@
         for (var s = 0; s < 2; s++) {
             var side = s === 0 ? 'p1' : 'p2';
             var team = line.teams[side];
+            // Reset active indices to first pokemon — replay will advance them correctly
+            team.activeIdx = team.roster.length > 0 ? 0 : -1;
+            if (team.activeIdxB !== undefined) {
+                team.activeIdxB = team.roster.length > 1 ? 1 : -1;
+            }
             for (var ri = 0; ri < team.roster.length; ri++) {
                 var entry = team.roster[ri];
                 entry.currentHP = entry.maxHP;
@@ -1278,6 +1283,16 @@
                     line.teams.p2.activeIdx = p2i;
                 }
             }
+        }
+
+        // If user confirmed a send-in after a KO (pendingSwitchP2Idx), apply it now
+        // so renderInlineControls shows the 'Next Round' panel rather than p2ko.
+        var _branchObj = (branchIdx >= 0 && line.branches) ? line.branches[branchIdx] : null;
+        var _pendingIdx = _branchObj ? _branchObj.pendingSwitchP2Idx :
+                          (branchIdx < 0 ? line.pendingSwitchP2Idx : undefined);
+        if (_pendingIdx !== undefined && _pendingIdx !== null &&
+            _pendingIdx >= 0 && _pendingIdx < line.teams.p2.roster.length) {
+            line.teams.p2.activeIdx = _pendingIdx;
         }
     }
 
@@ -3206,8 +3221,11 @@
             p2AllAIPcts);
 
         // Build round data
+        var _activeBranchObj = (line.branches && line.activeBranchIdx >= 0) ? line.branches[line.activeBranchIdx] : null;
         var rd = {
-            roundNum: ++line.roundCounter,
+            roundNum: _activeBranchObj
+                ? (_activeBranchObj.forkRoundIdx + _activeBranchObj.rounds.length + 1)
+                : ++line.roundCounter,
             speed: speed,
             p1Priority: p1Priority,
             p2Priority: p2Priority,
@@ -3815,8 +3833,11 @@
         }
 
         // Build round data
+        var _activeBranchObjD = (line.branches && line.activeBranchIdx >= 0) ? line.branches[line.activeBranchIdx] : null;
         var rd = {
-            roundNum: ++line.roundCounter,
+            roundNum: _activeBranchObjD
+                ? (_activeBranchObjD.forkRoundIdx + _activeBranchObjD.rounds.length + 1)
+                : ++line.roundCounter,
             isDoubles: true,
             weather: weather,
             terrain: getTerrain(),
@@ -4190,8 +4211,28 @@
     function toggleP2Crit(roundNum) {
         var line = curLine();
         var rdIdx = -1;
+        // Search main rounds first, then active branch rounds
         for (var i = 0; i < line.rounds.length; i++) {
             if (line.rounds[i].roundNum === roundNum) { rdIdx = i; break; }
+        }
+        if (rdIdx < 0 && line.branches && line.activeBranchIdx >= 0) {
+            var _activeBr = line.branches[line.activeBranchIdx];
+            if (_activeBr) {
+                for (var i = 0; i < _activeBr.rounds.length; i++) {
+                    if (_activeBr.rounds[i].roundNum === roundNum) {
+                        // Toggle crit directly on the branch round
+                        var brd = _activeBr.rounds[i];
+                        if (!brd.isDoubles && brd.p2 && brd.p2.damage) {
+                            brd.p2Crit = !brd.p2Crit;
+                            rebuildBranchTeams(line, line.activeBranchIdx);
+                            renderAll();
+                            syncActiveStatusToForm();
+                            autoSave();
+                        }
+                        return;
+                    }
+                }
+            }
         }
         if (rdIdx < 0) return;
         var rd = line.rounds[rdIdx];
@@ -4668,11 +4709,19 @@
             for (var ri = 0; ri < col.rounds.length; ri++) {
                 var rd = col.rounds[ri];
                 var inherited = (col.idx >= 0 && ri < col.forkRoundIdx);
+                // Fork separator between last inherited round and first own round
+                if (col.idx >= 0 && col.forkRoundIdx > 0 && ri === col.forkRoundIdx) {
+                    html += '<div class="rsa-fork-separator"><span>⑂ Branch diverges here</span></div>';
+                }
                 var cardHtml = rd.isDoubles ? renderDoublesRoundCard(rd) : renderRoundCard(rd, col.idx);
                 if (inherited) {
                     cardHtml = '<div class="rsa-inherited-round">' + cardHtml + '</div>';
                 }
                 html += cardHtml;
+            }
+            // Fork separator when branch has no own rounds yet (only inherited)
+            if (col.idx >= 0 && col.forkRoundIdx > 0 && col.forkRoundIdx >= col.rounds.length) {
+                html += '<div class="rsa-fork-separator"><span>⑂ Branch diverges here</span></div>';
             }
 
             // Inline controls for this column (only for active branch)
@@ -4765,9 +4814,12 @@
         var p2Sprite = p2.sprite ? '<img class="rsa-inline-sprite" src="' + esc(p2.sprite) + '" alt="">' : '';
 
         // Build P1 move options with min damage %
+        // Prefer roster moves (always match the current branch's active mon) over form moves
         var p1MoveOpts = '';
         for (var m = 0; m < 4; m++) {
-            var label = getMoveNames(0, m);
+            var rosterLabel1 = p1.moves && p1.moves[m];
+            var formLabel1 = getMoveNames(0, m);
+            var label = (rosterLabel1 && rosterLabel1 !== '—' && rosterLabel1 !== '(No Move)') ? rosterLabel1 : formLabel1;
             if (label && label !== '—' && label !== '(No Move)') {
                 var sel = (selectedP1Move === m) ? ' selected' : '';
                 var dmgTag = '';
@@ -4782,7 +4834,9 @@
         // Build P2 move options with max damage % and AI probability
         var p2MoveOpts = '';
         for (var m = 0; m < 4; m++) {
-            var label = getMoveNames(1, m);
+            var rosterLabel2 = p2.moves && p2.moves[m];
+            var formLabel2 = getMoveNames(1, m);
+            var label = (rosterLabel2 && rosterLabel2 !== '—' && rosterLabel2 !== '(No Move)') ? rosterLabel2 : formLabel2;
             if (label && label !== '—' && label !== '(No Move)') {
                 var sel = (selectedP2Move === m) ? ' selected' : '';
                 var dmgTag = '';
@@ -5143,7 +5197,13 @@
         renderTeamPanel('p1');
         renderTeamPanel('p2');
         renderBox('p1');
-        renderRoundLog();
+        renderRoundLog(); // rebuilds branch teams at end, leaving active branch state
+        // Re-render team panels now that renderRoundLog has set the correct branch HP
+        var _rl = curLine();
+        if (_rl.branches && _rl.branches.length > 0) {
+            renderTeamPanel('p1');
+            renderTeamPanel('p2');
+        }
         updateMovePickDisplay();
         populateSwitchDropdown();
         syncHazardsToCalc();
@@ -6300,6 +6360,13 @@
             function finishRound(rd) {
                 if (!rd) return;
                 getActiveRounds(curLine()).push(rd);
+                // Clear pending-switch flag now that the round has been logged
+                var _fl = curLine();
+                if (_fl.activeBranchIdx >= 0 && _fl.branches && _fl.branches[_fl.activeBranchIdx]) {
+                    _fl.branches[_fl.activeBranchIdx].pendingSwitchP2Idx = undefined;
+                } else {
+                    _fl.pendingSwitchP2Idx = undefined;
+                }
 
                 // Snapshot hazard state before applying move effects
                 var hazBefore = {
@@ -6459,7 +6526,7 @@
                 var p2Move = (rd.p2 && rd.p2.move !== '—') ? rd.p2.move : null;
                 if (p2Move) applyHazardMoves(null, p2Move);
 
-                line.rounds.push(rd);
+                getActiveRounds(curLine()).push(rd);
                 renderAll();
 
                 $('#rsa-comment').val('');
@@ -6530,6 +6597,11 @@
             var newIdx = createBranch(line, forkIdx);
             line.activeBranchIdx = newIdx;
             rebuildBranchTeams(line, newIdx);
+            // Sync calc form to the branch's HP state so captureRound starts from correct HP
+            var _bp1 = getActiveEntry(line.teams.p1);
+            var _bp2 = getActiveEntry(line.teams.p2);
+            if (_bp1) loadPokemonIntoForm('p1', _bp1);
+            if (_bp2) loadPokemonIntoForm('p2', _bp2);
             renderAll();
             syncActiveStatusToForm();
             autoSave();
@@ -6825,10 +6897,28 @@
             var line = curLine();
             var entry = line.teams.p2.roster[idx];
             if (!entry) return;
+            // Persist the confirmed send-in so rebuildBranchTeams restores it correctly
+            // (loadPokemonIntoForm -> renderRoundLog -> rebuildBranchTeams would otherwise
+            //  reset activeIdx back to the KO'd pokemon)
+            if (line.activeBranchIdx >= 0 && line.branches && line.branches[line.activeBranchIdx]) {
+                line.branches[line.activeBranchIdx].pendingSwitchP2Idx = idx;
+            } else {
+                line.pendingSwitchP2Idx = idx;
+            }
             switchActive('p2', idx);
             setTimeout(function () {
+                // Ensure the switch is still applied (failsafe: rebuildBranchTeams
+                // checks pendingSwitchP2Idx, but also set activeIdx directly here)
+                var line2 = curLine();
+                line2.teams.p2.activeIdx = idx;
+                var $existingInline = $('#rsa-round-log .rsa-inline-controls');
+                if ($existingInline.length) {
+                    var newInlineHtml = renderInlineControls();
+                    $existingInline.replaceWith($(newInlineHtml));
+                    syncInlineControls();
+                }
                 $('.rsa-inline-comment').val('P2 sends ' + entry.name);
-            }, 350);
+            }, 400);
         }
         $(document).on('click', '.rsa-inline-p2-confirm', doP2SendIn);
 
