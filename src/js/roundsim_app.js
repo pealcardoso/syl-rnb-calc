@@ -1109,6 +1109,11 @@
         var data = JSON.parse(json);
         if (!data || !Array.isArray(data.lines) || data.lines.length === 0) return false;
         lines = data.lines;
+        // Migrate old sessions that predate the branch feature
+        for (var li = 0; li < lines.length; li++) {
+            if (!Array.isArray(lines[li].branches)) lines[li].branches = [];
+            if (lines[li].activeBranchIdx == null) lines[li].activeBranchIdx = -1;
+        }
         battleFormat = data.battleFormat || 'singles';
         currentLineIdx = Math.min(data.currentLineIdx || 0, lines.length - 1);
         return true;
@@ -1192,7 +1197,7 @@
 
     /** Get the rounds array that should be appended to (for logging new rounds) */
     function getActiveRounds(line) {
-        if (line.activeBranchIdx < 0) return line.rounds;
+        if (!line.branches || line.activeBranchIdx == null || line.activeBranchIdx < 0) return line.rounds;
         var branch = line.branches[line.activeBranchIdx];
         return branch ? branch.rounds : line.rounds;
     }
