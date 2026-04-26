@@ -1443,3 +1443,127 @@ fieldset {
 .rsa-copy-modal-hint {
     color: #a0aec0; font-size: 0.78em; margin-top: 6px; text-align: center;
 }
+
+/* ============================================================
+   Branch Layout
+   ============================================================ */
+
+/* ── 🔀 Branch button on round card header ── */
+.rsa-branch-round {
+    background: none; border: none; color: #718096; cursor: pointer;
+    font-size: 0.85em; padding: 0 4px; margin-left: 2px;
+    opacity: 0.6; transition: opacity 0.15s;
+}
+.rsa-branch-round:hover { opacity: 1; color: #63b3ed; }
+
+/* ── Branch tab bar ── */
+.rsa-branch-bar {
+    display: flex;
+    gap: 4px;
+    padding: 6px 8px;
+    background: #1a202c;
+    border-bottom: 1px solid #2d3748;
+    flex-wrap: wrap;
+}
+.rsa-branch-tab {
+    background: #2d3748;
+    border: 1px solid #4a5568;
+    color: #a0aec0;
+    cursor: pointer;
+    font-size: 0.8em;
+    padding: 4px 10px;
+    border-radius: 4px 4px 0 0;
+    transition: all 0.15s;
+}
+.rsa-branch-tab:hover {
+    background: #4a5568;
+    color: #e2e8f0;
+}
+.rsa-branch-tab-active {
+    background: #2b6cb0;
+    color: #fff;
+    border-color: #2b6cb0;
+    font-weight: 700;
+}
+.rsa-branch-tab-hidden {
+    opacity: 0.5;
+    font-size: 0.75em;
+}
+.rsa-branch-tab small {
+    opacity: 0.7;
+    margin-left: 2px;
+}
+
+/* ── Branch columns grid ── */
+.rsa-branch-columns {
+    display: grid;
+    grid-template-columns: repeat(var(--branch-count, 1), 1fr);
+    gap: 4px;
+    padding: 4px;
+}
+@media (max-width: 900px) {
+    .rsa-branch-columns {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* ── Individual branch column ── */
+.rsa-branch-col {
+    border: 1px solid #2d3748;
+    border-radius: 6px;
+    background: #1a202c;
+    padding: 4px;
+    min-width: 0;
+    overflow-y: auto;
+    max-height: 80vh;
+}
+.rsa-branch-col-active {
+    border-color: #2b6cb0;
+    box-shadow: 0 0 0 1px rgba(43, 108, 176, 0.3);
+}
+
+/* ── Branch column header ── */
+.rsa-branch-col-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 4px 8px;
+    background: #2d3748;
+    border-radius: 4px;
+    margin-bottom: 4px;
+}
+.rsa-branch-col-title {
+    font-weight: 700;
+    font-size: 0.85em;
+    color: #e2e8f0;
+}
+.rsa-branch-delete {
+    background: none;
+    border: none;
+    color: #718096;
+    cursor: pointer;
+    font-size: 1.1em;
+    padding: 0 4px;
+}
+.rsa-branch-delete:hover { color: #fc8181; }
+
+/* ── Inherited (dimmed) rounds in branches ── */
+.rsa-inherited-round {
+    opacity: 0.45;
+    pointer-events: none;
+    position: relative;
+}
+.rsa-inherited-round .rsa-round-card {
+    border-style: dashed;
+}
+
+/* ── Compact round cards inside branch columns ── */
+.rsa-branch-col .rsa-round-card {
+    font-size: 0.9em;
+}
+.rsa-branch-col .rsa-round-header {
+    padding: 3px 6px;
+}
+.rsa-branch-col .rsa-round-body {
+    padding: 4px;
+}
