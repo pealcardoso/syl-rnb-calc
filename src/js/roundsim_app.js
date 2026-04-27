@@ -6664,6 +6664,11 @@
 
             // Wait for the calc engine to recalculate with the new P1 pokemon
             setTimeout(function () {
+                // rebuildBranchTeams (fired by loadPokemonIntoForm's 300ms timer) may have
+                // reset team.p1.activeIdx back to the pre-switch mon via replay. Re-apply
+                // the switch index so captureRound uses the correct incoming pokemon.
+                curLine().teams.p1.activeIdx = switchIdx;
+
                 // Auto-apply entry hazard damage for the incoming P1 pokemon
                 var switchEntry = getActiveEntry(curLine().teams.p1);
                 var hazResult = { damage: 0, status: '' };
@@ -7045,6 +7050,11 @@
 
             // Wait for the form to fully load, then capture the round
             setTimeout(function () {
+                // rebuildBranchTeams (fired by loadPokemonIntoForm's 300ms timer) may have
+                // reset team.p2.activeIdx back to the KO'd mon via replay. Re-apply the
+                // send-in index so captureRound logs the correct incoming pokemon.
+                curLine().teams.p2.activeIdx = p2SendIdx;
+
                 var p1MoveIdx = selectedP1Move;
                 var rd = captureRound(p1MoveIdx, 'none', false, 0, '', inlineComment, false, false);
                 if (!rd) { return; }
