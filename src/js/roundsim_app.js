@@ -2324,6 +2324,7 @@
      *  Always builds fresh entries at full HP — HP only changes via captureRound. */
     function syncP2Team() {
         if (suppressP2Sync) return;
+        if (_loadingForm) return; // form is mid-transition — item/ability fields are stale
         var line = curLine();
         var team = line.teams.p2;
         // Rebuild from round history first so oldEntries has accurate (post-replay) HP.
@@ -2333,14 +2334,18 @@
         // mon from a switch round that the branch forks before). Save and restore it so
         // the branch-context active pokemon is unchanged after the rebuild.
         var _savedP1ActiveIdx = (line.activeBranchIdx >= 0) ? line.teams.p1.activeIdx : null;
+        var _savedP2ActiveIdx = line.teams.p2.activeIdx;
         rebuildLineTeams(line);
         if (_savedP1ActiveIdx !== null && line.activeBranchIdx >= 0) {
             line.teams.p1.activeIdx = _savedP1ActiveIdx;
         }
-        // Preserve HP/status only for pokemon that have been involved in logged rounds
+        // Preserve HP/status only for pokemon that have been involved in logged rounds.
+        // Deep-copy each entry to prevent object-reference sharing between oldEntries
+        // and the final newRoster — otherwise rebuildLineTeams mutations on shared
+        // references corrupt ability/item/status across roster slots.
         var oldEntries = {};
         for (var i = 0; i < team.roster.length; i++) {
-            oldEntries[team.roster[i].name] = team.roster[i];
+            oldEntries[team.roster[i].name] = $.extend(true, {}, team.roster[i]);
         }
 
         var newRoster = [];
@@ -2444,7 +2449,16 @@
         }
 
         team.roster = newRoster;
-        team.activeIdx = newActiveIdx;
+        // In a branch, the P2 activeIdx should come from the branch's round replay
+        // (via rebuildBranchTeams), not from whichever pokemon the form just loaded.
+        // Only use the round-replay-derived index when there are logged rounds and
+        // the saved index is valid in the new roster.
+        if (line.rounds.length > 0 && _savedP2ActiveIdx >= 0 &&
+            _savedP2ActiveIdx < newRoster.length) {
+            team.activeIdx = _savedP2ActiveIdx;
+        } else {
+            team.activeIdx = newActiveIdx;
+        }
         if (team.activeIdx < 0 && newRoster.length > 0) team.activeIdx = 0;
         if (team.activeIdx >= newRoster.length) team.activeIdx = newRoster.length - 1;
         // Doubles: auto-set A and B slots
@@ -2609,10 +2623,15 @@
     }
 
     function saveFormToRoster(side) {
+        if (_loadingForm) return; // form is mid-transition — values are stale
         var line = curLine();
         var team = line.teams[side];
         var entry = getActiveEntry(team);
         if (!entry) return;
+        // Verify the form's loaded pokemon matches the roster entry to prevent
+        // writing one pokemon's ability/item onto another's roster slot.
+        var formName = (side === 'p1') ? getP1Name() : getP2Name();
+        if (formName && formName !== entry.name) return;
 
         // Save current HP
         var hp = getCurrentHP(side);
