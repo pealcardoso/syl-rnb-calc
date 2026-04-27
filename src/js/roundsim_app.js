@@ -2849,6 +2849,9 @@
         // Track berry-nullified status/confusion for display in round card
         var p1StatusNullifiedByBerry = null; // { status, berry }
         var p2StatusNullifiedByBerry = null;
+        // Track any consumed item (Focus Sash, Custap Berry, Sitrus Berry, etc.) for display
+        var p1ItemConsumed = null; // item name string
+        var p2ItemConsumed = null;
 
         // Apply first mover's secondary effects
         var secondMoverBlocked = false;
@@ -3103,12 +3106,12 @@
         }
 
         // Consume Focus Sash after speed-order resolution (Sturdy is not consumed)
-        if (p1Sashed) { p1Entry.item = ''; $('#p1 .item').val(''); }
-        if (p2Sashed) { p2Entry.item = ''; $('#p2 .item').val(''); }
+        if (p1Sashed) { p1ItemConsumed = p1Entry.item; p1Entry.item = ''; $('#p1 .item').val(''); }
+        if (p2Sashed) { p2ItemConsumed = p2Entry.item; p2Entry.item = ''; $('#p2 .item').val(''); }
 
         // Consume Custap Berry after it activated
-        if (p1Custap) { p1Entry.item = ''; $('#p1 .item').val(''); }
-        if (p2Custap) { p2Entry.item = ''; $('#p2 .item').val(''); }
+        if (p1Custap) { p1ItemConsumed = p1Entry.item; p1Entry.item = ''; $('#p1 .item').val(''); }
+        if (p2Custap) { p2ItemConsumed = p2Entry.item; p2Entry.item = ''; $('#p2 .item').val(''); }
 
         // Apply second mover's secondary effects ONLY if they are not blocked AND survived
         // (deferred until here so we can check if the second mover was KO'd)
@@ -3202,8 +3205,9 @@
         // Status-curing berries activate end-of-turn (after EOT status damage)
         // Sitrus Berry heals 25% max HP when at ≤ 50% HP
         function applyPostEOTBerries(entry, hpVar, bestVar, eotList, side) {
-            if (!entry.item || entry.currentHP <= 0) return { hp: hpVar, best: bestVar, berryCured: null };
+            if (!entry.item || entry.currentHP <= 0) return { hp: hpVar, best: bestVar, berryCured: null, itemConsumed: null };
             var itlc = entry.item.toLowerCase().replace(/\s/g, '');
+            var itemName = entry.item;
             var cured = false;
             var curedStatus = null;
 
@@ -3239,17 +3243,26 @@
                     bestVar = Math.min(entry.maxHP, bestVar + sitrusHeal);
                     eotList.push({ source: 'Sitrus Berry', damage: -sitrusHeal });
                     consumeItem(entry, side);
+                    // Sitrus is not a status cure — show it as a generic item consumption
+                    return { hp: hpVar, best: bestVar, berryCured: null, itemConsumed: itemName };
                 }
             }
-            return { hp: hpVar, best: bestVar, berryCured: cured ? { status: curedStatus, berry: itlc } : null };
+            return {
+                hp: hpVar, best: bestVar,
+                berryCured: cured ? { status: curedStatus, berry: itlc } : null,
+                // Status-cure berries are shown via berryCured/statusNullifiedByBerry — no double-tag
+                itemConsumed: null
+            };
         }
 
         var p1PostEOT = applyPostEOTBerries(p1Entry, p1HPAfter, p1BestAfter, p1EOT, 'p1');
         p1HPAfter = p1PostEOT.hp; p1BestAfter = p1PostEOT.best;
         if (p1PostEOT.berryCured && !p1StatusNullifiedByBerry) p1StatusNullifiedByBerry = p1PostEOT.berryCured;
+        if (p1PostEOT.itemConsumed && !p1ItemConsumed) p1ItemConsumed = p1PostEOT.itemConsumed;
         var p2PostEOT = applyPostEOTBerries(p2Entry, p2HPAfter, p2BestAfter, p2EOT, 'p2');
         p2HPAfter = p2PostEOT.hp; p2BestAfter = p2PostEOT.best;
         if (p2PostEOT.berryCured && !p2StatusNullifiedByBerry) p2StatusNullifiedByBerry = p2PostEOT.berryCured;
+        if (p2PostEOT.itemConsumed && !p2ItemConsumed) p2ItemConsumed = p2PostEOT.itemConsumed;
 
         // Toxic Orb / Flame Orb: inflict status at end of turn (no damage this turn; starts next)
         if (!p1Entry.status) {
@@ -3361,6 +3374,7 @@
                 blockReason: (secondMover === 'p1') ? secondMoverBlockReason : '',
                 secondaryApplied: p1ApplySecondary && p1SecondaryApplied,
                 statusNullifiedByBerry: p1StatusNullifiedByBerry,
+                itemConsumed: p1ItemConsumed,
                 sashed: p1Sashed,
                 sturdied: p1Sturdied,
                 custap: p1Custap,
@@ -3397,6 +3411,7 @@
                 blockReason: (secondMover === 'p2') ? secondMoverBlockReason : '',
                 secondaryApplied: p2ApplySecondary && p2SecondaryApplied,
                 statusNullifiedByBerry: p2StatusNullifiedByBerry,
+                itemConsumed: p2ItemConsumed,
                 sashed: p2Sashed,
                 custap: p2Custap,
                 sturdied: p2Sturdied,
@@ -5283,6 +5298,7 @@
             (actor.sashed ? '<span class=\"rsa-tag rsa-sash-tag\">Focus Sash!</span>' : '') +
             (actor.sturdied ? '<span class=\"rsa-tag rsa-sash-tag\">Sturdy!</span>' : '') +
             (actor.custap ? '<span class=\"rsa-tag rsa-sash-tag\">Custap Berry!</span>' : '') +
+            (actor.itemConsumed ? '<span class=\"rsa-tag rsa-item-consumed-tag\" title=\"' + esc(actor.itemConsumed) + ' was consumed\">🎒 ' + esc(actor.itemConsumed) + ' consumed</span>' : '') +
         '</div>';
     }
 

@@ -1414,6 +1414,7 @@ fieldset {
 .rsa-ko-tag { background: #c53030 !important; color: #fff !important; font-size: 0.7em; }
 .rsa-sash-tag { background: #d69e2e !important; color: #1a202c !important; font-size: 0.7em; }
 .rsa-berry-cure-tag { background: #276749 !important; color: #c6f6d5 !important; font-size: 0.7em; }
+.rsa-item-consumed-tag { background: #553c1a !important; color: #fef3c7 !important; font-size: 0.7em; }
 .rsa-round-card-doubles { border-left: 3px solid #805ad5; }
 
 /* ── Copy Log Modal ─────────────────────────────────────── */
