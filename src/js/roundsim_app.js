@@ -1143,6 +1143,9 @@
         for (var li = 0; li < lines.length; li++) {
             if (!Array.isArray(lines[li].branches)) lines[li].branches = [];
             if (lines[li].activeBranchIdx == null) lines[li].activeBranchIdx = -1;
+            // Rebuild HP/status/items from round history to fix any stale values
+            // that may have been persisted from earlier builds with contamination bugs.
+            try { rebuildLineTeams(lines[li]); } catch (e) {}
         }
         battleFormat = data.battleFormat || 'singles';
         currentLineIdx = Math.min(data.currentLineIdx || 0, lines.length - 1);
@@ -2324,7 +2327,6 @@
      *  Always builds fresh entries at full HP — HP only changes via captureRound. */
     function syncP2Team() {
         if (suppressP2Sync) return;
-        if (_loadingForm) return; // form is mid-transition — item/ability fields are stale
         var line = curLine();
         var team = line.teams.p2;
         // Rebuild from round history first so oldEntries has accurate (post-replay) HP.
@@ -2334,7 +2336,6 @@
         // mon from a switch round that the branch forks before). Save and restore it so
         // the branch-context active pokemon is unchanged after the rebuild.
         var _savedP1ActiveIdx = (line.activeBranchIdx >= 0) ? line.teams.p1.activeIdx : null;
-        var _savedP2ActiveIdx = line.teams.p2.activeIdx;
         rebuildLineTeams(line);
         if (_savedP1ActiveIdx !== null && line.activeBranchIdx >= 0) {
             line.teams.p1.activeIdx = _savedP1ActiveIdx;
@@ -2449,16 +2450,7 @@
         }
 
         team.roster = newRoster;
-        // In a branch, the P2 activeIdx should come from the branch's round replay
-        // (via rebuildBranchTeams), not from whichever pokemon the form just loaded.
-        // Only use the round-replay-derived index when there are logged rounds and
-        // the saved index is valid in the new roster.
-        if (line.rounds.length > 0 && _savedP2ActiveIdx >= 0 &&
-            _savedP2ActiveIdx < newRoster.length) {
-            team.activeIdx = _savedP2ActiveIdx;
-        } else {
-            team.activeIdx = newActiveIdx;
-        }
+        team.activeIdx = newActiveIdx;
         if (team.activeIdx < 0 && newRoster.length > 0) team.activeIdx = 0;
         if (team.activeIdx >= newRoster.length) team.activeIdx = newRoster.length - 1;
         // Doubles: auto-set A and B slots
@@ -6059,7 +6051,11 @@
                 var _p2Active = getActiveEntry(_line.teams.p2);
                 setTimeout(function () {
                     if (_p1Active) loadPokemonIntoForm('p1', _p1Active);
-                    if (_p2Active) loadPokemonIntoForm('p2', _p2Active);
+                    if (_p2Active) {
+                        suppressP2Sync = true;
+                        loadPokemonIntoForm('p2', _p2Active);
+                        setTimeout(function () { suppressP2Sync = false; }, 500);
+                    }
                 }, 500);
             } catch (ex) {
                 console.warn('RSA: failed to restore session', ex);
@@ -6144,7 +6140,9 @@
                 var isA = slot === 'p2a';
                 var p2Entry = isA ? getActiveEntry(line.teams.p2) : getActiveEntryB(line.teams.p2);
                 if (p2Entry) {
+                    suppressP2Sync = true;
                     loadPokemonIntoForm('p2', p2Entry);
+                    setTimeout(function () { suppressP2Sync = false; }, 500);
                     var moveName = move;
                     var moves = getEntryMoves(p2Entry);
                     var moveIdx = moves.indexOf(moveName);
@@ -6436,7 +6434,11 @@
             var p1Active = getActiveEntry(line.teams.p1);
             var p2Active = getActiveEntry(line.teams.p2);
             if (p1Active) loadPokemonIntoForm('p1', p1Active);
-            if (p2Active) loadPokemonIntoForm('p2', p2Active);
+            if (p2Active) {
+                suppressP2Sync = true;
+                loadPokemonIntoForm('p2', p2Active);
+                setTimeout(function () { suppressP2Sync = false; }, 500);
+            }
         });
 
         // ── Team management (click to switch active, click × to remove) ──
@@ -6458,11 +6460,13 @@
                     var line = curLine();
                     var entry = line.teams.p2.roster[idx];
                     if (!entry) return;
+                    suppressP2Sync = true;
                     loadPokemonIntoForm('p2', entry);
                     setTimeout(function () {
+                        suppressP2Sync = false;
                         try { cachedRankings = computeBoxRankings(); } catch (e) { cachedRankings = []; }
                         renderBox('p1');
-                    }, 300);
+                    }, 500);
                 }
                 return; // In doubles, P1 uses drag-to-slot
             }
@@ -6476,11 +6480,13 @@
             var line = curLine();
             var entry = line.teams.p2.roster[idx];
             if (!entry || entry.currentHP <= 0) return;
+            suppressP2Sync = true;
             loadPokemonIntoForm('p2', entry);
             setTimeout(function () {
+                suppressP2Sync = false;
                 try { cachedRankings = computeBoxRankings(); } catch (e) { cachedRankings = []; }
                 renderBox('p1');
-            }, 300);
+            }, 500);
         });
 
         // ── Log round ──
@@ -6708,7 +6714,11 @@
             var newP2 = getActiveEntry(line.teams.p2);
             // If the active mon changed after rebuild, reload the calc form
             if (newP1 && (!oldP1 || oldP1.name !== newP1.name)) loadPokemonIntoForm('p1', newP1);
-            if (newP2 && (!oldP2 || oldP2.name !== newP2.name)) loadPokemonIntoForm('p2', newP2);
+            if (newP2 && (!oldP2 || oldP2.name !== newP2.name)) {
+                suppressP2Sync = true;
+                loadPokemonIntoForm('p2', newP2);
+                setTimeout(function () { suppressP2Sync = false; }, 500);
+            }
             renderAll();
             syncActiveStatusToForm();
             autoSave();
@@ -6731,7 +6741,11 @@
             var _bp1 = getActiveEntry(line.teams.p1);
             var _bp2 = getActiveEntry(line.teams.p2);
             if (_bp1) loadPokemonIntoForm('p1', _bp1);
-            if (_bp2) loadPokemonIntoForm('p2', _bp2);
+            if (_bp2) {
+                suppressP2Sync = true;
+                loadPokemonIntoForm('p2', _bp2);
+                setTimeout(function () { suppressP2Sync = false; }, 500);
+            }
             renderAll();
             syncActiveStatusToForm();
             autoSave();
@@ -6747,7 +6761,11 @@
             var p1 = getActiveEntry(line.teams.p1);
             var p2 = getActiveEntry(line.teams.p2);
             if (p1) loadPokemonIntoForm('p1', p1);
-            if (p2) loadPokemonIntoForm('p2', p2);
+            if (p2) {
+                suppressP2Sync = true;
+                loadPokemonIntoForm('p2', p2);
+                setTimeout(function () { suppressP2Sync = false; }, 500);
+            }
             renderAll();
             syncActiveStatusToForm();
             autoSave();
