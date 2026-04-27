@@ -5114,8 +5114,17 @@
 
         // Move + damage
         var moveHtml;
+        // Berry-nullified status tag — computed up-front so it can show even when no move was used
+        var berryNullHtml = '';
+        if (actor.statusNullifiedByBerry && actor.statusNullifiedByBerry.status) {
+            var _bn = actor.statusNullifiedByBerry;
+            var _berryName = (_bn.berry || 'Berry').replace(/berry$/i, ' Berry');
+            berryNullHtml = '<span class="rsa-tag rsa-berry-cure-tag" title="' +
+                esc(_bn.status) + ' was nullified by ' + esc(_berryName) + '">🍓 ' +
+                esc(_bn.status) + ' → ' + esc(_berryName) + '</span>';
+        }
         if (actor.moveIdx === 'none' || actor.moveIdx === -1) {
-            moveHtml = '<div class="rsa-move-name rsa-no-move">— No Move</div>';
+            moveHtml = '<div class="rsa-move-name rsa-no-move">— No Move</div>' + berryNullHtml;
         } else {
             var d = actor.damage;
             var rng = d ? '<span class="rsa-dmg-range">Dmg: ' + d.minDmg + '-' + d.maxDmg + '</span>' : '';
@@ -5156,16 +5165,6 @@
                 var reason = actor.blockReason || 'flinch';
                 var label = reason === 'sleep' ? 'ASLEEP' : reason === 'freeze' ? 'FROZEN' : 'FLINCHED';
                 blockedHtml = '<span class="rsa-tag rsa-flinch-tag">' + label + '</span>';
-            }
-
-            // Berry-nullified status tag
-            var berryNullHtml = '';
-            if (actor.statusNullifiedByBerry && actor.statusNullifiedByBerry.status) {
-                var _bn = actor.statusNullifiedByBerry;
-                var _berryName = (_bn.berry || 'Berry').replace(/berry$/i, ' Berry');
-                berryNullHtml = '<span class="rsa-tag rsa-berry-cure-tag" title="' +
-                    esc(_bn.status) + ' was nullified by ' + esc(_berryName) + '">🍓 ' +
-                    esc(_bn.status) + ' → ' + esc(_berryName) + '</span>';
             }
 
             moveHtml = '<div class="rsa-move-line">' +
