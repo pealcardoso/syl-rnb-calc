@@ -2336,7 +2336,25 @@
         // mon from a switch round that the branch forks before). Save and restore it so
         // the branch-context active pokemon is unchanged after the rebuild.
         var _savedP1ActiveIdx = (line.activeBranchIdx >= 0) ? line.teams.p1.activeIdx : null;
+        // rebuildLineTeams syncs the OLD roster's active entry item/HP to the P2 calc
+        // form. If a new trainer was just loaded, the form currently has the CORRECT
+        // item from selectTrainer — but the old roster still points at the previous
+        // trainer's pokemon. Save the form values before rebuildLineTeams clobbers them
+        // and restore after, so getItem('p2') below reads the new trainer's data.
+        var _formP2Name = getP2Name();
+        var _oldP2Active = getActiveEntry(team);
+        var _savedFormItem = null, _savedFormAbility = null;
+        if (_formP2Name && (!_oldP2Active || _oldP2Active.name !== _formP2Name)) {
+            _savedFormItem = getItem('p2');
+            _savedFormAbility = getAbility('p2');
+        }
         rebuildLineTeams(line);
+        if (_savedFormItem !== null) {
+            window.NO_CALC = true;
+            $('#p2 .item').val(_savedFormItem);
+            if (_savedFormAbility) $('#p2 .ability').val(_savedFormAbility);
+            window.NO_CALC = false;
+        }
         if (_savedP1ActiveIdx !== null && line.activeBranchIdx >= 0) {
             line.teams.p1.activeIdx = _savedP1ActiveIdx;
         }
