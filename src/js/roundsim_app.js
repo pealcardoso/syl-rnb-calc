@@ -479,7 +479,37 @@
             if (e.currentHP <= 0) continue;
 
             var p2;
-            try { p2 = createPokemon(e.setId); } catch (ex) { continue; }
+            try { p2 = createPokemon(e.setId); } catch (ex) {
+                // createPokemon() requires setdex[name][setName] to exist — it throws
+                // (not null-safe) when trainer sets aren't present in the smogon setdex.
+                // Fall back: build a calc.Pokemon directly from roster + lookupSet data.
+                try {
+                    var fbSet = lookupSet(e.setId);
+                    var fbMoveNames = (e.moves || []).slice(0, 4);
+                    while (fbMoveNames.length < 4) fbMoveNames.push('(No Move)');
+                    var fbCalcMoves = [];
+                    for (var mi = 0; mi < 4; mi++) {
+                        fbCalcMoves.push(new calc.Move(gen, fbMoveNames[mi] || '(No Move)'));
+                    }
+                    // Build EVs/IVs from set data (stored in legacy stat keys: hp/at/df/sa/sd/sp)
+                    var fbEvs = {}, fbIvs = {};
+                    var legacyToCalc = { hp: 'hp', at: 'atk', df: 'def', sa: 'spa', sd: 'spd', sp: 'spe' };
+                    for (var lk in legacyToCalc) {
+                        var ck = legacyToCalc[lk];
+                        fbEvs[ck] = (fbSet && fbSet.evs && fbSet.evs[lk] != null) ? fbSet.evs[lk] : 0;
+                        fbIvs[ck] = (fbSet && fbSet.ivs && fbSet.ivs[lk] != null) ? fbSet.ivs[lk] : 31;
+                    }
+                    p2 = new calc.Pokemon(gen, e.name, {
+                        level: fbSet ? (fbSet.level || 50) : 50,
+                        ability: e.ability || '',
+                        item: e.item || '',
+                        nature: fbSet ? (fbSet.nature || 'Hardy') : 'Hardy',
+                        ivs: fbIvs,
+                        evs: fbEvs,
+                        moves: fbCalcMoves
+                    });
+                } catch (ex2) { continue; }
+            }
 
             var result = computeSwitchScore(p1, p2, p1SpdOverride);
             candidates.push({
