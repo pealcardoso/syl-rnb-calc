@@ -2298,7 +2298,15 @@
         var team = line.teams.p2;
         // Rebuild from round history first so oldEntries has accurate (post-replay) HP.
         // This prevents stale 0-HP values from a previous deleted sim from leaking in.
+        // When in a branch, rebuildLineTeams replays main-line rounds and would advance
+        // line.teams.p1.activeIdx to the main-line's final pokemon (e.g. the switched-in
+        // mon from a switch round that the branch forks before). Save and restore it so
+        // the branch-context active pokemon is unchanged after the rebuild.
+        var _savedP1ActiveIdx = (line.activeBranchIdx >= 0) ? line.teams.p1.activeIdx : null;
         rebuildLineTeams(line);
+        if (_savedP1ActiveIdx !== null && line.activeBranchIdx >= 0) {
+            line.teams.p1.activeIdx = _savedP1ActiveIdx;
+        }
         // Preserve HP/status only for pokemon that have been involved in logged rounds
         var oldEntries = {};
         for (var i = 0; i < team.roster.length; i++) {
@@ -2351,10 +2359,10 @@
 
             if (oldEntries[pokeName] && line.rounds.length > 0) {
                 if (pokeName === p2Name) {
-                    // Refresh live data (item/ability/moves may have changed) but keep tracked HP
+                    // Keep tracked HP/item/ability (from rebuildLineTeams replay).
+                    // Ability and item are NOT read from the form here to avoid async-transition
+                    // contamination (the set-selector updates before ability/item fields do).
                     var preserved = oldEntries[pokeName];
-                    preserved.item = getItem('p2') || preserved.item;
-                    preserved.ability = getAbility('p2') || preserved.ability;
                     var formMoves = getMoves('p2');
                     // Only update moves if the form has real moves (not all empty/No Move)
                     var hasRealMove = formMoves && formMoves.some(function(m) { return m && m !== '(No Move)'; });
