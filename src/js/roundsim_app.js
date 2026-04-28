@@ -3087,6 +3087,11 @@
         saveFormToRoster('p1');
         saveFormToRoster('p2');
 
+        // Pre-damage is consumed by this round — clear the saved baseline so
+        // round deletion no longer restores the old pre-damage value.
+        var _p1EntryPre = getActiveEntry(line.teams.p1);
+        if (_p1EntryPre) _p1EntryPre.preDamageHP = undefined;
+
         // Sync boosts from roster to calc form before damage calculation
         syncBoostsToCalc();
 
@@ -4877,8 +4882,11 @@
                 }
                 return rd.p1 && rd.p1.name === _pe.name;
             });
-            if (!_inAnyRound && _pe.currentHP < _pe.maxHP) {
-                _preDamageHP[_pe.name] = { current: _pe.currentHP, best: _pe.bestCaseHP };
+            // Only preserve HP if the user explicitly set it as pre-damage
+            // (preDamageHP is set by the HP-edit handler and cleared when a
+            // round is captured).  Never restore stale post-round HP.
+            if (!_inAnyRound && _pe.preDamageHP !== undefined && _pe.preDamageHP < _pe.maxHP) {
+                _preDamageHP[_pe.name] = { current: _pe.preDamageHP, best: _pe.preDamageHP };
             }
         }
 
@@ -7476,14 +7484,6 @@
             if (line.rounds.length === 0) return;
             if (!confirm('Delete all ' + line.rounds.length + ' rounds in "' + line.name + '"?')) return;
             suppressP2Sync = true;
-            // Reset P1 roster HP to maxHP BEFORE clearing rounds so that
-            // rebuildLineTeams pre-damage preservation has nothing stale to
-            // restore (it checks entries not referenced in rounds — but rounds
-            // will already be empty by the time it runs).
-            for (var _di = 0; _di < line.teams.p1.roster.length; _di++) {
-                line.teams.p1.roster[_di].currentHP = line.teams.p1.roster[_di].maxHP;
-                line.teams.p1.roster[_di].bestCaseHP = line.teams.p1.roster[_di].maxHP;
-            }
             line.rounds = [];
             line.roundCounter = 0;
             rebuildLineTeams(line);
@@ -7506,11 +7506,6 @@
             if (line.rounds.length === 0) return;
             if (!confirm('Clear all rounds in "' + line.name + '"?')) return;
             suppressP2Sync = true;
-            // Same pre-reset as delete-all-rounds to avoid stale pre-damage restore.
-            for (var _ci = 0; _ci < line.teams.p1.roster.length; _ci++) {
-                line.teams.p1.roster[_ci].currentHP = line.teams.p1.roster[_ci].maxHP;
-                line.teams.p1.roster[_ci].bestCaseHP = line.teams.p1.roster[_ci].maxHP;
-            }
             line.rounds = [];
             line.roundCounter = 0;
             rebuildLineTeams(line);
@@ -8041,6 +8036,9 @@
             entry.currentHP = val;
             // User explicitly set HP — clear uncertainty range
             entry.bestCaseHP = val;
+            // Remember this as the user-set pre-damage baseline so it can be
+            // restored after round deletion (cleared when a round is logged).
+            if (side === 'p1') entry.preDamageHP = val;
             // Sync to calc form so damage calculations use the updated HP
             if (idx === line.teams[side].activeIdx) {
                 $('#' + side + ' .current-hp').val(val);
