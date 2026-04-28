@@ -1563,7 +1563,9 @@
             // Reset active indices to first pokemon — replay will advance them correctly
             team.activeIdx = team.roster.length > 0 ? 0 : -1;
             if (team.activeIdxB !== undefined) {
-                team.activeIdxB = team.roster.length > 1 ? 1 : -1;
+                // Only set slot-B in doubles; in singles always reset to -1 so slot-B
+                // is never mistakenly populated and hidden from predictSwitchIn.
+                team.activeIdxB = (isDoubles() && team.roster.length > 1) ? 1 : -1;
             }
             for (var ri = 0; ri < team.roster.length; ri++) {
                 var entry = team.roster[ri];
@@ -1689,6 +1691,11 @@
 
     /** Get the second active entry (B slot) for doubles */
     function getActiveEntryB(team) {
+        // Slot B only exists in doubles — always return null in singles so that
+        // a stale activeIdxB value (e.g. from a previous doubles session saved in
+        // localStorage, or from rebuildBranchTeams) never ghosts a pokemon out of
+        // predictSwitchIn candidates.
+        if (!isDoubles()) return null;
         if (team.activeIdxB >= 0 && team.activeIdxB < team.roster.length) {
             return team.roster[team.activeIdxB];
         }
@@ -2792,6 +2799,9 @@
         team.activeIdx = newActiveIdx;
         if (team.activeIdx < 0 && newRoster.length > 0) team.activeIdx = 0;
         if (team.activeIdx >= newRoster.length) team.activeIdx = newRoster.length - 1;
+        // In singles, always clear slot-B so a stale value from a saved session or
+        // a previous doubles match never hides the #2 roster pokemon from predictions.
+        if (!isDoubles()) team.activeIdxB = -1;
         // Doubles: auto-set A and B slots
         if (isDoubles() && team.roster.length >= 2) {
             if (battleFormat === 'doubles-2t' && line.teamSplit) {
