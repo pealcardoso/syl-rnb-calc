@@ -1631,6 +1631,23 @@
             _pendingIdx >= 0 && _pendingIdx < line.teams.p2.roster.length) {
             line.teams.p2.activeIdx = _pendingIdx;
         }
+
+        // After replay, re-anchor both active indices to whatever pokemon is currently
+        // loaded in the calc form.  rebuildBranchTeams resets activeIdx = 0 before
+        // replay; if no rounds remain (or they don't reference the loaded pokemon),
+        // activeIdx stays at 0 even though the form has a different pokemon.
+        // This causes predictSwitchIn to skip the wrong "active" entry and include
+        // the actually-loaded pokemon as a switch-in candidate — corrupting predictions.
+        var _formP2Name = getP2Name ? getP2Name() : null;
+        if (_formP2Name) {
+            var _formP2i = findInRoster(line.teams.p2, _formP2Name);
+            if (_formP2i >= 0) line.teams.p2.activeIdx = _formP2i;
+        }
+        var _formP1Name = getP1Name ? getP1Name() : null;
+        if (_formP1Name) {
+            var _formP1i = findInRoster(line.teams.p1, _formP1Name);
+            if (_formP1i >= 0) line.teams.p1.activeIdx = _formP1i;
+        }
     }
 
     // ════════════════════════════════════════════════════════════
