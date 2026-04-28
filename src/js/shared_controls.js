@@ -1761,7 +1761,8 @@ $(document).on('change', '#p1, #fieldInfo, #p2', function() {
 //select first mon of the box when loading
 function selectFirstMon() {
 	var pMons = document.getElementsByClassName("trainer-pok left-side");
-	let set = pMons[i].getAttribute("data-id");
+	if (!pMons || !pMons.length) return;
+	let set = pMons[0].getAttribute("data-id");
 	$('.player').val(set);
 	$('.player').change();
 	$('.player .select2-chosen').text(set);
