@@ -4443,6 +4443,11 @@
     }
 
     function rebuildLineTeams(line) {
+        // Save current form HP before the reset.  If the active pokemon has no logged
+        // rounds yet (pre-first-round), the user may have manually typed a pre-damage
+        // value — we must restore it instead of overwriting with maxHP after replay.
+        var _savedFormP1HP = parseInt($('#p1 .current-hp').val()) || null;
+
         // Reset all roster HP/status/items to initial state
         for (var s = 0; s < 2; s++) {
             var side = s === 0 ? 'p1' : 'p2';
@@ -4539,7 +4544,29 @@
         var p1Active = getActiveEntry(line.teams.p1);
         var p2Active = getActiveEntry(line.teams.p2);
         if (p1Active) {
-            $('#p1 .current-hp').val(p1Active.currentHP);
+            // Only overwrite the form HP if at least one logged round has set this
+            // pokemon's HP (i.e. replay advanced it away from maxHP, or a round exists).
+            // If no rounds involve P1's active mon yet (pre-first-round), preserve any
+            // manual pre-damage the user typed — don't blast it back to maxHP.
+            var _p1HadRound = line.rounds.some(function (rd) {
+                if (rd.isDoubles && rd.fighters) {
+                    for (var _sl in rd.fighters) {
+                        if (rd.fighters[_sl] && rd.fighters[_sl].name === p1Active.name) return true;
+                    }
+                    return false;
+                }
+                return rd.p1 && rd.p1.name === p1Active.name;
+            });
+            if (_p1HadRound) {
+                $('#p1 .current-hp').val(p1Active.currentHP);
+            } else if (_savedFormP1HP !== null && _savedFormP1HP !== p1Active.maxHP) {
+                // Restore user's manual pre-damage edit
+                $('#p1 .current-hp').val(_savedFormP1HP);
+                p1Active.currentHP  = _savedFormP1HP;
+                p1Active.bestCaseHP = _savedFormP1HP;
+            } else {
+                $('#p1 .current-hp').val(p1Active.currentHP);
+            }
             $('#p1 .item').val(p1Active.item || '');
         }
         if (p2Active) {
