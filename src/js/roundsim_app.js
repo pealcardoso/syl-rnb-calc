@@ -7476,6 +7476,14 @@
             if (line.rounds.length === 0) return;
             if (!confirm('Delete all ' + line.rounds.length + ' rounds in "' + line.name + '"?')) return;
             suppressP2Sync = true;
+            // Reset P1 roster HP to maxHP BEFORE clearing rounds so that
+            // rebuildLineTeams pre-damage preservation has nothing stale to
+            // restore (it checks entries not referenced in rounds — but rounds
+            // will already be empty by the time it runs).
+            for (var _di = 0; _di < line.teams.p1.roster.length; _di++) {
+                line.teams.p1.roster[_di].currentHP = line.teams.p1.roster[_di].maxHP;
+                line.teams.p1.roster[_di].bestCaseHP = line.teams.p1.roster[_di].maxHP;
+            }
             line.rounds = [];
             line.roundCounter = 0;
             rebuildLineTeams(line);
@@ -7498,6 +7506,11 @@
             if (line.rounds.length === 0) return;
             if (!confirm('Clear all rounds in "' + line.name + '"?')) return;
             suppressP2Sync = true;
+            // Same pre-reset as delete-all-rounds to avoid stale pre-damage restore.
+            for (var _ci = 0; _ci < line.teams.p1.roster.length; _ci++) {
+                line.teams.p1.roster[_ci].currentHP = line.teams.p1.roster[_ci].maxHP;
+                line.teams.p1.roster[_ci].bestCaseHP = line.teams.p1.roster[_ci].maxHP;
+            }
             line.rounds = [];
             line.roundCounter = 0;
             rebuildLineTeams(line);
