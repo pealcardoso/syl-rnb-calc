@@ -5829,6 +5829,42 @@
         populateSwitchDropdown();
         syncHazardsToCalc();
         if (isDoubles()) refreshDoublesUI();
+        // Passively persist a compact debug snapshot after every render so
+        // Playwright can read the latest state without any user action.
+        try { localStorage.setItem('_rsaState', captureDebugSnapshot()); } catch(e) {}
+    }
+
+    function captureDebugSnapshot() {
+        var line = curLine();
+        var p2Team = line.teams.p2;
+        var p1Team = line.teams.p1;
+        var snap = {
+            ts: new Date().toISOString(),
+            format: battleFormat,
+            lineIdx: currentLineIdx,
+            roundCount: line.rounds.length,
+            p1: {
+                activeIdx: p1Team.activeIdx,
+                activeIdxB: p1Team.activeIdxB,
+                roster: p1Team.roster.map(function(e, i) {
+                    return { i: i, name: e.name, hp: e.currentHP + '/' + e.maxHP,
+                             active: i === p1Team.activeIdx || i === p1Team.activeIdxB };
+                })
+            },
+            p2: {
+                activeIdx: p2Team.activeIdx,
+                activeIdxB: p2Team.activeIdxB,
+                roster: p2Team.roster.map(function(e, i) {
+                    return { i: i, name: e.name, hp: e.currentHP + '/' + e.maxHP,
+                             active: i === p2Team.activeIdx || i === p2Team.activeIdxB,
+                             setId: e.setId };
+                })
+            },
+            CURRENT_TRAINER_POKS: window.CURRENT_TRAINER_POKS || [],
+            p1Form: typeof getP1Name === 'function' ? getP1Name() : null,
+            p2Form: typeof getP2Name === 'function' ? getP2Name() : null
+        };
+        return JSON.stringify(snap, null, 2);
     }
 
     function populateSwitchDropdown() {
@@ -6838,6 +6874,28 @@
         })(40); // up to 40 × 500ms = 20 seconds
 
         // ── Line management ──
+        $('#rsa-bug-report').on('click', function () {
+            var snap = captureDebugSnapshot();
+            var btn = $(this);
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(snap).then(function() {
+                    btn.addClass('rsa-copied').text('✅ Copied!');
+                    setTimeout(function() { btn.removeClass('rsa-copied').text('📋 Bug Report'); }, 2000);
+                });
+            } else {
+                // Fallback for non-secure contexts
+                var ta = document.createElement('textarea');
+                ta.value = snap;
+                ta.style.position = 'fixed'; ta.style.opacity = '0';
+                document.body.appendChild(ta);
+                ta.select();
+                document.execCommand('copy');
+                document.body.removeChild(ta);
+                btn.addClass('rsa-copied').text('✅ Copied!');
+                setTimeout(function() { btn.removeClass('rsa-copied').text('📋 Bug Report'); }, 2000);
+            }
+        });
+
         $('#rsa-add-line').on('click', function () {
             var name = prompt('Name for new line:', 'Line ' + String.fromCharCode(65 + lines.length));
             if (!name) return;

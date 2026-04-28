@@ -14,6 +14,12 @@
 .rsa-nav-title { font-weight: 700; font-size: 1.1em; color: #e2e8f0; }
 .rsa-nav a { color: #63b3ed; text-decoration: none; font-size: 0.9em; }
 .rsa-nav a:hover { text-decoration: underline; }
+.rsa-bug-report-btn {
+    background: #2d3748; border: 1px solid #4a5568; color: #e2e8f0;
+    border-radius: 4px; padding: 4px 10px; font-size: 0.8em; cursor: pointer;
+}
+.rsa-bug-report-btn:hover { background: #4a5568; }
+.rsa-bug-report-btn.rsa-copied { background: #276749; border-color: #48bb78; color: #c6f6d5; }
 
 /* ── Teams Row — horizontal flex ──────────────────────────── */
 .rsa-teams-row {
