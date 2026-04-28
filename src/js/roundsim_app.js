@@ -15,6 +15,23 @@
     var CATEGORY_SPRITE_BASE = 'https://play.pokemonshowdown.com/sprites/categories/';
     var MAX_TEAM_SIZE = 6;
 
+    // Preload all type/category sprite images immediately so the browser
+    // caches them before injectMoveLabelSprites() is first called. Using
+    // new Image() triggers a real browser fetch (bypasses CORS) and stores
+    // the result in the browser's image cache for instant use later.
+    (function preloadTypeSprites() {
+        var types = ['Normal','Fire','Water','Electric','Grass','Ice','Fighting',
+                     'Poison','Ground','Flying','Psychic','Bug','Rock','Ghost',
+                     'Dragon','Dark','Steel','Fairy','???'];
+        var categories = ['Physical','Special','Status'];
+        var preloadList = types.map(function(t) { return TYPE_SPRITE_BASE + t + '.png'; })
+                    .concat(categories.map(function(c) { return CATEGORY_SPRITE_BASE + c + '.png'; }));
+        for (var i = 0; i < preloadList.length; i++) {
+            var img = new Image();
+            img.src = preloadList[i];
+        }
+    })();
+
     // ── Two-turn (charge) move constants ───────────────────────
     // Moves that make the user semi-invulnerable on the charge turn.
     // Maps normalised move key → invulnerability bucket.
