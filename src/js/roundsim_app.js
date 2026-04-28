@@ -1654,6 +1654,28 @@
                 if (_formP1i >= 0) line.teams.p1.activeIdx = _formP1i;
             }
         }
+
+        // Restore user-set pre-damage HP for P1 entries not referenced in any
+        // replayed round.  preDamageHP is set by the hp-edit handler and persists
+        // until the user explicitly changes it to a new value.
+        for (var _bpi = 0; _bpi < line.teams.p1.roster.length; _bpi++) {
+            var _bpe = line.teams.p1.roster[_bpi];
+            if (_bpe.preDamageHP !== undefined && _bpe.preDamageHP < _bpe.maxHP) {
+                var _bInRound = rounds.some(function(rd) {
+                    if (rd.isDoubles && rd.fighters) {
+                        for (var _bs in rd.fighters) {
+                            if (rd.fighters[_bs] && rd.fighters[_bs].name === _bpe.name) return true;
+                        }
+                        return false;
+                    }
+                    return rd.p1 && rd.p1.name === _bpe.name;
+                });
+                if (!_bInRound) {
+                    _bpe.currentHP  = _bpe.preDamageHP;
+                    _bpe.bestCaseHP = _bpe.preDamageHP;
+                }
+            }
+        }
     }
 
     // ════════════════════════════════════════════════════════════
@@ -3087,10 +3109,10 @@
         saveFormToRoster('p1');
         saveFormToRoster('p2');
 
-        // Pre-damage is consumed by this round — clear the saved baseline so
-        // round deletion no longer restores the old pre-damage value.
-        var _p1EntryPre = getActiveEntry(line.teams.p1);
-        if (_p1EntryPre) _p1EntryPre.preDamageHP = undefined;
+        // Pre-damage is NOT cleared here — if this round is later deleted,
+        // rebuildLineTeams/rebuildBranchTeams will restore the user's pre-damage
+        // HP using preDamageHP.  It is only cleared when a NEW pre-damage value
+        // is set (hp-edit handler) or when the mon reaches maxHP after rebuild.
 
         // Sync boosts from roster to calc form before damage calculation
         syncBoostsToCalc();
