@@ -1770,7 +1770,9 @@ function selectFirstMon() {
 function selectTrainer(value) {
 	localStorage.setItem("lasttimetrainer", value);
 	all_poks = SETDEX_SS
+	var found = false;
 	for (const [pok_name, poks] of Object.entries(all_poks)) {
+		if (found) break;
 		var pok_tr_names = Object.keys(poks)
 		var monName = pok_name;
 		if (pok_name.includes("Vivillon")) { monName = "Vivillon"; }
@@ -1782,6 +1784,8 @@ function selectTrainer(value) {
 				$('.opposing').val(set);
 				$('.opposing').change();
 				$('.opposing .select2-chosen').text(set);
+				found = true;
+				break;
 			}
 		}
 	}

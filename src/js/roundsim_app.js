@@ -6833,6 +6833,9 @@
             if (!name) return;
             lines.push(createLine(name));
             currentLineIdx = lines.length - 1;
+            // Inherit the current P1 and trainer's roster into the new line
+            initP1Team();
+            syncP2Team();
             renderAll();
             autoSave();
         });
@@ -7195,6 +7198,9 @@
             var line = curLine();
             var oldP1 = getActiveEntry(line.teams.p1);
             var oldP2 = getActiveEntry(line.teams.p2);
+            // Suppress async syncP2Team calls (MutationObserver / set-selector change)
+            // during the entire rebuild+render cycle to prevent roster corruption.
+            suppressP2Sync = true;
             // Delete from the correct round array (main or active branch)
             if (line.activeBranchIdx >= 0) {
                 var branch = line.branches[line.activeBranchIdx];
@@ -7211,14 +7217,13 @@
             // If the active mon changed after rebuild, reload the calc form
             if (newP1 && (!oldP1 || oldP1.name !== newP1.name)) loadPokemonIntoForm('p1', newP1);
             if (newP2 && (!oldP2 || oldP2.name !== newP2.name)) {
-                suppressP2Sync = true;
                 loadPokemonIntoForm('p2', newP2);
-                setTimeout(function () { suppressP2Sync = false; }, 500);
             }
             // Full-sync HP/item/ability/status/boosts so calc form matches roster
             syncActiveStateToForm();
             renderAll();
             autoSave();
+            setTimeout(function () { suppressP2Sync = false; }, 600);
         });
 
         // ── Bait Analysis toggle (🎯 button) ──
@@ -7359,6 +7364,7 @@
             var line = curLine();
             if (line.rounds.length === 0) return;
             if (!confirm('Delete all ' + line.rounds.length + ' rounds in "' + line.name + '"?')) return;
+            suppressP2Sync = true;
             line.rounds = [];
             line.roundCounter = 0;
             rebuildLineTeams(line);
@@ -7366,6 +7372,7 @@
             syncActiveStateToForm();
             renderAll();
             autoSave();
+            setTimeout(function () { suppressP2Sync = false; }, 600);
         });
 
         // ── Clear line ──
@@ -7373,6 +7380,7 @@
             var line = curLine();
             if (line.rounds.length === 0) return;
             if (!confirm('Clear all rounds in "' + line.name + '"?')) return;
+            suppressP2Sync = true;
             line.rounds = [];
             line.roundCounter = 0;
             rebuildLineTeams(line);
@@ -7380,6 +7388,7 @@
             syncActiveStateToForm();
             renderAll();
             autoSave();
+            setTimeout(function () { suppressP2Sync = false; }, 600);
         });
 
         // ── Import panel toggle ──
