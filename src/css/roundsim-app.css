@@ -203,6 +203,13 @@
 .rsa-swpred-sprite { width: 32px; height: 32px; image-rendering: pixelated; }
 .rsa-swpred-name { color: #e2e8f0; font-weight: 700; }
 .rsa-swpred-detail { color: #90cdf4; font-size: 0.9em; }
+.rsa-swpred-moves {
+    font-size: 0.78em; color: #cbd5e0; padding: 2px 8px 3px;
+    background: #1a202c; border: 1px solid #4a5568; border-top: none;
+    border-radius: 0 0 6px 6px;
+}
+.rsa-swpred-move { white-space: nowrap; }
+.rsa-swpred-move small { color: #90cdf4; font-weight: 700; }
 .rsa-swpred-all {
     display: flex; flex-wrap: wrap; gap: 3px; margin-top: 4px;
 }

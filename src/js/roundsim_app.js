@@ -530,7 +530,7 @@
         }
 
         return { name: best.name, sprite: best.sprite, score: best.score,
-                 reason: best.reason, scores: candidates };
+                 reason: best.reason, partyIdx: best.partyIdx, scores: candidates };
     }
 
     // ════════════════════════════════════════════════════════════
@@ -2820,6 +2820,50 @@
         return (sd[pokeName] && sd[pokeName][setName]) || null;
     }
 
+    /**
+     * Ensure the P2 roster contains every pokemon from CURRENT_TRAINER_POKS.
+     * Adds any missing entries (with full HP) so predictSwitchIn never misses a candidate.
+     * Called after rebuild operations that might leave the roster incomplete.
+     */
+    function ensureP2RosterComplete() {
+        if (!window.CURRENT_TRAINER_POKS || !window.CURRENT_TRAINER_POKS.length) return;
+        var line = curLine();
+        var team = line.teams.p2;
+        var existing = {};
+        for (var i = 0; i < team.roster.length; i++) {
+            existing[team.roster[i].name] = true;
+        }
+        var added = false;
+        for (var t = 0; t < window.CURRENT_TRAINER_POKS.length; t++) {
+            var raw = window.CURRENT_TRAINER_POKS[t];
+            var setId = raw.indexOf(']') !== -1 ? raw.slice(raw.indexOf(']') + 1) : raw;
+            var pokeName = String(setId).split(' (')[0];
+            if (!pokeName || existing[pokeName]) continue;
+            // This pokemon is missing from the roster — add it
+            var set = lookupSet(setId);
+            var maxHP = set ? calcMaxHP(pokeName, set) : 100;
+            var types = [];
+            try {
+                var species = calc.SPECIES[gen || 9][pokeName];
+                if (species && species.types) types = species.types;
+            } catch (e) {}
+            var entry = createRosterEntry(
+                pokeName, setId,
+                getSprite(pokeName),
+                set ? (set.item || '') : '',
+                set ? (set.ability || '') : '',
+                set ? (set.moves || []) : [],
+                maxHP, types
+            );
+            team.roster.push(entry);
+            existing[pokeName] = true;
+            added = true;
+        }
+        if (added) {
+            renderTeamPanel('p2');
+        }
+    }
+
     function addToTeam(side) {
         // Now unused — teams auto-sync from the calc
     }
@@ -4620,6 +4664,40 @@
         if (p2Entry) syncStatusToForm('p2', p2Entry);
     }
 
+    /**
+     * Full sync of active pokemon state (HP, item, ability, status, boosts) to
+     * the calc form for both sides.  Call after any rebuild/round-delete so the
+     * calc form and roster never drift apart.
+     */
+    function syncActiveStateToForm() {
+        var line = curLine();
+        window.NO_CALC = true;
+        var sides = ['p1', 'p2'];
+        for (var si = 0; si < sides.length; si++) {
+            var side = sides[si];
+            var entry = getActiveEntry(line.teams[side]);
+            if (!entry) continue;
+            // HP
+            $('#' + side + ' .current-hp').val(entry.currentHP);
+            // Item
+            if (entry.item !== undefined) $('#' + side + ' .item').val(entry.item);
+            // Ability
+            if (entry.ability) $('#' + side + ' .ability').val(entry.ability);
+            // Status
+            syncStatusToForm(side, entry);
+            // Boosts
+            if (entry.boosts) {
+                var stats = ['at', 'df', 'sa', 'sd', 'sp'];
+                for (var sti = 0; sti < stats.length; sti++) {
+                    var b = entry.boosts[stats[sti]] || 0;
+                    $('#' + side + ' .' + stats[sti] + ' .boost').val(b);
+                }
+            }
+        }
+        window.NO_CALC = false;
+        try { performCalculations(); } catch (e) {}
+    }
+
     /** Apply stat boost changes to a roster entry, clamping to ±6 */
     function applyBoosts(entry, boosts) {
         if (!entry || !boosts) return;
@@ -5087,6 +5165,31 @@
                     '<span class="' + cls + '">' + (s.score > 0 ? '+' : '') + s.score + '</span></span>';
             }
         }
+
+        // Get predicted move distribution for the winner
+        var movesHtml = '';
+        try {
+            var line = curLine();
+            var p2Entry = (pred.partyIdx != null) ? line.teams.p2.roster[pred.partyIdx] : null;
+            var p1Entry = getActiveEntry(line.teams.p1);
+            if (p2Entry && p1Entry) {
+                var moveRates = calcP2MoveRates(p2Entry, p1Entry);
+                if (moveRates.rates && moveRates.rates.length) {
+                    var moveParts = [];
+                    for (var mi = 0; mi < moveRates.rates.length; mi++) {
+                        var mr = moveRates.rates[mi];
+                        if (mr.rate > 0) {
+                            moveParts.push('<span class="rsa-swpred-move" title="' + esc(mr.move) + '">' +
+                                esc(mr.move) + ' <small>' + Math.round(mr.rate * 100) + '%</small></span>');
+                        }
+                    }
+                    if (moveParts.length) {
+                        movesHtml = '<div class="rsa-swpred-moves">Moves: ' + moveParts.join(', ') + '</div>';
+                    }
+                }
+            }
+        } catch (e) {}
+
         $el.html(
             '<div class="rsa-swpred-bar">' +
                 '<span class="rsa-swpred-label">🔮 AI sends:</span>' +
@@ -5094,6 +5197,7 @@
                 '<span class="rsa-swpred-name">' + esc(pred.name) + '</span>' +
                 '<span class="rsa-swpred-detail">(' + (pred.score > 0 ? '+' : '') + pred.score + ' — ' + esc(pred.reason) + ')</span>' +
             '</div>' +
+            movesHtml +
             (scoresCells ? '<div class="rsa-swpred-all">' + scoresCells + '</div>' : '')
         );
     }
@@ -5252,9 +5356,27 @@
 
             var predHtml = '';
             if (pred) {
+                var predMovesHtml = '';
+                try {
+                    var p2PredEntry = (pred.partyIdx != null) ? line.teams.p2.roster[pred.partyIdx] : null;
+                    if (p2PredEntry && p1) {
+                        var predMoveRates = calcP2MoveRates(p2PredEntry, p1);
+                        if (predMoveRates.rates && predMoveRates.rates.length) {
+                            var predMoveParts = [];
+                            for (var pmi = 0; pmi < predMoveRates.rates.length; pmi++) {
+                                var pmr = predMoveRates.rates[pmi];
+                                if (pmr.rate > 0) {
+                                    predMoveParts.push(esc(pmr.move) + ' <small>' + Math.round(pmr.rate * 100) + '%</small>');
+                                }
+                            }
+                            if (predMoveParts.length) predMovesHtml = '<div class="rsa-swpred-moves" style="font-size:0.8em">' + predMoveParts.join(', ') + '</div>';
+                        }
+                    }
+                } catch (e) {}
                 predHtml = '<div class="rsa-inline-pred">' +
                     '<img class="rsa-inline-sprite" src="' + esc(pred.sprite) + '" alt="">' +
                     '<span class="rsa-swpred-label">🔮 ' + esc(pred.name) + '</span>' +
+                    predMovesHtml +
                 '</div>';
             }
 
@@ -6882,6 +7004,7 @@
                     p2: $.extend({}, getFieldHazards('p2'))
                 };
                 rd.hazardChanges = diffHazards(hazBefore, hazAfter);
+                syncActiveStateToForm();
                 renderAll();
                 autoSave();
                 if (isDoubles()) refreshDoublesUI();
@@ -7065,6 +7188,7 @@
                 line.rounds = line.rounds.filter(function (r) { return r.roundNum !== num; });
             }
             rebuildBranchTeams(line, line.activeBranchIdx);
+            ensureP2RosterComplete();
             var newP1 = getActiveEntry(line.teams.p1);
             var newP2 = getActiveEntry(line.teams.p2);
             // If the active mon changed after rebuild, reload the calc form
@@ -7074,8 +7198,9 @@
                 loadPokemonIntoForm('p2', newP2);
                 setTimeout(function () { suppressP2Sync = false; }, 500);
             }
+            // Full-sync HP/item/ability/status/boosts so calc form matches roster
+            syncActiveStateToForm();
             renderAll();
-            syncActiveStatusToForm();
             autoSave();
         });
 
@@ -7159,6 +7284,7 @@
             var line = curLine();
             line.activeBranchIdx = branchIdx;
             rebuildBranchTeams(line, branchIdx);
+            ensureP2RosterComplete();
             var p1 = getActiveEntry(line.teams.p1);
             var p2 = getActiveEntry(line.teams.p2);
             if (p1) loadPokemonIntoForm('p1', p1);
@@ -7167,8 +7293,8 @@
                 loadPokemonIntoForm('p2', p2);
                 setTimeout(function () { suppressP2Sync = false; }, 500);
             }
+            syncActiveStateToForm();
             renderAll();
-            syncActiveStatusToForm();
             autoSave();
         });
 
@@ -7188,8 +7314,9 @@
                 line.activeBranchIdx--;
             }
             rebuildBranchTeams(line, line.activeBranchIdx);
+            ensureP2RosterComplete();
+            syncActiveStateToForm();
             renderAll();
-            syncActiveStatusToForm();
             autoSave();
         });
 
@@ -7218,8 +7345,9 @@
             line.rounds = [];
             line.roundCounter = 0;
             rebuildLineTeams(line);
+            ensureP2RosterComplete();
+            syncActiveStateToForm();
             renderAll();
-            syncActiveStatusToForm();
             autoSave();
         });
 
@@ -7231,8 +7359,9 @@
             line.rounds = [];
             line.roundCounter = 0;
             rebuildLineTeams(line);
+            ensureP2RosterComplete();
+            syncActiveStateToForm();
             renderAll();
-            syncActiveStatusToForm();
             autoSave();
         });
 
@@ -7750,6 +7879,11 @@
             entry.currentHP = val;
             // User explicitly set HP — clear uncertainty range
             entry.bestCaseHP = val;
+            // Sync to calc form so damage calculations use the updated HP
+            if (idx === line.teams[side].activeIdx) {
+                $('#' + side + ' .current-hp').val(val);
+                try { performCalculations(); } catch (e) {}
+            }
             renderTeamPanel(side);
             autoSave();
         });
