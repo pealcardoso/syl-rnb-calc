@@ -1763,12 +1763,21 @@ fieldset {
     background: #1a202c;
     border-radius: 3px;
     overflow: hidden;
+    position: relative;
 }
 
 .rsa-bait-move-bar {
     height: 100%;
     border-radius: 3px;
     transition: width 0.2s;
+    position: absolute;
+    top: 0;
+    left: 0;
+}
+
+.rsa-bait-move-bar-min {
+    opacity: 1;
+    z-index: 1;
 }
 
 .rsa-bait-move-pct {

@@ -697,16 +697,23 @@
             var fakeP1 = $.extend(true, {}, p1Entry);
             fakeP1.currentHP = hp;
             var moveRates = calcP2MoveRates(winner.candidate.entry, fakeP1);
-            // Build a short key to detect when move distribution changes
-            // Round to nearest 5% to avoid creating bands for trivial AI fluctuations
-            var moveKey = baitName + '|';
+            // Count active moves (rate > ~0%) to group by
+            var activeMoveCount = 0;
             for (var ri = 0; ri < moveRates.rates.length; ri++) {
-                var rounded = Math.round(moveRates.rates[ri].rate * 20) * 5;
-                moveKey += moveRates.rates[ri].move + ':' + rounded + ',';
+                if (moveRates.rates[ri].rate >= 0.005) activeMoveCount++;
             }
+            var moveKey = baitName + '|' + activeMoveCount;
 
             if (moveKey !== prevMoveKey) {
-                // New band
+                // New band — initialise min/max tracking per move
+                var movesWithRange = [];
+                for (var ri = 0; ri < moveRates.rates.length; ri++) {
+                    movesWithRange.push({
+                        move: moveRates.rates[ri].move,
+                        minRate: moveRates.rates[ri].rate,
+                        maxRate: moveRates.rates[ri].rate
+                    });
+                }
                 bands.push({
                     hpUpper: hp,
                     hpLower: hp,
@@ -717,14 +724,21 @@
                     reason: winner.aiFaster ? 'Faster' : (winner.aiSlower ? 'Slower' : 'Tie'),
                     score: bestScore,
                     faster: winner.aiFaster,
-                    moves: moveRates.rates.slice()
+                    moves: movesWithRange
                 });
                 prevMoveKey = moveKey;
                 prevBaitName = baitName;
             } else {
-                // Extend current band
-                bands[bands.length - 1].hpLower = hp;
-                bands[bands.length - 1].pctLower = Math.round(hp / maxHP * 100);
+                // Extend current band and widen min/max ranges
+                var cur = bands[bands.length - 1];
+                cur.hpLower = hp;
+                cur.pctLower = Math.round(hp / maxHP * 100);
+                for (var ri = 0; ri < moveRates.rates.length; ri++) {
+                    if (cur.moves[ri]) {
+                        cur.moves[ri].minRate = Math.min(cur.moves[ri].minRate, moveRates.rates[ri].rate);
+                        cur.moves[ri].maxRate = Math.max(cur.moves[ri].maxRate, moveRates.rates[ri].rate);
+                    }
+                }
             }
         }
         return bands;
@@ -779,17 +793,24 @@
             var spdIcon = b.faster ? '⚡' : '🐢';
             var spdLabel = b.reason;
 
-            // Move breakdown (skip 0% moves for cleanliness)
+            // Move breakdown — show [min–max] range; skip moves always at ~0%
             var moveHtml = '';
             for (var mi = 0; mi < b.moves.length; mi++) {
                 var m = b.moves[mi];
-                if (m.rate < 0.005) continue; // skip moves at ~0%
-                var pct = (m.rate * 100).toFixed(0);
-                var barW = Math.max(2, Math.round(m.rate * 100));
+                if (m.maxRate < 0.005) continue; // skip moves that never fire
+                var minPct = Math.round(m.minRate * 100);
+                var maxPct = Math.round(m.maxRate * 100);
+                var label = minPct === maxPct ? minPct + '%' : minPct + '–' + maxPct + '%';
+                var barW = Math.max(2, maxPct);
+                // Show a lighter section for the min portion inside the bar
+                var minW = Math.max(0, minPct);
                 moveHtml += '<div class="rsa-bait-move">' +
                     '<span class="rsa-bait-move-name">' + esc(m.move) + '</span>' +
-                    '<div class="rsa-bait-move-bar-wrap"><div class="rsa-bait-move-bar" style="width:' + barW + '%;background:' + col + '"></div></div>' +
-                    '<span class="rsa-bait-move-pct">' + pct + '%</span>' +
+                    '<div class="rsa-bait-move-bar-wrap">' +
+                        '<div class="rsa-bait-move-bar" style="width:' + barW + '%;background:' + col + ';opacity:0.45"></div>' +
+                        '<div class="rsa-bait-move-bar rsa-bait-move-bar-min" style="width:' + minW + '%;background:' + col + '"></div>' +
+                    '</div>' +
+                    '<span class="rsa-bait-move-pct">' + label + '</span>' +
                 '</div>';
             }
 
