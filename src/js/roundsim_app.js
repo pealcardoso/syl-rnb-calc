@@ -7324,7 +7324,17 @@
             syncActiveStateToForm();
             renderAll();
             autoSave();
-            setTimeout(function () { suppressP2Sync = false; }, 600);
+            // After all async form mutations have settled (loadPokemonIntoForm 300ms timer,
+            // performCalculations callbacks, etc.), re-anchor the roster HP to the rebuilt
+            // state and save again.  This prevents any stale form value written by an
+            // in-flight async timer from corrupting the persisted roster HP.
+            setTimeout(function () {
+                rebuildBranchTeams(curLine(), curLine().activeBranchIdx);
+                syncActiveStateToForm();
+                renderAll();
+                autoSave();
+                suppressP2Sync = false;
+            }, 700);
         });
 
         // ── Bait Analysis toggle (🎯 button) ──
@@ -7473,7 +7483,13 @@
             syncActiveStateToForm();
             renderAll();
             autoSave();
-            setTimeout(function () { suppressP2Sync = false; }, 600);
+            setTimeout(function () {
+                rebuildLineTeams(curLine());
+                syncActiveStateToForm();
+                renderAll();
+                autoSave();
+                suppressP2Sync = false;
+            }, 700);
         });
 
         // ── Clear line ──
@@ -7489,7 +7505,13 @@
             syncActiveStateToForm();
             renderAll();
             autoSave();
-            setTimeout(function () { suppressP2Sync = false; }, 600);
+            setTimeout(function () {
+                rebuildLineTeams(curLine());
+                syncActiveStateToForm();
+                renderAll();
+                autoSave();
+                suppressP2Sync = false;
+            }, 700);
         });
 
         // ── Import panel toggle ──
