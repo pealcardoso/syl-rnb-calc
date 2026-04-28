@@ -5852,11 +5852,15 @@
         var line = curLine();
         var p2Team = line.teams.p2;
         var p1Team = line.teams.p1;
+        var _activeBranchRounds = (line.activeBranchIdx >= 0 && line.branches && line.branches[line.activeBranchIdx])
+            ? getBranchRounds(line, line.activeBranchIdx).length : 0;
         var snap = {
             ts: new Date().toISOString(),
             format: battleFormat,
             lineIdx: currentLineIdx,
+            activeBranchIdx: line.activeBranchIdx,
             roundCount: line.rounds.length,
+            activeBranchRoundCount: _activeBranchRounds,
             p1: {
                 activeIdx: p1Team.activeIdx,
                 activeIdxB: p1Team.activeIdxB,
@@ -5927,6 +5931,16 @@
     // ════════════════════════════════════════════════════════════
 
     function updateMovePickDisplay() {
+        // Re-anchor the calc's move-result-group into our moves area.
+        // The calc framework regenerates this element on every set change
+        // (loadPokemonIntoForm -> $sel.change()), so the one-time relocation
+        // at init is not enough — check on every render and re-append if needed.
+        var moveGroup = document.querySelector('.move-result-group');
+        var movesArea = document.getElementById('rsa-moves-area');
+        if (moveGroup && movesArea && !movesArea.contains(moveGroup)) {
+            movesArea.appendChild(moveGroup);
+        }
+
         // Highlight the selected move rows
         $('.move-result-subgroupL > div').removeClass('rsa-move-selected');
         if (selectedP1Move !== 'none') {
@@ -7065,6 +7079,13 @@
 
         // ── Log round ──
         $('#rsa-log-round').on('click', function () {
+            // Guard: if a form transition is still in progress (loadPokemonIntoForm
+            // 300ms timer hasn't fired yet), the HP/item/ability fields may be stale.
+            // Block the capture and let the user click again once the form settles.
+            if (_loadingForm) {
+                showSaveToast('⏳ Form still loading — please wait a moment and try again.', 2000);
+                return;
+            }
             var comment = $('#rsa-comment').val().trim();
 
             function finishRound(rd) {
