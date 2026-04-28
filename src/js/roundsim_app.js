@@ -1636,19 +1636,23 @@
 
         // After replay, re-anchor both active indices to whatever pokemon is currently
         // loaded in the calc form.  rebuildBranchTeams resets activeIdx = 0 before
-        // replay; if no rounds remain (or they don't reference the loaded pokemon),
-        // activeIdx stays at 0 even though the form has a different pokemon.
-        // This causes predictSwitchIn to skip the wrong "active" entry and include
-        // the actually-loaded pokemon as a switch-in candidate — corrupting predictions.
-        var _formP2Name = getP2Name ? getP2Name() : null;
-        if (_formP2Name) {
-            var _formP2i = findInRoster(line.teams.p2, _formP2Name);
-            if (_formP2i >= 0) line.teams.p2.activeIdx = _formP2i;
-        }
-        var _formP1Name = getP1Name ? getP1Name() : null;
-        if (_formP1Name) {
-            var _formP1i = findInRoster(line.teams.p1, _formP1Name);
-            if (_formP1i >= 0) line.teams.p1.activeIdx = _formP1i;
+        // replay; if rounds exist but don't reference the loaded pokemon (e.g. user
+        // manually changed the form after the last logged round), activeIdx stays at
+        // the last-replayed index even though the form has a different pokemon.
+        // Only apply this when there are logged rounds — with 0 rounds the first
+        // pokemon in roster order (index 0) is always the correct active one, and
+        // re-anchoring to the form would pick up stale pokemon from a previous trainer.
+        if (rounds.length > 0) {
+            var _formP2Name = getP2Name ? getP2Name() : null;
+            if (_formP2Name) {
+                var _formP2i = findInRoster(line.teams.p2, _formP2Name);
+                if (_formP2i >= 0) line.teams.p2.activeIdx = _formP2i;
+            }
+            var _formP1Name = getP1Name ? getP1Name() : null;
+            if (_formP1Name) {
+                var _formP1i = findInRoster(line.teams.p1, _formP1Name);
+                if (_formP1i >= 0) line.teams.p1.activeIdx = _formP1i;
+            }
         }
     }
 
