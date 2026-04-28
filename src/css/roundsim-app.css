@@ -1589,3 +1589,192 @@ fieldset {
 .rsa-branch-col .rsa-round-body {
     padding: 4px;
 }
+
+/* ══════════════════════════════════════════════════════════════
+   BAIT ANALYSIS
+   ══════════════════════════════════════════════════════════════ */
+
+.rsa-bait-toggle {
+    display: inline-block;
+    background: transparent;
+    border: 1px solid #4a5568;
+    color: #a0aec0;
+    font-size: 0.72em;
+    padding: 2px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    margin-top: 4px;
+    transition: background 0.15s, color 0.15s;
+}
+.rsa-bait-toggle:hover { background: #2d3748; color: #e2e8f0; }
+
+.rsa-bait-panel {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease;
+}
+.rsa-bait-panel.rsa-bait-open {
+    max-height: 2000px;
+}
+
+.rsa-bait-content {
+    margin-top: 6px;
+    padding: 8px;
+    background: #1a202c;
+    border: 1px solid #2d3748;
+    border-radius: 6px;
+}
+
+.rsa-bait-title {
+    font-size: 0.8em;
+    font-weight: 700;
+    color: #e2e8f0;
+    margin-bottom: 6px;
+}
+
+.rsa-bait-empty {
+    font-size: 0.78em;
+    color: #718096;
+    font-style: italic;
+    padding: 8px;
+}
+
+.rsa-bait-loading {
+    font-size: 0.78em;
+    color: #a0aec0;
+    font-style: italic;
+    padding: 8px;
+}
+
+/* ── Threshold bar ── */
+.rsa-bait-bar {
+    position: relative;
+    height: 14px;
+    background: #2d3748;
+    border-radius: 4px;
+    overflow: visible;
+    margin-bottom: 8px;
+}
+
+.rsa-bait-segment {
+    position: absolute;
+    top: 0;
+    height: 100%;
+    opacity: 0.7;
+    transition: opacity 0.15s;
+    border-right: 1px solid #1a202c;
+}
+.rsa-bait-segment:first-child { border-radius: 4px 0 0 4px; }
+.rsa-bait-segment:last-of-type { border-radius: 0 4px 4px 0; }
+.rsa-bait-segment:hover { opacity: 1; }
+
+.rsa-bait-marker {
+    position: absolute;
+    top: -3px;
+    width: 2px;
+    height: 20px;
+    background: #fff;
+    border-radius: 1px;
+    z-index: 2;
+    pointer-events: none;
+    box-shadow: 0 0 4px rgba(255,255,255,0.5);
+}
+
+/* ── Band detail rows ── */
+.rsa-bait-bands {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.rsa-bait-band {
+    background: #2d3748;
+    border-radius: 5px;
+    padding: 6px 8px;
+}
+
+.rsa-bait-band-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 4px;
+    flex-wrap: wrap;
+}
+
+.rsa-bait-swatch {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
+    flex-shrink: 0;
+}
+
+.rsa-bait-sprite {
+    width: 32px;
+    height: 32px;
+    image-rendering: pixelated;
+    flex-shrink: 0;
+}
+
+.rsa-bait-name {
+    font-weight: 700;
+    font-size: 0.85em;
+    color: #e2e8f0;
+}
+
+.rsa-bait-hp-range {
+    font-size: 0.75em;
+    font-weight: 600;
+    color: #90cdf4;
+    background: #1a202c;
+    padding: 1px 5px;
+    border-radius: 3px;
+}
+
+.rsa-bait-speed {
+    font-size: 0.75em;
+    color: #a0aec0;
+    margin-left: auto;
+}
+
+/* ── Move bars inside bands ── */
+.rsa-bait-moves {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.rsa-bait-move {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.rsa-bait-move-name {
+    font-size: 0.78em;
+    color: #cbd5e0;
+    min-width: 100px;
+    font-weight: 600;
+}
+
+.rsa-bait-move-bar-wrap {
+    flex: 1;
+    height: 6px;
+    background: #1a202c;
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.rsa-bait-move-bar {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 0.2s;
+}
+
+.rsa-bait-move-pct {
+    font-size: 0.75em;
+    color: #a0aec0;
+    min-width: 32px;
+    text-align: right;
+    font-weight: 600;
+}

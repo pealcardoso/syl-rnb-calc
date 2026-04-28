@@ -533,6 +533,289 @@
                  reason: best.reason, scores: candidates };
     }
 
+    // ════════════════════════════════════════════════════════════
+    // BAIT ANALYSIS — HP threshold → switch-in / move distribution
+    // ════════════════════════════════════════════════════════════
+
+    /**
+     * Sweep P1's HP from 100% down to 0 and at each step determine:
+     *  - which P2 candidate wins the switch-in prediction
+     *  - what move distribution that winner would use
+     * Returns an array of threshold bands, sorted from high HP to low:
+     *   [{ hpUpper, hpLower, pctUpper, pctLower, baitName, baitSprite,
+     *      reason, score, faster, moves: [{move, rate}] }, ...]
+     */
+    function computeBaitAnalysis(p1Entry) {
+        var line = curLine();
+        var team = line.teams.p2;
+        if (!p1Entry || team.roster.length < 2) return [];
+
+        // Build P1 calc pokemon once, then vary its HP
+        var p1calc;
+        try { p1calc = createPokemon(p1Entry.setId); } catch (e) { return []; }
+        if (p1Entry.item !== undefined) p1calc.item = p1Entry.item;
+        if (p1Entry.ability) p1calc.ability = p1Entry.ability;
+        var maxHP = p1calc.rawStats ? p1calc.rawStats.hp : (p1calc.stats ? p1calc.stats.hp : 100);
+        if (maxHP <= 0) return [];
+
+        // P1 speed (effective, from form or roster)
+        var p1Spd;
+        try { p1Spd = getSpeedInfo().p1; } catch (e) { p1Spd = computeEntrySpeed(p1Entry); }
+        var tr = $('#trickroom').is(':checked');
+
+        // Pre-build all alive P2 candidate calc.Pokemon objects
+        var activeP2 = getActiveEntry(team);
+        var candidates = [];
+        for (var i = 0; i < team.roster.length; i++) {
+            var e = team.roster[i];
+            if (activeP2 && e.name === activeP2.name) continue;
+            if (e.currentHP <= 0) continue;
+            var p2calc;
+            try { p2calc = createPokemon(e.setId); } catch (ex) {
+                try {
+                    var fbSet = lookupSet(e.setId);
+                    var fbMoveNames = (e.moves || []).slice(0, 4);
+                    while (fbMoveNames.length < 4) fbMoveNames.push('(No Move)');
+                    var fbCalcMoves = [];
+                    for (var mi = 0; mi < 4; mi++) fbCalcMoves.push(new calc.Move(gen, fbMoveNames[mi] || '(No Move)'));
+                    var fbEvs = {}, fbIvs = {};
+                    var legacyToCalc = { hp: 'hp', at: 'atk', df: 'def', sa: 'spa', sd: 'spd', sp: 'spe' };
+                    for (var lk in legacyToCalc) {
+                        var ck = legacyToCalc[lk];
+                        fbEvs[ck] = (fbSet && fbSet.evs && fbSet.evs[lk] != null) ? fbSet.evs[lk] : 0;
+                        fbIvs[ck] = (fbSet && fbSet.ivs && fbSet.ivs[lk] != null) ? fbSet.ivs[lk] : 31;
+                    }
+                    p2calc = new calc.Pokemon(gen, e.name, {
+                        level: fbSet ? (fbSet.level || 50) : 50,
+                        ability: e.ability || '', item: e.item || '',
+                        nature: fbSet ? (fbSet.nature || 'Hardy') : 'Hardy',
+                        ivs: fbIvs, evs: fbEvs, moves: fbCalcMoves
+                    });
+                } catch (ex2) { continue; }
+            }
+            if (e.item !== undefined) p2calc.item = e.item;
+            if (e.ability) p2calc.ability = e.ability;
+            candidates.push({ entry: e, poke: p2calc, idx: i });
+        }
+        if (candidates.length === 0) return [];
+
+        // Pre-compute damage results and calc fields once (reused every HP sample)
+        var field = createField();
+        var fieldSwap = field.clone().swap();
+
+        // Pre-compute AI damage from each candidate and player damage to each candidate
+        var precomp = [];
+        for (var ci = 0; ci < candidates.length; ci++) {
+            var c = candidates[ci];
+            var aiDmgs = []; // each move's max damage to P1
+            for (var m = 0; m < 4; m++) {
+                try {
+                    var res = calc.calculate(gen, c.poke, p1calc, c.poke.moves[m], fieldSwap);
+                    var d = res.damage;
+                    var maxD = Array.isArray(d) ? d[d.length - 1] : d;
+                    var hits = c.poke.moves[m] ? (c.poke.moves[m].hits || 1) : 1;
+                    aiDmgs.push(maxD * hits);
+                } catch (e) { aiDmgs.push(0); }
+            }
+            var plDmgs = []; // each of P1's move's max damage to candidate
+            var p2hp = c.poke.curHP ? c.poke.curHP() : (c.poke.stats ? c.poke.stats.hp : 100);
+            if (!p2hp) p2hp = 100;
+            for (var m = 0; m < 4; m++) {
+                try {
+                    var res = calc.calculate(gen, p1calc, c.poke, p1calc.moves[m], field);
+                    var d = res.damage;
+                    var maxD = Array.isArray(d) ? d[d.length - 1] : d;
+                    var hits = p1calc.moves[m] ? (p1calc.moves[m].hits || 1) : 1;
+                    plDmgs.push(maxD * hits);
+                } catch (e) { plDmgs.push(0); }
+            }
+            var p2spd = c.poke.stats ? c.poke.stats.spe : 0;
+            var aiFaster = tr ? (p2spd < p1Spd) : (p2spd > p1Spd);
+            if (p1Spd === p2spd) aiFaster = false;
+
+            precomp.push({
+                candidate: c,
+                aiDmgs: aiDmgs,
+                plDmgs: plDmgs,
+                p2hp: p2hp,
+                p2spd: p2spd,
+                aiFaster: aiFaster,
+                aiSlower: !aiFaster && p1Spd !== p2spd
+            });
+        }
+
+        // Sample HP at every 1% granularity (fine enough for accurate thresholds)
+        var step = Math.max(1, Math.floor(maxHP / 100));
+        var bands = [];
+        var prevBaitName = null;
+        var prevMoveKey = null;
+
+        for (var hp = maxHP; hp >= 1; hp -= step) {
+            // Score each candidate at this P1 HP level
+            var bestScore = -999, bestIdx = -1;
+            for (var ci = 0; ci < precomp.length; ci++) {
+                var pc = precomp[ci];
+                // Recalculate damage % relative to current HP
+                var bestAiPct = 0;
+                for (var m = 0; m < pc.aiDmgs.length; m++) {
+                    var pct = pc.aiDmgs[m] / hp * 100;
+                    if (pct > bestAiPct) bestAiPct = pct;
+                }
+                var bestPlPct = 0;
+                for (var m = 0; m < pc.plDmgs.length; m++) {
+                    var pct = pc.plDmgs[m] / pc.p2hp * 100;
+                    if (pct > bestPlPct) bestPlPct = pct;
+                }
+                var aiOHKO = bestAiPct >= 100;
+                var plOHKO = bestPlPct >= 100;
+
+                var score;
+                var aiName = (pc.candidate.poke.name || '').toLowerCase();
+                if (aiName === 'ditto') { score = 2; }
+                else if (aiName === 'wynaut' || aiName === 'wobbuffet') {
+                    score = (pc.aiSlower && plOHKO) ? 0 : 2;
+                }
+                else if (pc.aiFaster && aiOHKO) score = 5;
+                else if (pc.aiSlower && aiOHKO && !plOHKO) score = 4;
+                else if (pc.aiFaster && bestAiPct > bestPlPct) score = 3;
+                else if (pc.aiSlower && bestAiPct > bestPlPct) score = 2;
+                else if (pc.aiFaster) score = 1;
+                else if (pc.aiSlower && plOHKO) score = -1;
+                else score = 0;
+
+                if (score > bestScore || (score === bestScore && bestIdx === -1)) {
+                    bestScore = score;
+                    bestIdx = ci;
+                }
+            }
+
+            if (bestIdx < 0) continue;
+            var winner = precomp[bestIdx];
+            var baitName = winner.candidate.entry.name;
+
+            // Get move rates for this matchup at this P1 HP
+            var fakeP1 = $.extend(true, {}, p1Entry);
+            fakeP1.currentHP = hp;
+            var moveRates = calcP2MoveRates(winner.candidate.entry, fakeP1);
+            // Build a short key to detect when move distribution changes
+            // Round to nearest 5% to avoid creating bands for trivial AI fluctuations
+            var moveKey = baitName + '|';
+            for (var ri = 0; ri < moveRates.rates.length; ri++) {
+                var rounded = Math.round(moveRates.rates[ri].rate * 20) * 5;
+                moveKey += moveRates.rates[ri].move + ':' + rounded + ',';
+            }
+
+            if (moveKey !== prevMoveKey) {
+                // New band
+                bands.push({
+                    hpUpper: hp,
+                    hpLower: hp,
+                    pctUpper: Math.round(hp / maxHP * 100),
+                    pctLower: Math.round(hp / maxHP * 100),
+                    baitName: baitName,
+                    baitSprite: winner.candidate.entry.sprite || getSprite(baitName),
+                    reason: winner.aiFaster ? 'Faster' : (winner.aiSlower ? 'Slower' : 'Tie'),
+                    score: bestScore,
+                    faster: winner.aiFaster,
+                    moves: moveRates.rates.slice()
+                });
+                prevMoveKey = moveKey;
+                prevBaitName = baitName;
+            } else {
+                // Extend current band
+                bands[bands.length - 1].hpLower = hp;
+                bands[bands.length - 1].pctLower = Math.round(hp / maxHP * 100);
+            }
+        }
+        return bands;
+    }
+
+    /**
+     * Render the bait analysis panel HTML from computed bands.
+     * currentHP/maxHP are P1's HP at time of analysis (for the position marker).
+     */
+    function renderBaitPanel(bands, p1Entry, currentHP, maxHP) {
+        if (!bands || bands.length === 0) {
+            return '<div class="rsa-bait-empty">No bait data — need at least 2 alive P2 mons.</div>';
+        }
+
+        // Assign a stable color to each unique bait name
+        var baitColors = {};
+        var colorPalette = ['#63b3ed','#fc8181','#68d391','#f6ad55','#b794f4','#f687b3','#4fd1c5','#ecc94b'];
+        var colorIdx = 0;
+        for (var i = 0; i < bands.length; i++) {
+            if (!baitColors[bands[i].baitName]) {
+                baitColors[bands[i].baitName] = colorPalette[colorIdx % colorPalette.length];
+                colorIdx++;
+            }
+        }
+
+        // Build the visual HP threshold bar
+        var barHtml = '<div class="rsa-bait-bar">';
+        for (var i = 0; i < bands.length; i++) {
+            var b = bands[i];
+            var left = (100 - b.pctUpper);
+            var width = b.pctUpper - b.pctLower;
+            if (width < 1) width = 1;
+            var col = baitColors[b.baitName];
+            barHtml += '<div class="rsa-bait-segment" ' +
+                'style="left:' + left + '%;width:' + width + '%;background:' + col + '" ' +
+                'title="' + esc(b.baitName) + ' (' + b.pctLower + '–' + b.pctUpper + '%)">' +
+            '</div>';
+        }
+        // Current HP marker
+        if (maxHP > 0) {
+            var curPct = Math.round(currentHP / maxHP * 100);
+            var markerPos = 100 - curPct;
+            barHtml += '<div class="rsa-bait-marker" style="left:' + markerPos + '%" title="Current HP: ' + currentHP + '/' + maxHP + ' (' + curPct + '%)"></div>';
+        }
+        barHtml += '</div>';
+
+        // Build the band detail rows
+        var detailHtml = '';
+        for (var i = 0; i < bands.length; i++) {
+            var b = bands[i];
+            var col = baitColors[b.baitName];
+            var spdIcon = b.faster ? '⚡' : '🐢';
+            var spdLabel = b.reason;
+
+            // Move breakdown (skip 0% moves for cleanliness)
+            var moveHtml = '';
+            for (var mi = 0; mi < b.moves.length; mi++) {
+                var m = b.moves[mi];
+                if (m.rate < 0.005) continue; // skip moves at ~0%
+                var pct = (m.rate * 100).toFixed(0);
+                var barW = Math.max(2, Math.round(m.rate * 100));
+                moveHtml += '<div class="rsa-bait-move">' +
+                    '<span class="rsa-bait-move-name">' + esc(m.move) + '</span>' +
+                    '<div class="rsa-bait-move-bar-wrap"><div class="rsa-bait-move-bar" style="width:' + barW + '%;background:' + col + '"></div></div>' +
+                    '<span class="rsa-bait-move-pct">' + pct + '%</span>' +
+                '</div>';
+            }
+
+            var hpRange = b.pctLower === b.pctUpper
+                ? b.pctUpper + '%'
+                : b.pctLower + '–' + b.pctUpper + '%';
+
+            detailHtml += '<div class="rsa-bait-band">' +
+                '<div class="rsa-bait-band-header">' +
+                    '<span class="rsa-bait-swatch" style="background:' + col + '"></span>' +
+                    '<img class="rsa-bait-sprite" src="' + esc(b.baitSprite) + '" alt="" onerror="this.style.display=\'none\'">' +
+                    '<span class="rsa-bait-name">' + esc(b.baitName) + '</span>' +
+                    '<span class="rsa-bait-hp-range">' + hpRange + '</span>' +
+                    '<span class="rsa-bait-speed">' + spdIcon + ' ' + spdLabel + '</span>' +
+                '</div>' +
+                '<div class="rsa-bait-moves">' + moveHtml + '</div>' +
+            '</div>';
+        }
+
+        return '<div class="rsa-bait-content">' +
+            '<div class="rsa-bait-title">🎯 Bait Analysis — HP Thresholds</div>' +
+            barHtml +
+            '<div class="rsa-bait-bands">' + detailHtml + '</div>' +
+        '</div>';
+    }
+
     /**
      * Show a modal overlay asking the user to choose who goes first in a speed tie.
      * nameA / nameB are displayed on the two buttons. callback receives 'a' or 'b'.
@@ -5351,6 +5634,7 @@
                 '</div>' +
             '</div>' +
             moveHtml + extrasHtml + eotHtml + hpSim +
+            (side === 'p1' ? '<button class="rsa-bait-toggle" data-round="' + rd.roundNum + '" title="Analyze bait thresholds at this HP">🎯 Bait</button><div class="rsa-bait-panel" data-round="' + rd.roundNum + '"></div>' : '') +
             (actor.sashed ? '<span class=\"rsa-tag rsa-sash-tag\">Focus Sash!</span>' : '') +
             (actor.sturdied ? '<span class=\"rsa-tag rsa-sash-tag\">Sturdy!</span>' : '') +
             (actor.custap ? '<span class=\"rsa-tag rsa-sash-tag\">Custap Berry!</span>' : '') +
@@ -6772,6 +7056,52 @@
             renderAll();
             syncActiveStatusToForm();
             autoSave();
+        });
+
+        // ── Bait Analysis toggle (🎯 button) ──
+        $(document).on('click', '.rsa-bait-toggle', function (e) {
+            e.stopPropagation();
+            var $btn = $(this);
+            var $panel = $btn.next('.rsa-bait-panel');
+            if ($panel.hasClass('rsa-bait-open')) {
+                $panel.removeClass('rsa-bait-open').html('');
+                return;
+            }
+            // Find the P1 entry at this round's HP state
+            var roundNum = ~~$btn.data('round');
+            var line = curLine();
+            var rounds = line.activeBranchIdx >= 0 ? getBranchRounds(line, line.activeBranchIdx) : line.rounds;
+            var rd = null;
+            for (var i = 0; i < rounds.length; i++) {
+                if (rounds[i].roundNum === roundNum) { rd = rounds[i]; break; }
+            }
+            if (!rd || !rd.p1) return;
+            // Build a fake P1 entry at this round's after-HP
+            var p1Entry = getActiveEntry(line.teams.p1);
+            if (!p1Entry) return;
+            var fakeP1 = $.extend(true, {}, p1Entry);
+            fakeP1.currentHP = rd.p1.hpAfter.current;
+            fakeP1.item = rd.p1.item;
+            fakeP1.ability = rd.p1.ability;
+            fakeP1.status = rd.p1.status;
+            fakeP1.boosts = rd.p1.boosts ? $.extend({}, rd.p1.boosts) : { at:0,df:0,sa:0,sd:0,sp:0 };
+            // Find the matching roster entry for the correct setId
+            for (var ri = 0; ri < line.teams.p1.roster.length; ri++) {
+                if (line.teams.p1.roster[ri].name === rd.p1.name) {
+                    fakeP1.setId = line.teams.p1.roster[ri].setId;
+                    fakeP1.name = rd.p1.name;
+                    fakeP1.sprite = rd.p1.sprite;
+                    fakeP1.moves = line.teams.p1.roster[ri].moves;
+                    fakeP1.maxHP = rd.p1.hpAfter.max;
+                    break;
+                }
+            }
+            $panel.html('<div class="rsa-bait-loading">Computing bait thresholds…</div>');
+            $panel.addClass('rsa-bait-open');
+            setTimeout(function () {
+                var bands = computeBaitAnalysis(fakeP1);
+                $panel.html(renderBaitPanel(bands, fakeP1, rd.p1.hpAfter.current, rd.p1.hpAfter.max));
+            }, 20);
         });
 
         // ── Branch from round (🔀 button) ──
