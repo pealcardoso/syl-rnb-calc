@@ -4861,7 +4861,11 @@
         // Save current form HP before the reset.  If the active pokemon has no logged
         // rounds yet (pre-first-round), the user may have manually typed a pre-damage
         // value — we must restore it instead of overwriting with maxHP after replay.
+        // Also capture the form's current pokemon name so we can verify it still matches
+        // the active roster entry (prevents stale form values from a previous session or
+        // a hard refresh from being mistaken for intentional pre-damage input).
         var _savedFormP1HP = parseInt($('#p1 .current-hp').val()) || null;
+        var _savedFormP1Name = (typeof getP1Name === 'function') ? getP1Name() : null;
 
         // Reset all roster HP/status/items to initial state
         for (var s = 0; s < 2; s++) {
@@ -4974,8 +4978,12 @@
             });
             if (_p1HadRound) {
                 $('#p1 .current-hp').val(p1Active.currentHP);
-            } else if (_savedFormP1HP !== null && _savedFormP1HP !== p1Active.maxHP) {
-                // Restore user's manual pre-damage edit
+            } else if (_savedFormP1HP !== null && _savedFormP1HP !== p1Active.maxHP
+                       && _savedFormP1Name && _savedFormP1Name === p1Active.name) {
+                // Restore user's manual pre-damage edit — but only when the form is
+                // showing the same pokemon as the active roster entry.  If the names
+                // differ the form value is stale (e.g. leftover from a previous session
+                // after a hard refresh) and must not be applied.
                 $('#p1 .current-hp').val(_savedFormP1HP);
                 p1Active.currentHP  = _savedFormP1HP;
                 p1Active.bestCaseHP = _savedFormP1HP;
