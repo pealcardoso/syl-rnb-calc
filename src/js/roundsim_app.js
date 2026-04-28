@@ -2734,24 +2734,16 @@
             trainerOrder.push({ name: p2Name, setId: p2SetId });
         }
 
-        // Detect whether this is the same trainer as before (old roster overlaps with
-        // the new trainerOrder by name). When there's no overlap the trainer just changed
-        // and p2Name is stale — don't use it to advance newActiveIdx past 0.
-        var _newTrainerNames = trainerOrder.map(function(t) { return t.name; });
-        var _oldNames = Object.keys(oldEntries);
-        var _sameTrainer = _oldNames.length > 0 &&
-            _oldNames.some(function(n) { return _newTrainerNames.indexOf(n) !== -1; });
-
         var newActiveIdx = 0;
         for (var k = 0; k < trainerOrder.length; k++) {
             var pok = trainerOrder[k];
             var pokeName = pok.name;
             var setId = pok.setId;
 
-            // Only trust the form's p2Name as "the active slot" when this is the same
-            // trainer — i.e. oldEntries shares at least one name with the new roster.
-            // On a brand-new trainer (no overlap), p2Name is stale and we default to 0.
-            if (pokeName === p2Name && _sameTrainer) newActiveIdx = k;
+            // Only advance activeIdx past 0 when we have logged rounds — with no rounds
+            // the form's currently loaded pokemon may be stale (previous trainer or a
+            // non-lead pokemon), so we always default to slot 0 (the lead / first pokemon).
+            if (pokeName === p2Name && line.rounds.length > 0) newActiveIdx = k;
 
             if (oldEntries[pokeName] && line.rounds.length > 0) {
                 if (pokeName === p2Name) {
