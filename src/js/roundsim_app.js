@@ -4858,14 +4858,29 @@
     }
 
     function rebuildLineTeams(line) {
-        // Save current form HP before the reset.  If the active pokemon has no logged
-        // rounds yet (pre-first-round), the user may have manually typed a pre-damage
-        // value — we must restore it instead of overwriting with maxHP after replay.
-        // Also capture the form's current pokemon name so we can verify it still matches
-        // the active roster entry (prevents stale form values from a previous session or
-        // a hard refresh from being mistaken for intentional pre-damage input).
-        var _savedFormP1HP = parseInt($('#p1 .current-hp').val()) || null;
-        var _savedFormP1Name = (typeof getP1Name === 'function') ? getP1Name() : null;
+        // For P1 entries not involved in any logged round (pre-first-round or after
+        // round deletion), preserve their serialized currentHP so user-set pre-damage
+        // survives the reset+replay cycle.
+        // Critically: do NOT read HP from the calc form here — the calc persists its
+        // own form state independently and may still show stale HP from a deleted round
+        // even though RSA's localStorage already has the correct value.
+        var _preDamageHP = {};
+        var _p1Roster = line.teams.p1.roster;
+        for (var _pi = 0; _pi < _p1Roster.length; _pi++) {
+            var _pe = _p1Roster[_pi];
+            var _inAnyRound = line.rounds.some(function (rd) {
+                if (rd.isDoubles && rd.fighters) {
+                    for (var _s in rd.fighters) {
+                        if (rd.fighters[_s] && rd.fighters[_s].name === _pe.name) return true;
+                    }
+                    return false;
+                }
+                return rd.p1 && rd.p1.name === _pe.name;
+            });
+            if (!_inAnyRound && _pe.currentHP < _pe.maxHP) {
+                _preDamageHP[_pe.name] = { current: _pe.currentHP, best: _pe.bestCaseHP };
+            }
+        }
 
         // Reset all roster HP/status/items to initial state
         for (var s = 0; s < 2; s++) {
@@ -4958,38 +4973,21 @@
                 applyHazardMoves(rd.p1 && rd.p1.move, rd.p2 && rd.p2.move);
             }
         }
+        // Restore pre-damage HP for P1 entries not involved in any round
+        for (var _ri = 0; _ri < _p1Roster.length; _ri++) {
+            var _re = _p1Roster[_ri];
+            if (_preDamageHP[_re.name]) {
+                _re.currentHP  = _preDamageHP[_re.name].current;
+                _re.bestCaseHP = _preDamageHP[_re.name].best;
+            }
+        }
+
         // Sync the updated HP and item to calc form
         window.NO_CALC = true;
         var p1Active = getActiveEntry(line.teams.p1);
         var p2Active = getActiveEntry(line.teams.p2);
         if (p1Active) {
-            // Only overwrite the form HP if at least one logged round has set this
-            // pokemon's HP (i.e. replay advanced it away from maxHP, or a round exists).
-            // If no rounds involve P1's active mon yet (pre-first-round), preserve any
-            // manual pre-damage the user typed — don't blast it back to maxHP.
-            var _p1HadRound = line.rounds.some(function (rd) {
-                if (rd.isDoubles && rd.fighters) {
-                    for (var _sl in rd.fighters) {
-                        if (rd.fighters[_sl] && rd.fighters[_sl].name === p1Active.name) return true;
-                    }
-                    return false;
-                }
-                return rd.p1 && rd.p1.name === p1Active.name;
-            });
-            if (_p1HadRound) {
-                $('#p1 .current-hp').val(p1Active.currentHP);
-            } else if (_savedFormP1HP !== null && _savedFormP1HP !== p1Active.maxHP
-                       && _savedFormP1Name && _savedFormP1Name === p1Active.name) {
-                // Restore user's manual pre-damage edit — but only when the form is
-                // showing the same pokemon as the active roster entry.  If the names
-                // differ the form value is stale (e.g. leftover from a previous session
-                // after a hard refresh) and must not be applied.
-                $('#p1 .current-hp').val(_savedFormP1HP);
-                p1Active.currentHP  = _savedFormP1HP;
-                p1Active.bestCaseHP = _savedFormP1HP;
-            } else {
-                $('#p1 .current-hp').val(p1Active.currentHP);
-            }
+            $('#p1 .current-hp').val(p1Active.currentHP);
             $('#p1 .item').val(p1Active.item || '');
         }
         if (p2Active) {
