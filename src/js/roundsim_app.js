@@ -5965,8 +5965,16 @@
         // at init is not enough — check on every render and re-append if needed.
         var moveGroup = document.querySelector('.move-result-group');
         var movesArea = document.getElementById('rsa-moves-area');
+        var _justAnchored = false;
         if (moveGroup && movesArea && !movesArea.contains(moveGroup)) {
             movesArea.appendChild(moveGroup);
+            _justAnchored = true;
+        }
+        // Re-inject type/category sprites whenever the group is freshly anchored
+        // (calc framework resets label text on pokemon change) or always if not
+        // currently loading a form (lightweight, idempotent).
+        if (!_loadingForm) {
+            injectMoveLabelSprites();
         }
 
         // Highlight the selected move rows

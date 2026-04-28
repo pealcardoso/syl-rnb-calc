@@ -825,21 +825,25 @@ fieldset {
     float: none !important;
 }
 
-/* Fix move result group: remove huge margin, fix widths */
+/* Fix move result group: flex two-column layout aligned with team panels */
 .rsa-moves-area .move-result-group {
-    display: block !important;
+    display: flex !important;
+    gap: 13px;
     min-width: auto !important;
     margin: 0 !important;
-    overflow: hidden;
+    overflow: visible !important;
+    width: 100%;
+    box-sizing: border-box;
 }
 
 .rsa-moves-area .move-result-subgroupL,
 .rsa-moves-area .move-result-subgroupR {
     float: none !important;
+    display: block !important;
+    flex: 1 1 0%;
+    min-width: 0;
+    vertical-align: unset;
     width: auto !important;
-    display: inline-block;
-    vertical-align: top;
-    min-width: 45%;
 }
 
 .rsa-moves-area .result-move-header { color: #a0aec0; }
