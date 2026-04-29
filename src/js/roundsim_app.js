@@ -7476,8 +7476,13 @@
                 loadPokemonIntoForm('p2', _bp2);
                 setTimeout(function () { suppressP2Sync = false; }, 500);
             }
+            // Full sync (HP, item, ability, status, boosts) — same as branch-tab handler.
+            // captureRound reads HP from the form immediately, so this must be synchronous.
+            // loadPokemonIntoForm's setTimeout(0) only sets form HP asynchronously; without
+            // this call the form still shows the previous round's HP (0 after a KO) until
+            // the timeout fires, causing the branch's first round to start from 0 HP.
+            syncActiveStateToForm();
             renderAll();
-            syncActiveStatusToForm();
             autoSave();
         });
 
