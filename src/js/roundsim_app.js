@@ -6304,6 +6304,9 @@
                 var $label = $('label[for="resultMove' + side.prefix + i + '"]');
                 if (!$label.length) continue;
 
+                // Skip if sprites are already injected (avoids redundant work)
+                if ($label.find('.rsa-btn-move-sprites').length) continue;
+
                 // Get current move name — prefer existing name span, else plain text
                 var moveName = $label.find('.rsa-btn-move-name').text().trim() || $label.text().trim();
                 if (!moveName || moveName === 'Loading...') continue;
@@ -8192,6 +8195,34 @@
             injectMoveLabelSprites();
             // Try to compute initial rankings
             try { cachedRankings = computeBoxRankings(); renderBox('p1'); } catch (e) {}
+
+            // ── MutationObserver: auto-reinject sprites when calc overwrites labels ──
+            // performCalculations() in index_randoms_controls.js uses jQuery .text()
+            // to write plain move names into the <label> elements, wiping our sprite
+            // HTML.  This observer fires as a microtask immediately after the DOM
+            // mutation and re-injects sprites synchronously, so the user never sees
+            // a frame without sprites.
+            var _spriteReinjectPending = false;
+            var moveLabels = document.querySelectorAll(
+                'label[for^="resultMoveL"], label[for^="resultMoveR"]'
+            );
+            var spriteObserver = new MutationObserver(function () {
+                // Guard: injectMoveLabelSprites itself mutates labels (adding sprite
+                // spans), which re-triggers this observer.  The skip-if-present check
+                // inside injectMoveLabelSprites handles idempotency, but we still
+                // avoid redundant calls in the same microtask batch.
+                if (_spriteReinjectPending) return;
+                _spriteReinjectPending = true;
+                // Use queueMicrotask so all 8 label mutations in one
+                // performCalculations() call are batched into one re-inject.
+                queueMicrotask(function () {
+                    _spriteReinjectPending = false;
+                    injectMoveLabelSprites();
+                });
+            });
+            for (var li = 0; li < moveLabels.length; li++) {
+                spriteObserver.observe(moveLabels[li], { childList: true, characterData: true, subtree: true });
+            }
         }, 2500);
     });
 
