@@ -2588,15 +2588,28 @@
         if (!entry || !entry.setId) return;
         // Suppress cascading recalculations during form population
         _loadingForm = true;
-        // Use val() + change() + select2-chosen text update (same pattern as trainer click handlers)
+        // Use val() + change() on the underlying input element only (not the Select2 DIV wrapper).
+        // Triggering change on the full '.set-selector' collection would also fire the DIV's
+        // calc-trigger handler BEFORE the set-selector handler populates the form, producing
+        // a spurious performCalculations() call with stale data. The Select2 display text is
+        // updated manually below, so we only need to trigger on the input that has class 'opposing'.
         var $sel = $('#' + side + ' .set-selector');
+        var $inputSel = $('#' + side + ' input.set-selector');
         $sel.val(entry.setId);
-        $sel.change();
+        ($inputSel.length ? $inputSel : $sel).change();
         // Update the Select2 display text to match
         $('#' + side + ' .set-selector').closest('.select2-container').find('.select2-chosen').text(entry.setId);
 
+        // Immediately calculate so move labels show the new pokemon's moves right away.
+        // .set-selector.change() already set NO_CALC = false before returning, so
+        // performCalculations() is safe to call. The MutationObserver will inject
+        // sprites synchronously before the next paint.
+        try { performCalculations(); } catch (e) {}
+
         // After the calc form has fully loaded, batch-set tracked values
-        // with NO_CALC + _loadingForm to prevent cascading recalculations
+        // with NO_CALC + _loadingForm to prevent cascading recalculations.
+        // 0ms timeout: yield to the browser so Select2's internal handlers can
+        // settle, then immediately apply HP/status/ability/item/boosts and recalc.
         setTimeout(function () {
             window.NO_CALC = true;
 
@@ -2646,7 +2659,7 @@
             injectMoveLabelSprites();
             // Re-render inline controls so damage % is up to date
             renderRoundLog();
-        }, 300);
+        }, 0);
     }
 
     /**
