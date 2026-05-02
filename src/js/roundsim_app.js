@@ -114,13 +114,34 @@
     var ALL_TYPES = ['Normal','Fire','Water','Electric','Grass','Ice','Fighting','Poison',
                      'Ground','Flying','Psychic','Bug','Rock','Ghost','Dragon','Dark','Steel','Fairy'];
 
-    /** Ability-based full type immunities: abilityKey → immuneType */
+    /** Ability-based full type immunities: abilityKey → immuneType
+     *  DEPRECATED: Replaced by EffectsRegistry.abilities[key].typeImmunity in Phase 2.1.
+     *  Kept here as a fallback in case the registry hasn't loaded (defensive).
+     */
     var ABILITY_IMMUNITIES = {
         levitate: 'Ground', flashfire: 'Fire',
         lightningrod: 'Electric', voltabsorb: 'Electric', motordrive: 'Electric',
         waterabsorb: 'Water', stormdrain: 'Water', dryskin: 'Water',
         sapsipper: 'Grass', eartheater: 'Ground', wellbakedbody: 'Fire'
     };
+
+    /** Lookup an ability's effect entry from the EffectsRegistry. Returns null if
+     *  the registry hasn't loaded or the ability isn't registered. */
+    function getAbilityEffects(abilityName) {
+        if (!abilityName) return null;
+        if (typeof window === 'undefined' || !window.EffectsRegistry) return null;
+        var key = String(abilityName).toLowerCase().replace(/[\s\-\']+/g, '');
+        return window.EffectsRegistry.abilities[key] || null;
+    }
+
+    /** Lookup an item's effect entry from the EffectsRegistry. Returns null if
+     *  the registry hasn't loaded or the item isn't registered. */
+    function getItemEffects(itemName) {
+        if (!itemName) return null;
+        if (typeof window === 'undefined' || !window.EffectsRegistry) return null;
+        var key = String(itemName).toLowerCase().replace(/[\s\-\']+/g, '');
+        return window.EffectsRegistry.items[key] || null;
+    }
 
     /** Get the defensive type multiplier for a single attacking type vs this pokemon.
      *  Takes into account dual typing and ability immunities. */
@@ -133,14 +154,22 @@
             var x = chart[atkType][defTypes[i]];
             if (typeof x === 'number') mult *= x;
         }
-        // Check ability immunity
+        // Check ability immunity via EffectsRegistry (with hardcoded fallback)
         if (abilityName) {
-            var key = abilityName.toLowerCase().replace(/[\s\-\']+/g, '');
-            if (ABILITY_IMMUNITIES[key] && ABILITY_IMMUNITIES[key] === atkType) mult = 0;
-            // Dry Skin: Fire attacks do 1.25x damage
-            if (key === 'dryskin' && atkType === 'Fire') mult *= 1.25;
-            // Wonder Guard: only super-effective moves hit
-            if (key === 'wonderguard' && mult <= 1) mult = 0;
+            var ab = getAbilityEffects(abilityName);
+            if (ab) {
+                if (ab.typeImmunity === atkType) mult = 0;
+                if (ab.typeDamageMod && ab.typeDamageMod.type === atkType) {
+                    mult *= ab.typeDamageMod.multiplier;
+                }
+                if (ab.wonderGuard && mult <= 1) mult = 0;
+            } else {
+                // Fallback: registry not loaded — use legacy hardcoded constants
+                var key = abilityName.toLowerCase().replace(/[\s\-\']+/g, '');
+                if (ABILITY_IMMUNITIES[key] && ABILITY_IMMUNITIES[key] === atkType) mult = 0;
+                if (key === 'dryskin' && atkType === 'Fire') mult *= 1.25;
+                if (key === 'wonderguard' && mult <= 1) mult = 0;
+            }
         }
         return mult;
     }
@@ -262,7 +291,9 @@
                     // Apply simulated item multiplier
                     pct0 = applySimItemMultiplier(pct0);
                     // Apply Guts boost if applicable
-                    if (boxCalcSettings.burnGuts && p1.ability === 'Guts') {
+                    var p1AeBox = getAbilityEffects(p1.ability);
+                    var p1HasGutsBox = p1AeBox ? !!p1AeBox.burnAttackBoost : (p1.ability === 'Guts');
+                    if (boxCalcSettings.burnGuts && p1HasGutsBox) {
                         var cat0 = p1.moves[j] ? p1.moves[j].category : '';
                         if (cat0 === 'Physical') pct0 *= 1.5;
                     }
@@ -1208,16 +1239,25 @@
         var item = entry.item || '';
         var maxHP = entry.maxHP || 100;
 
-        var hasMagicGuard = ability === 'Magic Guard';
+        var abilityEffects = getAbilityEffects(ability);
+        var itemEffects = getItemEffects(item);
+        var hasMagicGuard = abilityEffects ? !!abilityEffects.indirectDamageImmunity : (ability === 'Magic Guard');
         var isFlying = types.indexOf('Flying') !== -1;
-        var hasLevitate = ability === 'Levitate';
-        var hasAirBalloon = item === 'Air Balloon';
+        var hasLevitate = abilityEffects && abilityEffects.typeImmunity === 'Ground';
+        if (!abilityEffects) hasLevitate = (ability === 'Levitate');
+        var hasAirBalloon = itemEffects ? !!itemEffects.floatImmunity : (item === 'Air Balloon');
         var isGrounded = !isFlying && !hasLevitate && !hasAirBalloon;
+        // Heavy-Duty Boots: ignore all entry hazards
+        var hasHazardImmunity = !!(itemEffects && itemEffects.hazardImmunity);
         // Poison and Steel types absorb Toxic Spikes
         var absorbsTSpikes = types.indexOf('Poison') !== -1 || types.indexOf('Steel') !== -1;
 
         var totalDamage = 0;
         var status = '';
+
+        if (hasHazardImmunity) {
+            return { damage: 0, status: '' };
+        }
 
         // Stealth Rocks — all pokemon, blocked only by Magic Guard
         if (hazards.sr && !hasMagicGuard) {
@@ -1404,6 +1444,8 @@
 
     /** Check if the attacker's ability ignores the defender's ability */
     function ignoresAbility(attackerAbility) {
+        var ae = getAbilityEffects(attackerAbility);
+        if (ae) return !!ae.ignoresAbility;
         return MOLD_BREAKER_ABILITIES.indexOf(attackerAbility) !== -1;
     }
 
@@ -1417,15 +1459,19 @@
         if (hpAfter > 0) return result; // not KO'd, no check needed
         if (hpBefore <= 0) return result; // already fainted
 
-        // Focus Sash: survive at 1 HP if at full HP (not blocked by Mold Breaker — it's an item)
-        if (defEntry.item === 'Focus Sash' && hpBefore >= maxHP) {
+        // Focus Sash-style: survive at 1 HP if at full HP (not blocked by Mold Breaker — it's an item)
+        var defItemEff = getItemEffects(defEntry.item);
+        var itemSurvives = defItemEff ? !!defItemEff.survivalFullHP : (defEntry.item === 'Focus Sash');
+        if (itemSurvives && hpBefore >= maxHP) {
             result.survived = true;
             result.sashed = true;
             return result;
         }
 
-        // Sturdy: survive at 1 HP if at full HP (blocked by Mold Breaker/Turboblaze/Teravolt)
-        if (defEntry.ability === 'Sturdy' && hpBefore >= maxHP && !ignoresAbility(atkAbility)) {
+        // Sturdy-style: survive at 1 HP if at full HP (blocked by Mold Breaker/Turboblaze/Teravolt)
+        var defAbilEff = getAbilityEffects(defEntry.ability);
+        var abilSurvives = defAbilEff ? !!defAbilEff.survivalFullHP : (defEntry.ability === 'Sturdy');
+        if (abilSurvives && hpBefore >= maxHP && !ignoresAbility(atkAbility)) {
             result.survived = true;
             result.sturdied = true;
             return result;
@@ -1762,27 +1808,95 @@
         try {
             var poke = createPokemon(entry.setId);
             spd = poke.stats.spe || 50;
-            // Item modifiers
-            var itm = entry.item || '';
-            if (itm === 'Iron Ball' || itm === 'Macho Brace' || itm === 'Power Weight' ||
-                itm === 'Power Bracer' || itm === 'Power Belt' || itm === 'Power Lens' ||
-                itm === 'Power Band' || itm === 'Power Anklet') {
-                spd = Math.floor(spd * 0.5);
-            } else if (itm === 'Choice Scarf') {
-                spd = Math.floor(spd * 1.5);
-            } else if (itm === 'Quick Powder' && entry.name === 'Ditto') {
-                spd = spd * 2;
-            }
-            // Ability modifiers
-            if (entry.ability === 'Quick Feet' && entry.status) spd = Math.floor(spd * 1.5);
-            if (entry.ability === 'Slow Start') spd = Math.floor(spd * 0.5);
-            // Status modifier (paralysis halves speed; Quick Feet bypasses this)
-            if (entry.status === 'Paralysis' && entry.ability !== 'Quick Feet') spd = Math.floor(spd * 0.5);
+            spd = applySpeedModifiers(spd, entry, '', '');
             // Stat boost modifier
             var spdBoost = (entry.boosts && entry.boosts.sp) || 0;
             if (spdBoost > 0) spd = Math.floor(spd * (2 + spdBoost) / 2);
             else if (spdBoost < 0) spd = Math.floor(spd * 2 / (2 - spdBoost));
         } catch (err) {}
+        return spd;
+    }
+
+    /**
+     * Apply item, ability, and paralysis speed modifiers in the canonical order.
+     * Returns the new speed value. Does NOT apply boost stages — caller handles those.
+     *
+     *   spd            : current speed value
+     *   entry          : roster entry (.item, .ability, .status, .name)
+     *   weather        : weather string (or '' to skip weather-conditional mods)
+     *   terrain        : terrain string (or '' to skip terrain-conditional mods)
+     *
+     * Reads from EffectsRegistry. Falls back to legacy hardcoded behavior if the
+     * registry has not loaded.
+     */
+    function applySpeedModifiers(spd, entry, weather, terrain) {
+        var item    = entry.item    || '';
+        var ability = entry.ability || '';
+        var status  = entry.status  || '';
+        var species = entry.name    || '';
+
+        // --- Item speed modifier (registry-driven) ---
+        var itemReg = getItemEffects(item);
+        if (itemReg && itemReg.speedMod) {
+            var im = itemReg.speedMod;
+            var imApplies = true;
+            if (im.condition && im.condition.speciesOnly) {
+                imApplies = (species === im.condition.speciesOnly);
+            }
+            if (imApplies) {
+                spd = (im.multiplier === 2)
+                    ? spd * im.multiplier              // doubling — no floor (matches Quick Powder)
+                    : Math.floor(spd * im.multiplier); // halving / 1.5x — floored
+            }
+        } else if (!window.EffectsRegistry) {
+            // Fallback: registry not loaded — legacy hardcoded behavior
+            if (item === 'Iron Ball' || item === 'Macho Brace' || item === 'Power Weight' ||
+                item === 'Power Bracer' || item === 'Power Belt' || item === 'Power Lens' ||
+                item === 'Power Band' || item === 'Power Anklet') {
+                spd = Math.floor(spd * 0.5);
+            } else if (item === 'Choice Scarf') {
+                spd = Math.floor(spd * 1.5);
+            } else if (item === 'Quick Powder' && species === 'Ditto') {
+                spd = spd * 2;
+            }
+        }
+
+        // --- Ability speed modifier (registry-driven) ---
+        // Original behavior: only ONE ability speedMod applies (mutually exclusive
+        // if-else chain). Preserve that by short-circuiting on first match.
+        var abReg = getAbilityEffects(ability);
+        if (abReg && abReg.speedMod) {
+            var am = abReg.speedMod;
+            var amApplies = true;
+            var cond = am.condition || null;
+            if (cond) {
+                if (cond.weather)   amApplies = amApplies && cond.weather.indexOf(weather) !== -1;
+                if (cond.terrain)   amApplies = amApplies && cond.terrain.indexOf(terrain) !== -1;
+                if (cond.hasStatus) amApplies = amApplies && !!status;
+            }
+            if (amApplies) {
+                spd = (am.multiplier === 2)
+                    ? spd * am.multiplier
+                    : Math.floor(spd * am.multiplier);
+            }
+        } else if (!window.EffectsRegistry) {
+            // Fallback: registry not loaded
+            if (ability === 'Swift Swim' && (weather === 'Rain' || weather === 'Heavy Rain')) spd = spd * 2;
+            else if (ability === 'Chlorophyll' && (weather === 'Sun' || weather === 'Harsh Sunshine')) spd = spd * 2;
+            else if (ability === 'Sand Rush' && weather === 'Sand') spd = spd * 2;
+            else if (ability === 'Slush Rush' && (weather === 'Snow' || weather === 'Hail')) spd = spd * 2;
+            else if (ability === 'Surge Surfer' && terrain === 'Electric') spd = spd * 2;
+            else if (ability === 'Quick Feet' && status) spd = Math.floor(spd * 1.5);
+            else if (ability === 'Slow Start') spd = Math.floor(spd * 0.5);
+        }
+
+        // --- Status modifier (paralysis halves; Quick Feet bypasses) ---
+        // Quick Feet bypass uses the registry hasStatus speedMod check above by NAME.
+        // Preserve original behavior by checking for Quick Feet ability name directly.
+        if (status === 'Paralysis' && ability !== 'Quick Feet') {
+            spd = Math.floor(spd * 0.5);
+        }
+
         return spd;
     }
 
@@ -1868,35 +1982,10 @@
         var spd = baseSpe;
         var w = weather != null ? weather : getWeather();
         var t = terrain != null ? terrain : getTerrain();
-        var item = entry.item || '';
-        var ability = entry.ability || '';
-        var status = entry.status || '';
         var boost = (entry.boosts && entry.boosts.sp) || 0;
 
-        // Item modifiers
-        if (item === 'Iron Ball' || item === 'Macho Brace' || item === 'Power Weight' ||
-            item === 'Power Bracer' || item === 'Power Belt' || item === 'Power Lens' ||
-            item === 'Power Band' || item === 'Power Anklet') {
-            spd = Math.floor(spd * 0.5);
-        } else if (item === 'Choice Scarf') {
-            spd = Math.floor(spd * 1.5);
-        } else if (item === 'Quick Powder' && (entry.name || '') === 'Ditto') {
-            spd = spd * 2;
-        }
-
-        // Weather ability speed doublers
-        if (ability === 'Swift Swim' && (w === 'Rain' || w === 'Heavy Rain')) spd = spd * 2;
-        else if (ability === 'Chlorophyll' && (w === 'Sun' || w === 'Harsh Sunshine')) spd = spd * 2;
-        else if (ability === 'Sand Rush' && w === 'Sand') spd = spd * 2;
-        else if (ability === 'Slush Rush' && (w === 'Snow' || w === 'Hail')) spd = spd * 2;
-        // Terrain ability
-        else if (ability === 'Surge Surfer' && t === 'Electric') spd = spd * 2;
-        // Other ability modifiers
-        else if (ability === 'Quick Feet' && status) spd = Math.floor(spd * 1.5);
-        else if (ability === 'Slow Start') spd = Math.floor(spd * 0.5);
-
-        // Status modifiers (paralysis)
-        if (status === 'Paralysis' && ability !== 'Quick Feet') spd = Math.floor(spd * 0.5);
+        // Apply item, ability, and paralysis speed modifiers via shared helper
+        spd = applySpeedModifiers(spd, entry, w, t);
 
         // Boost stages
         if (boost !== 0) {
@@ -2360,20 +2449,23 @@
         var defMaxHP = defender.maxHP;
         var move = moveInfo.move;
 
-        var atkMagicGuard = attacker.ability === 'Magic Guard';
-        var atkRockHead   = attacker.ability === 'Rock Head';
+        var atkAbilEff = getAbilityEffects(attacker.ability);
+        var atkItemEff = getItemEffects(attacker.item);
+        var atkMagicGuard = atkAbilEff ? !!atkAbilEff.indirectDamageImmunity : (attacker.ability === 'Magic Guard');
+        var atkRockHead   = atkAbilEff ? !!atkAbilEff.recoilImmunity : (attacker.ability === 'Rock Head');
         // In Gen 5+, recoil is based on the raw damage roll, NOT capped at the
         // defender's remaining HP.  Drain moves ARE capped at actual HP lost.
         var defCurHP = Math.max(1, defender.currentHP || defender.maxHP);
         var effMinDmg = Math.min(moveInfo.minDmg, defCurHP);
         var effMaxDmg = Math.min(moveInfo.maxDmg, defCurHP);
 
-        // --- Life Orb recoil on attacker (blocked by Magic Guard; fixed 1/10 of attacker maxHP) ---
-        if (attacker.item === 'Life Orb' && moveInfo.minDmg > 0 && !atkMagicGuard) {
-            var loRecoil = Math.max(1, Math.floor(atkMaxHP / 10));
+        // --- Life Orb-style recoil on attacker (blocked by Magic Guard) ---
+        var atkSelfRecoilFrac = atkItemEff && atkItemEff.attackerSelfRecoil ? atkItemEff.attackerSelfRecoil : (attacker.item === 'Life Orb' ? 1/10 : 0);
+        if (atkSelfRecoilFrac > 0 && moveInfo.minDmg > 0 && !atkMagicGuard) {
+            var loRecoil = Math.max(1, Math.floor(atkMaxHP * atkSelfRecoilFrac));
             extras.push({
                 target: 'attacker',
-                source: 'Life Orb',
+                source: attacker.item,
                 damage: loRecoil,
                 type: 'recoil'
             });
@@ -2394,11 +2486,16 @@
 
         // --- Contact damage (Iron Barbs, Rough Skin, Rocky Helmet) — blocked by Magic Guard ---
         var isContact = !!(move.makesContact || move.flags && move.flags.contact);
-        if (isContact && moveInfo.minDmg > 0 && !atkMagicGuard) {
+        // Protective Pads / Punching Glove: attacker bypasses contact effects
+        var atkContactAvoid = !!(atkItemEff && atkItemEff.contactAvoidance);
+        if (isContact && !atkContactAvoid && moveInfo.minDmg > 0 && !atkMagicGuard) {
             // Defender ability
-            if (CONTACT_DAMAGE_ABILITIES[defender.ability]) {
-                var frac = CONTACT_DAMAGE_ABILITIES[defender.ability];
-                var contactDmg = Math.max(1, Math.floor(atkMaxHP * frac));
+            var defAbilEff = getAbilityEffects(defender.ability);
+            var defContactFrac = defAbilEff && defAbilEff.contactRecoil
+                ? defAbilEff.contactRecoil
+                : (CONTACT_DAMAGE_ABILITIES[defender.ability] || 0);
+            if (defContactFrac > 0) {
+                var contactDmg = Math.max(1, Math.floor(atkMaxHP * defContactFrac));
                 extras.push({
                     target: 'attacker',
                     source: defender.ability,
@@ -2407,9 +2504,12 @@
                 });
             }
             // Defender item
-            if (CONTACT_DAMAGE_ITEMS[defender.item]) {
-                var frac2 = CONTACT_DAMAGE_ITEMS[defender.item];
-                var contactDmg2 = Math.max(1, Math.floor(atkMaxHP * frac2));
+            var defItemEff = getItemEffects(defender.item);
+            var defItemContactFrac = defItemEff && defItemEff.contactRecoilToAttacker
+                ? defItemEff.contactRecoilToAttacker
+                : (CONTACT_DAMAGE_ITEMS[defender.item] || 0);
+            if (defItemContactFrac > 0) {
+                var contactDmg2 = Math.max(1, Math.floor(atkMaxHP * defItemContactFrac));
                 extras.push({
                     target: 'attacker',
                     source: defender.item,
@@ -2439,10 +2539,13 @@
         var eot = [];
         var maxHP = entry.maxHP;
         var ability = entry.ability || '';
-        var hasMagicGuard = ability === 'Magic Guard';
-        var hasPoisonHeal = ability === 'Poison Heal';
+        var abilEff = getAbilityEffects(ability);
+        var itemEff = getItemEffects(entry.item || '');
+        var hasMagicGuard = abilEff ? !!abilEff.indirectDamageImmunity : (ability === 'Magic Guard');
+        var hasPoisonHeal = abilEff && abilEff.statusHeal && (abilEff.statusHeal.status === 'Poison' || abilEff.statusHeal.status === 'Badly Poisoned');
+        if (!abilEff) hasPoisonHeal = (ability === 'Poison Heal');
         // Guts suppresses burn damage (but burn SpAtk drop still applies)
-        var hasGuts = ability === 'Guts';
+        var hasGuts = abilEff ? !!abilEff.burnAttackBoost : (ability === 'Guts');
 
         // --- Status damage (blocked by Magic Guard / Guts for burn) ---
         if (entry.status === 'Burn' && !hasMagicGuard && !hasGuts) {
@@ -2450,8 +2553,9 @@
             eot.push({ source: 'Burn', damage: burnDmg });
         }
         // Poison Heal: heal 1/8 instead of taking poison/toxic damage
+        var phHealFrac = (abilEff && abilEff.statusHeal && abilEff.statusHeal.frac) ? abilEff.statusHeal.frac : 1/8;
         if (hasPoisonHeal && (entry.status === 'Poison' || entry.status === 'Badly Poisoned')) {
-            eot.push({ source: 'Poison Heal', damage: -Math.max(1, Math.floor(maxHP / 8)) });
+            eot.push({ source: 'Poison Heal', damage: -Math.max(1, Math.floor(maxHP * phHealFrac)) });
         } else {
             if (entry.status === 'Poison' && !hasMagicGuard) {
                 var psnDmg = Math.max(1, Math.floor(maxHP / 8));
@@ -2483,23 +2587,44 @@
             }
         }
 
-        // --- Healing items ---
-        if (entry.item === 'Leftovers') {
-            var leftHeal = Math.max(1, Math.floor(maxHP / 16));
-            eot.push({ source: 'Leftovers', damage: -leftHeal });
-        }
-        if (entry.item === 'Black Sludge') {
-            if (hasType(entry, ['Poison'])) {
-                eot.push({ source: 'Black Sludge', damage: -Math.max(1, Math.floor(maxHP / 16)) });
-            } else if (!hasMagicGuard) {
-                // Magic Guard blocks Black Sludge damage (but not healing)
-                eot.push({ source: 'Black Sludge', damage: Math.max(1, Math.floor(maxHP / 8)) });
+        // --- Healing items (registry-driven via eotHealing) ---
+        if (itemEff && itemEff.eotHealing) {
+            var heal = itemEff.eotHealing;
+            var cond = heal.condition;
+            if (!cond) {
+                eot.push({ source: entry.item, damage: -Math.max(1, Math.floor(maxHP * heal.frac)) });
+            } else if (cond.holderType) {
+                if (hasType(entry, [cond.holderType])) {
+                    eot.push({ source: entry.item, damage: -Math.max(1, Math.floor(maxHP * heal.frac)) });
+                } else if (!hasMagicGuard) {
+                    var penalty = cond.elseDamageFrac || (heal.frac * 2);
+                    eot.push({ source: entry.item, damage: Math.max(1, Math.floor(maxHP * penalty)) });
+                }
+            }
+        } else {
+            // Fallback to legacy hardcoded behavior
+            if (entry.item === 'Leftovers') {
+                var leftHeal = Math.max(1, Math.floor(maxHP / 16));
+                eot.push({ source: 'Leftovers', damage: -leftHeal });
+            }
+            if (entry.item === 'Black Sludge') {
+                if (hasType(entry, ['Poison'])) {
+                    eot.push({ source: 'Black Sludge', damage: -Math.max(1, Math.floor(maxHP / 16)) });
+                } else if (!hasMagicGuard) {
+                    eot.push({ source: 'Black Sludge', damage: Math.max(1, Math.floor(maxHP / 8)) });
+                }
             }
         }
 
         // --- Grassy Terrain healing ---
         if (getTerrain() === 'Grassy') {
             eot.push({ source: 'Grassy Terrain', damage: -Math.max(1, Math.floor(maxHP / 16)) });
+        }
+
+        // --- Item EOT damage (Sticky Barb) — blocked by Magic Guard ---
+        if (itemEff && itemEff.eotDamage && !hasMagicGuard) {
+            var ed = itemEff.eotDamage;
+            eot.push({ source: entry.item, damage: Math.max(1, Math.floor(maxHP * ed.frac)) });
         }
 
         return eot;
@@ -2516,6 +2641,8 @@
     }
 
     function isWeatherImmune(ability) {
+        var ae = getAbilityEffects(ability);
+        if (ae) return !!ae.weatherDamageImmunity;
         return WEATHER_IMMUNE_ABILITIES.indexOf(ability) !== -1;
     }
 
@@ -2888,6 +3015,14 @@
                 }
             }
         }
+        // If currently on a branch, rebuildLineTeams (called above) replayed main-line
+        // rounds and left both P1 and P2 roster HP in the main-line end state (e.g. 0 after
+        // a KO).  Rebuild for the active branch so HP reflects that branch's own round history.
+        if (line.activeBranchIdx >= 0) {
+            rebuildBranchTeams(line, line.activeBranchIdx);
+            syncActiveStateToForm();
+        }
+
         renderTeamPanel('p2');
         if (isDoubles()) refreshDoublesUI();
         // Sync first-turn-out checkbox when P2 team changes
@@ -3208,6 +3343,23 @@
         var p1Priority = (p1MoveData && typeof p1MoveData.priority === 'number') ? p1MoveData.priority : 0;
         var p2Priority = (p2MoveData && typeof p2MoveData.priority === 'number') ? p2MoveData.priority : 0;
 
+        // Ability priority modifiers (Prankster, Gale Wings, Triage)
+        function applyAbilityPriorityMod(entry, basePrio, moveData) {
+            if (!moveData) return basePrio;
+            var ae = getAbilityEffects(entry.ability);
+            if (!ae || !ae.priorityMod) return basePrio;
+            var pm = ae.priorityMod;
+            var c = pm.condition || {};
+            if (c.alwaysLast) return basePrio; // Stall handled separately via lastInBracket
+            if (c.category && moveData.category !== c.category) return basePrio;
+            if (c.moveType && moveData.type !== c.moveType) return basePrio;
+            if (c.fullHP && entry.currentHP < entry.maxHP) return basePrio;
+            if (c.isHealing && !(moveData.heal || moveData.drain)) return basePrio;
+            return basePrio + (pm.boost || 0);
+        }
+        p1Priority = applyAbilityPriorityMod(p1Entry, p1Priority, p1MoveData);
+        p2Priority = applyAbilityPriorityMod(p2Entry, p2Priority, p2MoveData);
+
         // Custap Berry: gives +1 priority bracket when at ≤25% HP (≤50% with Gluttony)
         var p1Custap = false, p2Custap = false;
         if (p1Entry.item === 'Custap Berry' && p1MoveIdx !== 'none') {
@@ -3228,6 +3380,20 @@
         if (p1Priority !== p2Priority) {
             // Higher priority bracket goes first (regardless of speed)
             speed.faster = p1Priority > p2Priority ? 'p1' : 'p2';
+        } else {
+            // Same bracket: check moveLastInBracket (Lagging Tail / Full Incense) and Stall
+            function movesLast(entry) {
+                var ie = getItemEffects(entry.item);
+                if (ie && ie.moveLastInBracket) return true;
+                var ae = getAbilityEffects(entry.ability);
+                if (ae && ae.priorityMod && ae.priorityMod.condition && ae.priorityMod.condition.alwaysLast) return true;
+                return false;
+            }
+            var p1Last = movesLast(p1Entry);
+            var p2Last = movesLast(p2Entry);
+            if (p1Last && !p2Last) speed.faster = 'p2';
+            else if (p2Last && !p1Last) speed.faster = 'p1';
+            // If both or neither, keep speed.faster as-is
         }
         // If same priority bracket, speed.faster from getSpeedInfo() is used as-is
 
@@ -3274,11 +3440,15 @@
 
         // Helper: check if a pokemon is immune to sleep
         function isSleepImmune(entry) {
+            var ae = getAbilityEffects(entry.ability || '');
+            if (ae && ae.statusImmunity && ae.statusImmunity.indexOf('Sleep') !== -1) return true;
             var ab = (entry.ability || '').toLowerCase().replace(/\s/g, '');
             return ab === 'insomnia' || ab === 'vitalspirit' || ab === 'sweetveil';
         }
         // Helper: check if a pokemon is immune to freeze
         function isFreezeImmune(entry) {
+            var ae = getAbilityEffects(entry.ability || '');
+            if (ae && ae.statusImmunity && ae.statusImmunity.indexOf('Freeze') !== -1) return true;
             var ab = (entry.ability || '').toLowerCase().replace(/\s/g, '');
             if (ab === 'magmaarmor') return true;
             // Ice types are freeze-immune in gen 6+
@@ -3287,6 +3457,13 @@
         }
         // Helper: check if item cures a status
         function itemCuresStatus(entry, status) {
+            var ie = getItemEffects(entry.item || '');
+            if (ie && ie.statusCure) {
+                if (ie.statusCure === 'any') return true;
+                if (ie.statusCure === status) return true;
+                // Treat Badly Poisoned as Poison for cure purposes
+                if (ie.statusCure === 'Poison' && status === 'Badly Poisoned') return true;
+            }
             var it = (entry.item || '').toLowerCase().replace(/\s/g, '');
             if (it === 'lumberry') return true;
             if (status === 'Sleep' && it === 'chestoberry') return true;
@@ -3403,11 +3580,18 @@
         // ── Contact/hit ability effects ──
         // Cotton Down: when hit by a damaging move, -1 Speed to all other pokemon on the field
         // In singles: the attacker gets -1 Spe
-        if (p1Dmg && p1Dmg.maxDmg > 0 && !p1Flinched && p2Entry.ability === 'Cotton Down') {
-            applyBoosts(p1Entry, { spe: -1 });
+        function reactiveDrop(defAbility) {
+            var ae = getAbilityEffects(defAbility);
+            if (ae && ae.reactiveSpeedDrop) return ae.reactiveSpeedDrop;
+            return defAbility === 'Cotton Down' ? 1 : 0;
         }
-        if (p2Dmg && p2Dmg.maxDmg > 0 && !p2Flinched && p1Entry.ability === 'Cotton Down') {
-            applyBoosts(p2Entry, { spe: -1 });
+        var p2Reactive = reactiveDrop(p2Entry.ability);
+        if (p1Dmg && p1Dmg.maxDmg > 0 && !p1Flinched && p2Reactive) {
+            applyBoosts(p1Entry, { spe: -p2Reactive });
+        }
+        var p1Reactive = reactiveDrop(p1Entry.ability);
+        if (p2Dmg && p2Dmg.maxDmg > 0 && !p2Flinched && p1Reactive) {
+            applyBoosts(p2Entry, { spe: -p1Reactive });
         }
 
         // Increment toxic counter before EOT so the correct turn count is used
@@ -4309,7 +4493,10 @@
                         var hitSlot = dmgResults[di].target;
                         var hitEntry = fighters[hitSlot];
                         // Inner Focus and Shield Dust prevent flinch
-                        if (hitEntry && hitEntry.ability !== 'Inner Focus' && hitEntry.ability !== 'Shield Dust') {
+                        var hitAe = hitEntry ? getAbilityEffects(hitEntry.ability) : null;
+                        var flinchBlocked = hitAe ? (!!hitAe.flinchImmunity || !!hitAe.secondaryImmunity)
+                            : (hitEntry && (hitEntry.ability === 'Inner Focus' || hitEntry.ability === 'Shield Dust'));
+                        if (hitEntry && !flinchBlocked) {
                             flinched[hitSlot] = true;
                         }
                     }
@@ -5350,8 +5537,11 @@
             var col = cols[ci];
             var active = col.idx === line.activeBranchIdx ? ' rsa-branch-tab-active' : '';
             var hidden = ci >= maxVisible ? ' rsa-branch-tab-hidden' : '';
+            var tabClose = col.idx >= 0
+                ? ' <span class="rsa-branch-tab-delete" data-branch-idx="' + col.idx + '" title="Delete branch">&times;</span>'
+                : '';
             html += '<button class="rsa-branch-tab' + active + hidden + '" data-branch-idx="' + col.idx + '">' +
-                esc(col.name) + ' <small>(' + col.rounds.length + ')</small></button>';
+                esc(col.name) + ' <small>(' + col.rounds.length + ')</small>' + tabClose + '</button>';
         }
         html += '</div>';
 
@@ -6407,7 +6597,9 @@
             if ($('#p2 .status').val() === 'Paralyzed' && p2s === p2sBase) p2s = Math.floor(p2s * 0.75);
 
             var p1AbilityToggle = $('#p1').find('.abilityToggle').is(':checked');
-            if (p1.ability === 'Unburden' && !p1AbilityToggle) p1s = Math.floor(p1s / 2);
+            var p1AbilEffBox = getAbilityEffects(p1.ability);
+            var p1HasUnburden = p1AbilEffBox ? !!p1AbilEffBox.unburden : (p1.ability === 'Unburden');
+            if (p1HasUnburden && !p1AbilityToggle) p1s = Math.floor(p1s / 2);
             var fastest = p1s > p2s ? 'F' : p1s < p2s ? 'S' : 'T';
 
             var p1KO = 0, p2KO = 0, p1HD = 0, p2HD = 0;
@@ -6429,7 +6621,9 @@
                 loPct0 = applySimItemMultiplier(loPct0);
                 hiPct0 = applySimItemMultiplier(hiPct0);
                 // Apply Guts burn boost
-                if (boxCalcSettings.burnGuts && p1.ability === 'Guts') {
+                var p1AeBox2 = getAbilityEffects(p1.ability);
+                var p1HasGutsBox2 = p1AeBox2 ? !!p1AeBox2.burnAttackBoost : (p1.ability === 'Guts');
+                if (boxCalcSettings.burnGuts && p1HasGutsBox2) {
                     var cat0 = p1.moves[i] ? (p1.moves[i].category || '') : '';
                     if (cat0 === 'Physical') { loPct0 *= 1.5; hiPct0 *= 1.5; }
                 }
@@ -7507,8 +7701,8 @@
             autoSave();
         });
 
-        // ── Branch delete ──
-        $(document).on('click', '.rsa-branch-delete', function (e) {
+        // ── Branch delete (column header × or tab ×) ──
+        $(document).on('click', '.rsa-branch-delete, .rsa-branch-tab-delete', function (e) {
             e.stopPropagation();
             var branchIdx = ~~$(this).data('branch-idx');
             var line = curLine();
@@ -7549,11 +7743,17 @@
         // ── Delete All Rounds (log header button) ──
         $(document).on('click', '#rsa-delete-all-rounds', function () {
             var line = curLine();
-            if (line.rounds.length === 0) return;
-            if (!confirm('Delete all ' + line.rounds.length + ' rounds in "' + line.name + '"?')) return;
+            var totalRounds = line.rounds.length;
+            for (var _bi = 0; _bi < line.branches.length; _bi++) {
+                totalRounds += line.branches[_bi].rounds.length;
+            }
+            if (totalRounds === 0) return;
+            if (!confirm('Delete all ' + totalRounds + ' rounds (including ' + line.branches.length + ' branch(es)) in "' + line.name + '"?')) return;
             suppressP2Sync = true;
             line.rounds = [];
             line.roundCounter = 0;
+            line.branches = [];
+            line.activeBranchIdx = -1;
             rebuildLineTeams(line);
             ensureP2RosterComplete();
             syncActiveStateToForm();

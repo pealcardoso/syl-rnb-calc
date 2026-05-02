@@ -1512,6 +1512,18 @@ fieldset {
     opacity: 0.7;
     margin-left: 2px;
 }
+.rsa-branch-tab-delete {
+    margin-left: 5px;
+    font-size: 1.15em;
+    line-height: 1;
+    opacity: 0.5;
+    cursor: pointer;
+    vertical-align: middle;
+}
+.rsa-branch-tab-delete:hover {
+    opacity: 1;
+    color: #fc8181;
+}
 
 /* ── Branch columns grid ── */
 .rsa-branch-columns {
