@@ -1,0 +1,38 @@
+[     751ms] [ERROR] Error: <path> attribute d: Expected number, "…v1h1a1 1 0 0 1 1V14a1 1 0 0 1-1 …". @ http://localhost:8080/roundsim.template.html:66
+[     891ms] [ERROR] Failed to load resource: the server responded with a status of 404 (File not found) @ http://localhost:8080/calc/stats.js?:0
+[     892ms] [ERROR] Failed to load resource: the server responded with a status of 404 (File not found) @ http://localhost:8080/calc/util.js?:0
+[     901ms] [ERROR] Failed to load resource: the server responded with a status of 404 (File not found) @ http://localhost:8080/calc/ai.js?:0
+[     943ms] [ERROR] Failed to load resource: the server responded with a status of 404 (File not found) @ http://localhost:8080/calc/data/species.js?:0
+[    1765ms] [ERROR] Failed to load resource: the server responded with a status of 404 (File not found) @ http://localhost:8080/calc/data/natures.js?:0
+[    1796ms] [ERROR] Failed to load resource: the server responded with a status of 404 (File not found) @ http://localhost:8080/calc/data/types.js?:0
+[    1832ms] [ERROR] Failed to load resource: the server responded with a status of 404 (File not found) @ http://localhost:8080/calc/data/abilities.js?:0
+[    1879ms] [ERROR] Failed to load resource: the server responded with a status of 404 (File not found) @ http://localhost:8080/calc/data/moves.js?:0
+[    1884ms] [ERROR] Failed to load resource: the server responded with a status of 404 (File not found) @ http://localhost:8080/calc/data/index.js?:0
+[    1884ms] [ERROR] Failed to load resource: the server responded with a status of 404 (File not found) @ http://localhost:8080/calc/data/items.js?:0
+[    1884ms] [ERROR] Failed to load resource: the server responded with a status of 404 (File not found) @ http://localhost:8080/calc/move.js?:0
+[    1929ms] [ERROR] Failed to load resource: the server responded with a status of 404 (File not found) @ http://localhost:8080/calc/pokemon.js?:0
+[    1945ms] [ERROR] Failed to load resource: the server responded with a status of 404 (File not found) @ http://localhost:8080/calc/field.js?:0
+[    1951ms] [ERROR] Failed to load resource: the server responded with a status of 404 (File not found) @ http://localhost:8080/calc/items.js?:0
+[    1957ms] [ERROR] Failed to load resource: the server responded with a status of 404 (File not found) @ http://localhost:8080/calc/mechanics/util.js?:0
+[    1966ms] [ERROR] Failed to load resource: the server responded with a status of 404 (File not found) @ http://localhost:8080/calc/mechanics/gen789.js?:0
+[    1985ms] [ERROR] Failed to load resource: the server responded with a status of 404 (File not found) @ http://localhost:8080/calc/mechanics/gen4.js?:0
+[    1996ms] [ERROR] Failed to load resource: the server responded with a status of 404 (File not found) @ http://localhost:8080/calc/mechanics/gen3.js?:0
+[    1997ms] [ERROR] Failed to load resource: the server responded with a status of 404 (File not found) @ http://localhost:8080/calc/mechanics/gen56.js?:0
+[    2053ms] [ERROR] Failed to load resource: the server responded with a status of 404 (File not found) @ http://localhost:8080/calc/mechanics/gen12.js?:0
+[    2128ms] [ERROR] Failed to load resource: the server responded with a status of 404 (File not found) @ http://localhost:8080/calc/calc.js?:0
+[    2128ms] [ERROR] Failed to load resource: the server responded with a status of 404 (File not found) @ http://localhost:8080/calc/result.js?:0
+[    2137ms] [ERROR] Failed to load resource: the server responded with a status of 404 (File not found) @ http://localhost:8080/calc/desc.js?:0
+[    2222ms] [ERROR] Failed to load resource: the server responded with a status of 404 (File not found) @ http://localhost:8080/calc/adaptable.js?:0
+[    2236ms] [ERROR] Failed to load resource: the server responded with a status of 404 (File not found) @ http://localhost:8080/calc/index.js?:0
+[    3069ms] TypeError: Cannot read properties of undefined (reading 'get')
+    at HTMLInputElement.<anonymous> (http://localhost:8080/js/shared_controls.js?:1136:32)
+    at HTMLInputElement.dispatch (http://localhost:8080/js/vendor/jquery-1.9.1.min.js:3:28337)
+    at v.handle (http://localhost:8080/js/vendor/jquery-1.9.1.min.js:3:25042)
+    at Object.trigger (http://localhost:8080/js/vendor/jquery-1.9.1.min.js:3:27423)
+    at HTMLInputElement.<anonymous> (http://localhost:8080/js/vendor/jquery-1.9.1.min.js:4:3107)
+    at b.each (http://localhost:8080/js/vendor/jquery-1.9.1.min.js:3:5257)
+    at init.each (http://localhost:8080/js/vendor/jquery-1.9.1.min.js:3:2013)
+    at init.trigger (http://localhost:8080/js/vendor/jquery-1.9.1.min.js:4:3083)
+    at b.fn.<computed> [as change] (http://localhost:8080/js/vendor/jquery-1.9.1.min.js:5:8648)
+    at HTMLDocument.<anonymous> (http://localhost:8080/js/shared_controls.js?:2124:16)
+[    3501ms] [ERROR] Failed to load resource: the server responded with a status of 404 (File not found) @ http://localhost:8080/favicon.ico:0

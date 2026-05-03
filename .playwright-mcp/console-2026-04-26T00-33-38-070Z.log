@@ -1,0 +1,13 @@
+[     690ms] [ERROR] Error: <path> attribute d: Expected number, "…v1h1a1 1 0 0 1 1V14a1 1 0 0 1-1 …". @ http://localhost:8080/roundsim.html:66
+[   58021ms] TypeError: Cannot read properties of undefined (reading 'undefined')
+    at getActiveRounds (http://localhost:8080/js/roundsim_app.js?cc3c0bd2:1196:35)
+    at finishRound (http://localhost:8080/js/roundsim_app.js?cc3c0bd2:6295:17)
+    at HTMLButtonElement.<anonymous> (http://localhost:8080/js/roundsim_app.js?cc3c0bd2:6413:13)
+    at HTMLButtonElement.dispatch (http://localhost:8080/js/vendor/jquery-1.9.1.min.js:3:28337)
+    at v.handle (http://localhost:8080/js/vendor/jquery-1.9.1.min.js:3:25042)
+    at eval (eval at evaluate (:302:30), <anonymous>:2:51)
+    at UtilityScript.evaluate (<anonymous>:304:16)
+    at UtilityScript.<anonymous> (<anonymous>:1:44)
+[   82562ms] [ERROR] Error: <path> attribute d: Expected number, "…v1h1a1 1 0 0 1 1V14a1 1 0 0 1-1 …". @ http://localhost:8080/roundsim.html:66
+[  103651ms] [ERROR] Error: <path> attribute d: Expected number, "…v1h1a1 1 0 0 1 1V14a1 1 0 0 1-1 …". @ http://localhost:8080/roundsim.html:66
+[  490340ms] [ERROR] Error: <path> attribute d: Expected number, "…v1h1a1 1 0 0 1 1V14a1 1 0 0 1-1 …". @ http://localhost:8080/roundsim.html:66

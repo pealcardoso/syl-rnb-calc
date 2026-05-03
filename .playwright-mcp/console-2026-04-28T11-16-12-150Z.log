@@ -1,0 +1,10 @@
+[    4597ms] [ERROR] Error: <path> attribute d: Expected number, "…v1h1a1 1 0 0 1 1V14a1 1 0 0 1-1 …". @ http://localhost:8080/roundsim.html:66
+[   12344ms] Unexpected token '='
+[   15176ms] [ERROR] Failed to load resource: the server responded with a status of 404 (File not found) @ http://localhost:8080/favicon.ico:0
+[  114632ms] [ERROR] Error: <path> attribute d: Expected number, "…v1h1a1 1 0 0 1 1V14a1 1 0 0 1-1 …". @ http://localhost:8080/roundsim.html:66
+[  115688ms] Unexpected token '='
+[  172957ms] [ERROR] Error: <path> attribute d: Expected number, "…v1h1a1 1 0 0 1 1V14a1 1 0 0 1-1 …". @ http://localhost:8080/roundsim.html:66
+[  173670ms] Unexpected token '='
+[  230937ms] [ERROR] Error: <path> attribute d: Expected number, "…v1h1a1 1 0 0 1 1V14a1 1 0 0 1-1 …". @ http://localhost:8080/roundsim.html:66
+[  308876ms] [ERROR] Error: <path> attribute d: Expected number, "…v1h1a1 1 0 0 1 1V14a1 1 0 0 1-1 …". @ http://localhost:8080/roundsim.html:66
+[  374080ms] [ERROR] Error: <path> attribute d: Expected number, "…v1h1a1 1 0 0 1 1V14a1 1 0 0 1-1 …". @ http://localhost:8080/roundsim.html:66

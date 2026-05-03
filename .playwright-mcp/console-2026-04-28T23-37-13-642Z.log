@@ -1,0 +1,46 @@
+[      90ms] [ERROR] Error: <path> attribute d: Expected number, "…v1h1a1 1 0 0 1 1V14a1 1 0 0 1-1 …". @ http://localhost:8080/roundsim.html:67
+[  117969ms] [ERROR] Error: <path> attribute d: Expected number, "…v1h1a1 1 0 0 1 1V14a1 1 0 0 1-1 …". @ http://localhost:8080/roundsim.html:67
+[  381618ms] [ERROR] Access to fetch at 'https://play.pokemonshowdown.com/sprites/types/Normal.png' from origin 'http://localhost:8080' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:8080/roundsim.html:0
+[  381619ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://play.pokemonshowdown.com/sprites/types/Normal.png:0
+[  381626ms] [ERROR] Access to fetch at 'https://play.pokemonshowdown.com/sprites/types/Fire.png' from origin 'http://localhost:8080' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:8080/roundsim.html:0
+[  381626ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://play.pokemonshowdown.com/sprites/types/Fire.png:0
+[  381631ms] [ERROR] Access to fetch at 'https://play.pokemonshowdown.com/sprites/types/Water.png' from origin 'http://localhost:8080' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:8080/roundsim.html:0
+[  381631ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://play.pokemonshowdown.com/sprites/types/Water.png:0
+[  381634ms] [ERROR] Access to fetch at 'https://play.pokemonshowdown.com/sprites/types/Electric.png' from origin 'http://localhost:8080' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:8080/roundsim.html:0
+[  381634ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://play.pokemonshowdown.com/sprites/types/Electric.png:0
+[  381637ms] [ERROR] Access to fetch at 'https://play.pokemonshowdown.com/sprites/types/Grass.png' from origin 'http://localhost:8080' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:8080/roundsim.html:0
+[  381637ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://play.pokemonshowdown.com/sprites/types/Grass.png:0
+[  381642ms] [ERROR] Access to fetch at 'https://play.pokemonshowdown.com/sprites/types/Ice.png' from origin 'http://localhost:8080' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:8080/roundsim.html:0
+[  381642ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://play.pokemonshowdown.com/sprites/types/Ice.png:0
+[  381646ms] [ERROR] Access to fetch at 'https://play.pokemonshowdown.com/sprites/types/Fighting.png' from origin 'http://localhost:8080' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:8080/roundsim.html:0
+[  381647ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://play.pokemonshowdown.com/sprites/types/Fighting.png:0
+[  381650ms] [ERROR] Access to fetch at 'https://play.pokemonshowdown.com/sprites/types/Poison.png' from origin 'http://localhost:8080' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:8080/roundsim.html:0
+[  381650ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://play.pokemonshowdown.com/sprites/types/Poison.png:0
+[  381655ms] [ERROR] Access to fetch at 'https://play.pokemonshowdown.com/sprites/types/Ground.png' from origin 'http://localhost:8080' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:8080/roundsim.html:0
+[  381655ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://play.pokemonshowdown.com/sprites/types/Ground.png:0
+[  381658ms] [ERROR] Access to fetch at 'https://play.pokemonshowdown.com/sprites/types/Flying.png' from origin 'http://localhost:8080' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:8080/roundsim.html:0
+[  381658ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://play.pokemonshowdown.com/sprites/types/Flying.png:0
+[  381663ms] [ERROR] Access to fetch at 'https://play.pokemonshowdown.com/sprites/types/Psychic.png' from origin 'http://localhost:8080' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:8080/roundsim.html:0
+[  381663ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://play.pokemonshowdown.com/sprites/types/Psychic.png:0
+[  381666ms] [ERROR] Access to fetch at 'https://play.pokemonshowdown.com/sprites/types/Bug.png' from origin 'http://localhost:8080' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:8080/roundsim.html:0
+[  381667ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://play.pokemonshowdown.com/sprites/types/Bug.png:0
+[  381670ms] [ERROR] Access to fetch at 'https://play.pokemonshowdown.com/sprites/types/Rock.png' from origin 'http://localhost:8080' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:8080/roundsim.html:0
+[  381670ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://play.pokemonshowdown.com/sprites/types/Rock.png:0
+[  381674ms] [ERROR] Access to fetch at 'https://play.pokemonshowdown.com/sprites/types/Ghost.png' from origin 'http://localhost:8080' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:8080/roundsim.html:0
+[  381674ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://play.pokemonshowdown.com/sprites/types/Ghost.png:0
+[  381679ms] [ERROR] Access to fetch at 'https://play.pokemonshowdown.com/sprites/types/Dragon.png' from origin 'http://localhost:8080' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:8080/roundsim.html:0
+[  381679ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://play.pokemonshowdown.com/sprites/types/Dragon.png:0
+[  381683ms] [ERROR] Access to fetch at 'https://play.pokemonshowdown.com/sprites/types/Dark.png' from origin 'http://localhost:8080' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:8080/roundsim.html:0
+[  381683ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://play.pokemonshowdown.com/sprites/types/Dark.png:0
+[  381687ms] [ERROR] Access to fetch at 'https://play.pokemonshowdown.com/sprites/types/Steel.png' from origin 'http://localhost:8080' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:8080/roundsim.html:0
+[  381687ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://play.pokemonshowdown.com/sprites/types/Steel.png:0
+[  381691ms] [ERROR] Access to fetch at 'https://play.pokemonshowdown.com/sprites/types/Fairy.png' from origin 'http://localhost:8080' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:8080/roundsim.html:0
+[  381692ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://play.pokemonshowdown.com/sprites/types/Fairy.png:0
+[  381992ms] [ERROR] Access to fetch at 'https://play.pokemonshowdown.com/sprites/types/???.png' from origin 'http://localhost:8080' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:8080/roundsim.html:0
+[  381992ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://play.pokemonshowdown.com/sprites/types/???.png:0
+[  381998ms] [ERROR] Access to fetch at 'https://play.pokemonshowdown.com/sprites/categories/Physical.png' from origin 'http://localhost:8080' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:8080/roundsim.html:0
+[  381998ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://play.pokemonshowdown.com/sprites/categories/Physical.png:0
+[  382001ms] [ERROR] Access to fetch at 'https://play.pokemonshowdown.com/sprites/categories/Special.png' from origin 'http://localhost:8080' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:8080/roundsim.html:0
+[  382001ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://play.pokemonshowdown.com/sprites/categories/Special.png:0
+[  382005ms] [ERROR] Access to fetch at 'https://play.pokemonshowdown.com/sprites/categories/Status.png' from origin 'http://localhost:8080' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:8080/roundsim.html:0
+[  382005ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://play.pokemonshowdown.com/sprites/categories/Status.png:0

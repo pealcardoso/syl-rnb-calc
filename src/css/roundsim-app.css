@@ -1695,6 +1695,123 @@ fieldset {
 }
 .rsa-bait-segment:first-child { border-radius: 4px 0 0 4px; }
 .rsa-bait-segment:last-of-type { border-radius: 0 4px 4px 0; }
+
+/* ── Field Condition Bar ──────────────────────────────────── */
+.rsa-field-bar {
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    background: #1a202c; border: 1px solid #4a5568; border-radius: 8px;
+    padding: 8px 12px; margin: 8px;
+}
+.rsa-field-bar-group {
+    display: flex; align-items: center; gap: 6px;
+}
+.rsa-field-label {
+    font-size: 0.78em; font-weight: 600; color: #a0aec0; white-space: nowrap;
+}
+.rsa-field-select {
+    background: #2d3748; border: 1px solid #4a5568; color: #e2e8f0;
+    padding: 3px 6px; border-radius: 4px; font-size: 0.82em; cursor: pointer;
+}
+.rsa-field-select:focus { outline: none; border-color: #4299e1; }
+.rsa-field-check {
+    display: flex; align-items: center; gap: 4px;
+    font-size: 0.75em; color: #a0aec0; cursor: pointer; white-space: nowrap;
+}
+.rsa-field-check input { margin: 0; cursor: pointer; }
+.rsa-trickroom-toggle { padding: 3px 8px; border-radius: 4px; transition: all 0.15s; }
+.rsa-trickroom-toggle.rsa-tr-active { background: #553c9a; color: #e9d8fd; }
+.rsa-trickroom-toggle.rsa-tr-active .rsa-field-label { color: #e9d8fd; }
+.rsa-field-hazards {
+    margin-left: auto; display: flex; gap: 4px; flex-wrap: wrap;
+}
+.rsa-hz-badge {
+    font-size: 0.68em; font-weight: 700; padding: 1px 6px;
+    border-radius: 3px; display: inline-block;
+}
+.rsa-hz-badge-p1 { background: #2b6cb0; color: #bee3f8; }
+.rsa-hz-badge-p2 { background: #9b2c2c; color: #fed7d7; }
+
+/* ── Field State Panel ────────────────────────────────────── */
+.rsa-field-panel {
+    border-top: 1px solid #4a5568;
+    margin-top: 8px; overflow: hidden;
+}
+.rsa-field-panel-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 6px 12px; cursor: pointer; user-select: none;
+}
+.rsa-field-panel-header:hover { background: #2d3748; }
+.rsa-field-panel-title { font-size: 0.82em; font-weight: 700; color: #a0aec0; }
+.rsa-field-panel-arrow { font-size: 0.8em; color: #718096; transition: transform 0.2s; }
+.rsa-field-panel.rsa-collapsed .rsa-field-panel-body { display: none; }
+.rsa-field-panel.rsa-collapsed .rsa-field-panel-arrow { transform: rotate(-90deg); }
+.rsa-field-panel-body { padding: 4px 12px 8px; }
+.rsa-field-panel-row {
+    display: flex; align-items: center; gap: 8px;
+    padding: 2px 0; font-size: 0.78em;
+}
+.rsa-fp-label { color: #718096; font-weight: 600; min-width: 80px; }
+.rsa-fp-label-p1 { color: #63b3ed; }
+.rsa-fp-label-p2 { color: #fc8181; }
+.rsa-fp-value { color: #e2e8f0; }
+.rsa-fp-active { color: #68d391; font-weight: 700; }
+.rsa-fp-permanent { color: #f6e05e; font-size: 0.9em; font-weight: 600; }
+
+/* ── Info Tooltips (ⓘ button) ─────────────────────────────── */
+.rsa-info-btn {
+    background: none; border: 1px solid #4a5568; color: #a0aec0;
+    width: 18px; height: 18px; border-radius: 50%; font-size: 0.65em;
+    cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
+    padding: 0; margin-left: 4px; transition: all 0.15s; flex-shrink: 0;
+    line-height: 1; font-weight: 700;
+}
+.rsa-info-btn:hover { background: #4a5568; color: #e2e8f0; }
+.rsa-info-popup {
+    position: absolute; z-index: 100;
+    background: #1a202c; border: 1px solid #4a5568; border-radius: 8px;
+    padding: 10px 12px; min-width: 220px; max-width: 320px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+    font-size: 0.8em; color: #e2e8f0;
+    pointer-events: auto;
+}
+.rsa-info-popup-header {
+    display: flex; align-items: center; gap: 6px;
+    margin-bottom: 6px; padding-bottom: 4px; border-bottom: 1px solid #2d3748;
+}
+.rsa-info-popup-name { font-weight: 700; font-size: 1em; }
+.rsa-info-popup-sprite { width: 40px; height: 40px; image-rendering: pixelated; }
+.rsa-info-row {
+    display: flex; align-items: flex-start; gap: 6px; margin: 3px 0;
+}
+.rsa-info-key { color: #718096; font-weight: 600; min-width: 55px; font-size: 0.9em; }
+.rsa-info-val { color: #e2e8f0; font-size: 0.9em; word-break: break-word; }
+.rsa-info-effect { color: #90cdf4; font-size: 0.85em; font-style: italic; }
+.rsa-info-type-sprite { height: 14px; width: auto; vertical-align: middle; margin-right: 2px; }
+
+/* ── Info popup: Stats table ───────────────────────────────── */
+.rsa-info-stats { margin-top: 6px; }
+.rsa-info-nature { font-size: 0.85em; color: #a0aec0; margin-bottom: 3px; }
+.rsa-stat-table { width: 100%; border-collapse: collapse; font-size: 0.85em; margin-top: 2px; }
+.rsa-stat-table th { color: #718096; font-weight: 600; text-align: right; padding: 1px 4px; border-bottom: 1px solid #2d3748; font-size: 0.9em; }
+.rsa-stat-table th:first-child { text-align: left; }
+.rsa-stat-table td { text-align: right; padding: 1px 4px; color: #e2e8f0; }
+.rsa-stat-table td:first-child { text-align: left; font-weight: 600; }
+
+/* ── Info popup: Defensive profile section ─────────────────── */
+.rsa-info-defense { margin-top: 8px; padding-top: 6px; border-top: 1px solid #2d3748; }
+.rsa-info-section-title { color: #a0aec0; font-weight: 700; font-size: 0.85em; margin-bottom: 4px; }
+.rsa-def-row { display: flex; align-items: center; gap: 4px; margin: 2px 0; font-size: 0.85em; flex-wrap: wrap; }
+.rsa-def-label { font-weight: 600; min-width: 70px; }
+.rsa-def-immune { color: #a0aec0; }
+.rsa-def-qresist { color: #68d391; }
+.rsa-def-resist { color: #9ae6b4; }
+.rsa-def-weak { color: #fc8181; }
+.rsa-def-qweak { color: #feb2b2; }
+
+/* ── Footer (dark mode only) ────────────────────────────────── */
+.rsa-footer {
+    padding: 8px 16px; text-align: right;
+}
 .rsa-bait-segment:hover { opacity: 1; }
 
 .rsa-bait-marker {

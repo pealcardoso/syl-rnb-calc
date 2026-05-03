@@ -1,0 +1,91 @@
+[      77ms] [ERROR] Error: <path> attribute d: Expected number, "…v1h1a1 1 0 0 1 1V14a1 1 0 0 1-1 …". @ http://localhost:8080/roundsim.html:66
+[    2862ms] [LOG] [RSA] predictSwitchIn:entry {rosterLen: 5, activeIdx: 0, roster: *Barraskewda(161/161), Roserade(160/160), Rotom-Wash(148/148), Jynx(169/169), Goodra(196/196)} @ http://localhost:8080/js/roundsim_app.js?2fadbce3:23
+[    2892ms] [LOG] [RSA] predictSwitchIn:loop {i: 2, name: Rotom-Wash, setId: Rotom-Wash (Parasol Lady Koko), hp: 148} @ http://localhost:8080/js/roundsim_app.js?2fadbce3:23
+[    2901ms] [LOG] [RSA] predictSwitchIn:candidate {name: Rotom-Wash, hp: 148, score: -1, reason: Slower + OHKO'd} @ http://localhost:8080/js/roundsim_app.js?2fadbce3:23
+[    2902ms] [LOG] [RSA] predictSwitchIn:loop {i: 3, name: Jynx, setId: Jynx (Parasol Lady Koko), hp: 169} @ http://localhost:8080/js/roundsim_app.js?2fadbce3:23
+[    2908ms] [LOG] [RSA] predictSwitchIn:candidate {name: Jynx, hp: 169, score: -1, reason: Slower + OHKO'd} @ http://localhost:8080/js/roundsim_app.js?2fadbce3:23
+[    2908ms] [LOG] [RSA] predictSwitchIn:loop {i: 4, name: Goodra, setId: Goodra (Parasol Lady Koko), hp: 196} @ http://localhost:8080/js/roundsim_app.js?2fadbce3:23
+[    2915ms] [LOG] [RSA] predictSwitchIn:candidate {name: Goodra, hp: 196, score: -1, reason: Slower + OHKO'd} @ http://localhost:8080/js/roundsim_app.js?2fadbce3:23
+[    2990ms] [LOG] [RSA] predictSwitchIn:entry {rosterLen: 5, activeIdx: 0, roster: *Barraskewda(161/161), Roserade(160/160), Rotom-Wash(148/148), Jynx(169/169), Goodra(196/196)} @ http://localhost:8080/js/roundsim_app.js?2fadbce3:23
+[    2995ms] [LOG] [RSA] predictSwitchIn:loop {i: 2, name: Rotom-Wash, setId: Rotom-Wash (Parasol Lady Koko), hp: 148} @ http://localhost:8080/js/roundsim_app.js?2fadbce3:23
+[    3004ms] [LOG] [RSA] predictSwitchIn:candidate {name: Rotom-Wash, hp: 148, score: -1, reason: Slower + OHKO'd} @ http://localhost:8080/js/roundsim_app.js?2fadbce3:23
+[    3004ms] [LOG] [RSA] predictSwitchIn:loop {i: 3, name: Jynx, setId: Jynx (Parasol Lady Koko), hp: 169} @ http://localhost:8080/js/roundsim_app.js?2fadbce3:23
+[    3009ms] [LOG] [RSA] predictSwitchIn:candidate {name: Jynx, hp: 169, score: -1, reason: Slower + OHKO'd} @ http://localhost:8080/js/roundsim_app.js?2fadbce3:23
+[    3010ms] [LOG] [RSA] predictSwitchIn:loop {i: 4, name: Goodra, setId: Goodra (Parasol Lady Koko), hp: 196} @ http://localhost:8080/js/roundsim_app.js?2fadbce3:23
+[    3015ms] [LOG] [RSA] predictSwitchIn:candidate {name: Goodra, hp: 196, score: -1, reason: Slower + OHKO'd} @ http://localhost:8080/js/roundsim_app.js?2fadbce3:23
+[    3120ms] [LOG] [RSA] syncP2Team:entry {p2Form: Barraskewda, rosterBefore: *Barraskewda(161/161), Roserade(160/160), Rotom-Wash(148/148), Jynx(169/169), Goodra(196/196), trainerPoks: Array(5)} @ http://localhost:8080/js/roundsim_app.js?2fadbce3:23
+[    3225ms] [LOG] [RSA] syncP2Team:exit {rosterAfter: *Barraskewda(161/161), Roserade(160/160), Rotom-Wash(148/148), Jynx(169/169), Goodra(196/196), activeIdx: 0, p2Form: Barraskewda} @ http://localhost:8080/js/roundsim_app.js?2fadbce3:23
+[    5280ms] [LOG] [RSA] syncP2Team:suppressed {roster: *Barraskewda(161/161), Roserade(160/160), Rotom-Wash(148/148), Jynx(169/169), Goodra(196/196)} @ http://localhost:8080/js/roundsim_app.js?2fadbce3:23
+[    5281ms] [LOG] [RSA] syncP2Team:suppressed {roster: *Barraskewda(161/161), Roserade(160/160), Rotom-Wash(148/148), Jynx(169/169), Goodra(196/196)} @ http://localhost:8080/js/roundsim_app.js?2fadbce3:23
+[    5281ms] [LOG] [RSA] syncP2Team:suppressed {roster: *Barraskewda(161/161), Roserade(160/160), Rotom-Wash(148/148), Jynx(169/169), Goodra(196/196)} @ http://localhost:8080/js/roundsim_app.js?2fadbce3:23
+[    5284ms] [LOG] [RSA] predictSwitchIn:entry {rosterLen: 5, activeIdx: 0, roster: *Barraskewda(161/161), Roserade(160/160), Rotom-Wash(148/148), Jynx(169/169), Goodra(196/196)} @ http://localhost:8080/js/roundsim_app.js?2fadbce3:23
+[    5286ms] [LOG] [RSA] predictSwitchIn:loop {i: 2, name: Rotom-Wash, setId: Rotom-Wash (Parasol Lady Koko), hp: 148} @ http://localhost:8080/js/roundsim_app.js?2fadbce3:23
+[    5291ms] [LOG] [RSA] predictSwitchIn:candidate {name: Rotom-Wash, hp: 148, score: -1, reason: Slower + OHKO'd} @ http://localhost:8080/js/roundsim_app.js?2fadbce3:23
+[    5292ms] [LOG] [RSA] predictSwitchIn:loop {i: 3, name: Jynx, setId: Jynx (Parasol Lady Koko), hp: 169} @ http://localhost:8080/js/roundsim_app.js?2fadbce3:23
+[    5297ms] [LOG] [RSA] predictSwitchIn:candidate {name: Jynx, hp: 169, score: -1, reason: Slower + OHKO'd} @ http://localhost:8080/js/roundsim_app.js?2fadbce3:23
+[    5297ms] [LOG] [RSA] predictSwitchIn:loop {i: 4, name: Goodra, setId: Goodra (Parasol Lady Koko), hp: 196} @ http://localhost:8080/js/roundsim_app.js?2fadbce3:23
+[    5302ms] [LOG] [RSA] predictSwitchIn:candidate {name: Goodra, hp: 196, score: -1, reason: Slower + OHKO'd} @ http://localhost:8080/js/roundsim_app.js?2fadbce3:23
+[    5363ms] [LOG] [RSA] predictSwitchIn:entry {rosterLen: 5, activeIdx: 0, roster: *Barraskewda(161/161), Roserade(160/160), Rotom-Wash(148/148), Jynx(169/169), Goodra(196/196)} @ http://localhost:8080/js/roundsim_app.js?2fadbce3:23
+[    5364ms] [LOG] [RSA] predictSwitchIn:loop {i: 2, name: Rotom-Wash, setId: Rotom-Wash (Parasol Lady Koko), hp: 148} @ http://localhost:8080/js/roundsim_app.js?2fadbce3:23
+[    5369ms] [LOG] [RSA] predictSwitchIn:candidate {name: Rotom-Wash, hp: 148, score: -1, reason: Slower + OHKO'd} @ http://localhost:8080/js/roundsim_app.js?2fadbce3:23
+[    5370ms] [LOG] [RSA] predictSwitchIn:loop {i: 3, name: Jynx, setId: Jynx (Parasol Lady Koko), hp: 169} @ http://localhost:8080/js/roundsim_app.js?2fadbce3:23
+[    5375ms] [LOG] [RSA] predictSwitchIn:candidate {name: Jynx, hp: 169, score: -1, reason: Slower + OHKO'd} @ http://localhost:8080/js/roundsim_app.js?2fadbce3:23
+[    5375ms] [LOG] [RSA] predictSwitchIn:loop {i: 4, name: Goodra, setId: Goodra (Parasol Lady Koko), hp: 196} @ http://localhost:8080/js/roundsim_app.js?2fadbce3:23
+[    5379ms] [LOG] [RSA] predictSwitchIn:candidate {name: Goodra, hp: 196, score: -1, reason: Slower + OHKO'd} @ http://localhost:8080/js/roundsim_app.js?2fadbce3:23
+[    5450ms] [LOG] [RSA] predictSwitchIn:entry {rosterLen: 5, activeIdx: 0, roster: *Barraskewda(161/161), Roserade(160/160), Rotom-Wash(148/148), Jynx(169/169), Goodra(196/196)} @ http://localhost:8080/js/roundsim_app.js?2fadbce3:23
+[    5451ms] [LOG] [RSA] predictSwitchIn:loop {i: 2, name: Rotom-Wash, setId: Rotom-Wash (Parasol Lady Koko), hp: 148} @ http://localhost:8080/js/roundsim_app.js?2fadbce3:23
+[    5457ms] [LOG] [RSA] predictSwitchIn:candidate {name: Rotom-Wash, hp: 148, score: -1, reason: Slower + OHKO'd} @ http://localhost:8080/js/roundsim_app.js?2fadbce3:23
+[    5458ms] [LOG] [RSA] predictSwitchIn:loop {i: 3, name: Jynx, setId: Jynx (Parasol Lady Koko), hp: 169} @ http://localhost:8080/js/roundsim_app.js?2fadbce3:23
+[    5463ms] [LOG] [RSA] predictSwitchIn:candidate {name: Jynx, hp: 169, score: -1, reason: Slower + OHKO'd} @ http://localhost:8080/js/roundsim_app.js?2fadbce3:23
+[    5464ms] [LOG] [RSA] predictSwitchIn:loop {i: 4, name: Goodra, setId: Goodra (Parasol Lady Koko), hp: 196} @ http://localhost:8080/js/roundsim_app.js?2fadbce3:23
+[    5469ms] [LOG] [RSA] predictSwitchIn:candidate {name: Goodra, hp: 196, score: -1, reason: Slower + OHKO'd} @ http://localhost:8080/js/roundsim_app.js?2fadbce3:23
+[    5600ms] [LOG] [RSA] syncP2Team:suppressed {roster: *Barraskewda(161/161), Roserade(160/160), Rotom-Wash(148/148), Jynx(169/169), Goodra(196/196)} @ http://localhost:8080/js/roundsim_app.js?2fadbce3:23
+[    5743ms] [LOG] [RSA] predictSwitchIn:entry {rosterLen: 5, activeIdx: 0, roster: *Barraskewda(161/161), Roserade(160/160), Rotom-Wash(148/148), Jynx(169/169), Goodra(196/196)} @ http://localhost:8080/js/roundsim_app.js?2fadbce3:23
+[    5744ms] [LOG] [RSA] predictSwitchIn:loop {i: 2, name: Rotom-Wash, setId: Rotom-Wash (Parasol Lady Koko), hp: 148} @ http://localhost:8080/js/roundsim_app.js?2fadbce3:23
+[    5748ms] [LOG] [RSA] predictSwitchIn:candidate {name: Rotom-Wash, hp: 148, score: -1, reason: Slower + OHKO'd} @ http://localhost:8080/js/roundsim_app.js?2fadbce3:23
+[    5749ms] [LOG] [RSA] predictSwitchIn:loop {i: 3, name: Jynx, setId: Jynx (Parasol Lady Koko), hp: 169} @ http://localhost:8080/js/roundsim_app.js?2fadbce3:23
+[    5754ms] [LOG] [RSA] predictSwitchIn:candidate {name: Jynx, hp: 169, score: -1, reason: Slower + OHKO'd} @ http://localhost:8080/js/roundsim_app.js?2fadbce3:23
+[    5754ms] [LOG] [RSA] predictSwitchIn:loop {i: 4, name: Goodra, setId: Goodra (Parasol Lady Koko), hp: 196} @ http://localhost:8080/js/roundsim_app.js?2fadbce3:23
+[    5759ms] [LOG] [RSA] predictSwitchIn:candidate {name: Goodra, hp: 196, score: -1, reason: Slower + OHKO'd} @ http://localhost:8080/js/roundsim_app.js?2fadbce3:23
+[    5814ms] [LOG] [RSA] predictSwitchIn:entry {rosterLen: 5, activeIdx: 0, roster: *Barraskewda(161/161), Roserade(160/160), Rotom-Wash(148/148), Jynx(169/169), Goodra(196/196)} @ http://localhost:8080/js/roundsim_app.js?2fadbce3:23
+[    5815ms] [LOG] [RSA] predictSwitchIn:loop {i: 2, name: Rotom-Wash, setId: Rotom-Wash (Parasol Lady Koko), hp: 148} @ http://localhost:8080/js/roundsim_app.js?2fadbce3:23
+[    5820ms] [LOG] [RSA] predictSwitchIn:candidate {name: Rotom-Wash, hp: 148, score: -1, reason: Slower + OHKO'd} @ http://localhost:8080/js/roundsim_app.js?2fadbce3:23
+[    5821ms] [LOG] [RSA] predictSwitchIn:loop {i: 3, name: Jynx, setId: Jynx (Parasol Lady Koko), hp: 169} @ http://localhost:8080/js/roundsim_app.js?2fadbce3:23
+[    5825ms] [LOG] [RSA] predictSwitchIn:candidate {name: Jynx, hp: 169, score: -1, reason: Slower + OHKO'd} @ http://localhost:8080/js/roundsim_app.js?2fadbce3:23
+[    5826ms] [LOG] [RSA] predictSwitchIn:loop {i: 4, name: Goodra, setId: Goodra (Parasol Lady Koko), hp: 196} @ http://localhost:8080/js/roundsim_app.js?2fadbce3:23
+[    5829ms] [LOG] [RSA] predictSwitchIn:candidate {name: Goodra, hp: 196, score: -1, reason: Slower + OHKO'd} @ http://localhost:8080/js/roundsim_app.js?2fadbce3:23
+[    6894ms] [LOG] [RSA] predictSwitchIn:entry {rosterLen: 5, activeIdx: 0, roster: *Barraskewda(161/161), Roserade(160/160), Rotom-Wash(148/148), Jynx(169/169), Goodra(196/196)} @ http://localhost:8080/js/roundsim_app.js?2fadbce3:23
+[    6894ms] [LOG] [RSA] predictSwitchIn:loop {i: 2, name: Rotom-Wash, setId: Rotom-Wash (Parasol Lady Koko), hp: 148} @ http://localhost:8080/js/roundsim_app.js?2fadbce3:23
+[    6897ms] [LOG] [RSA] predictSwitchIn:candidate {name: Rotom-Wash, hp: 148, score: -1, reason: Slower + OHKO'd} @ http://localhost:8080/js/roundsim_app.js?2fadbce3:23
+[    6898ms] [LOG] [RSA] predictSwitchIn:loop {i: 3, name: Jynx, setId: Jynx (Parasol Lady Koko), hp: 169} @ http://localhost:8080/js/roundsim_app.js?2fadbce3:23
+[    6900ms] [LOG] [RSA] predictSwitchIn:candidate {name: Jynx, hp: 169, score: -1, reason: Slower + OHKO'd} @ http://localhost:8080/js/roundsim_app.js?2fadbce3:23
+[    6901ms] [LOG] [RSA] predictSwitchIn:loop {i: 4, name: Goodra, setId: Goodra (Parasol Lady Koko), hp: 196} @ http://localhost:8080/js/roundsim_app.js?2fadbce3:23
+[    6904ms] [LOG] [RSA] predictSwitchIn:candidate {name: Goodra, hp: 196, score: -1, reason: Slower + OHKO'd} @ http://localhost:8080/js/roundsim_app.js?2fadbce3:23
+[    6928ms] [LOG] [RSA] predictSwitchIn:entry {rosterLen: 5, activeIdx: 0, roster: *Barraskewda(161/161), Roserade(160/160), Rotom-Wash(148/148), Jynx(169/169), Goodra(196/196)} @ http://localhost:8080/js/roundsim_app.js?2fadbce3:23
+[    6929ms] [LOG] [RSA] predictSwitchIn:loop {i: 2, name: Rotom-Wash, setId: Rotom-Wash (Parasol Lady Koko), hp: 148} @ http://localhost:8080/js/roundsim_app.js?2fadbce3:23
+[    6932ms] [LOG] [RSA] predictSwitchIn:candidate {name: Rotom-Wash, hp: 148, score: -1, reason: Slower + OHKO'd} @ http://localhost:8080/js/roundsim_app.js?2fadbce3:23
+[    6933ms] [LOG] [RSA] predictSwitchIn:loop {i: 3, name: Jynx, setId: Jynx (Parasol Lady Koko), hp: 169} @ http://localhost:8080/js/roundsim_app.js?2fadbce3:23
+[    6935ms] [LOG] [RSA] predictSwitchIn:candidate {name: Jynx, hp: 169, score: -1, reason: Slower + OHKO'd} @ http://localhost:8080/js/roundsim_app.js?2fadbce3:23
+[    6935ms] [LOG] [RSA] predictSwitchIn:loop {i: 4, name: Goodra, setId: Goodra (Parasol Lady Koko), hp: 196} @ http://localhost:8080/js/roundsim_app.js?2fadbce3:23
+[    6938ms] [LOG] [RSA] predictSwitchIn:candidate {name: Goodra, hp: 196, score: -1, reason: Slower + OHKO'd} @ http://localhost:8080/js/roundsim_app.js?2fadbce3:23
+[    6960ms] [LOG] [RSA] predictSwitchIn:entry {rosterLen: 5, activeIdx: 0, roster: *Barraskewda(161/161), Roserade(160/160), Rotom-Wash(148/148), Jynx(169/169), Goodra(196/196)} @ http://localhost:8080/js/roundsim_app.js?2fadbce3:23
+[    6962ms] [LOG] [RSA] predictSwitchIn:loop {i: 2, name: Rotom-Wash, setId: Rotom-Wash (Parasol Lady Koko), hp: 148} @ http://localhost:8080/js/roundsim_app.js?2fadbce3:23
+[    6966ms] [LOG] [RSA] predictSwitchIn:candidate {name: Rotom-Wash, hp: 148, score: -1, reason: Slower + OHKO'd} @ http://localhost:8080/js/roundsim_app.js?2fadbce3:23
+[    6967ms] [LOG] [RSA] predictSwitchIn:loop {i: 3, name: Jynx, setId: Jynx (Parasol Lady Koko), hp: 169} @ http://localhost:8080/js/roundsim_app.js?2fadbce3:23
+[    6969ms] [LOG] [RSA] predictSwitchIn:candidate {name: Jynx, hp: 169, score: -1, reason: Slower + OHKO'd} @ http://localhost:8080/js/roundsim_app.js?2fadbce3:23
+[    6970ms] [LOG] [RSA] predictSwitchIn:loop {i: 4, name: Goodra, setId: Goodra (Parasol Lady Koko), hp: 196} @ http://localhost:8080/js/roundsim_app.js?2fadbce3:23
+[    6973ms] [LOG] [RSA] predictSwitchIn:candidate {name: Goodra, hp: 196, score: -1, reason: Slower + OHKO'd} @ http://localhost:8080/js/roundsim_app.js?2fadbce3:23
+[    7020ms] [LOG] [RSA] predictSwitchIn:entry {rosterLen: 5, activeIdx: 0, roster: *Barraskewda(161/161), Roserade(160/160), Rotom-Wash(148/148), Jynx(169/169), Goodra(196/196)} @ http://localhost:8080/js/roundsim_app.js?2fadbce3:23
+[    7021ms] [LOG] [RSA] predictSwitchIn:loop {i: 2, name: Rotom-Wash, setId: Rotom-Wash (Parasol Lady Koko), hp: 148} @ http://localhost:8080/js/roundsim_app.js?2fadbce3:23
+[    7024ms] [LOG] [RSA] predictSwitchIn:candidate {name: Rotom-Wash, hp: 148, score: -1, reason: Slower + OHKO'd} @ http://localhost:8080/js/roundsim_app.js?2fadbce3:23
+[    7025ms] [LOG] [RSA] predictSwitchIn:loop {i: 3, name: Jynx, setId: Jynx (Parasol Lady Koko), hp: 169} @ http://localhost:8080/js/roundsim_app.js?2fadbce3:23
+[    7028ms] [LOG] [RSA] predictSwitchIn:candidate {name: Jynx, hp: 169, score: -1, reason: Slower + OHKO'd} @ http://localhost:8080/js/roundsim_app.js?2fadbce3:23
+[    7029ms] [LOG] [RSA] predictSwitchIn:loop {i: 4, name: Goodra, setId: Goodra (Parasol Lady Koko), hp: 196} @ http://localhost:8080/js/roundsim_app.js?2fadbce3:23
+[    7032ms] [LOG] [RSA] predictSwitchIn:candidate {name: Goodra, hp: 196, score: -1, reason: Slower + OHKO'd} @ http://localhost:8080/js/roundsim_app.js?2fadbce3:23
+[    7073ms] [LOG] [RSA] predictSwitchIn:entry {rosterLen: 5, activeIdx: 0, roster: *Barraskewda(161/161), Roserade(160/160), Rotom-Wash(148/148), Jynx(169/169), Goodra(196/196)} @ http://localhost:8080/js/roundsim_app.js?2fadbce3:23
+[    7074ms] [LOG] [RSA] predictSwitchIn:loop {i: 2, name: Rotom-Wash, setId: Rotom-Wash (Parasol Lady Koko), hp: 148} @ http://localhost:8080/js/roundsim_app.js?2fadbce3:23
+[    7076ms] [LOG] [RSA] predictSwitchIn:candidate {name: Rotom-Wash, hp: 148, score: -1, reason: Slower + OHKO'd} @ http://localhost:8080/js/roundsim_app.js?2fadbce3:23
+[    7077ms] [LOG] [RSA] predictSwitchIn:loop {i: 3, name: Jynx, setId: Jynx (Parasol Lady Koko), hp: 169} @ http://localhost:8080/js/roundsim_app.js?2fadbce3:23
+[    7080ms] [LOG] [RSA] predictSwitchIn:candidate {name: Jynx, hp: 169, score: -1, reason: Slower + OHKO'd} @ http://localhost:8080/js/roundsim_app.js?2fadbce3:23
+[    7080ms] [LOG] [RSA] predictSwitchIn:loop {i: 4, name: Goodra, setId: Goodra (Parasol Lady Koko), hp: 196} @ http://localhost:8080/js/roundsim_app.js?2fadbce3:23
+[    7083ms] [LOG] [RSA] predictSwitchIn:candidate {name: Goodra, hp: 196, score: -1, reason: Slower + OHKO'd} @ http://localhost:8080/js/roundsim_app.js?2fadbce3:23

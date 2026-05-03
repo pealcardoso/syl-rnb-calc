@@ -261,6 +261,46 @@
                 <input type="text" id="rsa-comment" placeholder="Note..." />
             </div>
         </div>
+        <!-- ═══ Field Condition Bar (inside round controls) ═══ -->
+        <div class="rsa-field-bar" id="rsa-field-bar">
+            <div class="rsa-field-bar-group">
+                <label class="rsa-field-label" for="rsa-weather-select">☀ Weather</label>
+                <select id="rsa-weather-select" class="rsa-field-select">
+                    <option value="">None</option>
+                    <option value="Sun">Sun</option>
+                    <option value="Rain">Rain</option>
+                    <option value="Sand">Sand</option>
+                    <option value="Snow">Snow</option>
+                    <option value="Hail">Hail</option>
+                    <option value="Harsh Sunshine">Harsh Sunshine</option>
+                    <option value="Heavy Rain">Heavy Rain</option>
+                    <option value="Strong Winds">Strong Winds</option>
+                </select>
+                <label class="rsa-field-check" for="rsa-perma-weather" title="Weather does not expire after 5 turns">
+                    <input type="checkbox" id="rsa-perma-weather" /> Permanent
+                </label>
+            </div>
+            <div class="rsa-field-bar-group">
+                <label class="rsa-field-label" for="rsa-terrain-select">🌿 Terrain</label>
+                <select id="rsa-terrain-select" class="rsa-field-select">
+                    <option value="">None</option>
+                    <option value="Electric">Electric</option>
+                    <option value="Grassy">Grassy</option>
+                    <option value="Misty">Misty</option>
+                    <option value="Psychic">Psychic</option>
+                </select>
+            </div>
+            <div class="rsa-field-bar-group">
+                <label class="rsa-field-check rsa-trickroom-toggle" for="rsa-trickroom" title="Trick Room: slower Pokémon move first">
+                    <input type="checkbox" id="rsa-trickroom" />
+                    <span class="rsa-field-label">🔮 Trick Room</span>
+                </label>
+            </div>
+            <div class="rsa-field-bar-group rsa-field-hazards" id="rsa-hazard-badges">
+                <!-- Hazard badges populated by JS -->
+            </div>
+        </div>
+
         <div class="rsa-btn-row">
             <button class="rsa-btn rsa-btn-primary" id="rsa-log-round">&#9654; Log Round</button>
             <div class="rsa-switch-group rsa-singles-switch">
@@ -295,9 +335,66 @@
         <div id="rsa-round-log">
             <div class="rsa-empty">No rounds yet. Set your teams, load the calc, and log rounds.</div>
         </div>
+
+        <!-- ═══ Field State Panel (inside round log area) ═══ -->
+        <div class="rsa-field-panel" id="rsa-field-panel">
+            <div class="rsa-field-panel-header" id="rsa-field-panel-toggle">
+                <span class="rsa-field-panel-title">📋 Field State</span>
+                <span class="rsa-field-panel-arrow">▾</span>
+            </div>
+            <div class="rsa-field-panel-body" id="rsa-field-panel-body">
+                <div class="rsa-field-panel-row" id="rsa-fp-weather">
+                    <span class="rsa-fp-label">Weather:</span>
+                    <span class="rsa-fp-value" id="rsa-fp-weather-val">None</span>
+                </div>
+                <div class="rsa-field-panel-row" id="rsa-fp-terrain">
+                    <span class="rsa-fp-label">Terrain:</span>
+                    <span class="rsa-fp-value" id="rsa-fp-terrain-val">None</span>
+                </div>
+                <div class="rsa-field-panel-row" id="rsa-fp-trickroom">
+                    <span class="rsa-fp-label">Trick Room:</span>
+                    <span class="rsa-fp-value" id="rsa-fp-trickroom-val">Off</span>
+                </div>
+                <div class="rsa-field-panel-row" id="rsa-fp-gravity">
+                    <span class="rsa-fp-label">Gravity:</span>
+                    <span class="rsa-fp-value" id="rsa-fp-gravity-val">Off</span>
+                </div>
+                <div class="rsa-field-panel-row" id="rsa-fp-screens-p1">
+                    <span class="rsa-fp-label rsa-fp-label-p1">P1 Screens:</span>
+                    <span class="rsa-fp-value" id="rsa-fp-screens-p1-val">None</span>
+                </div>
+                <div class="rsa-field-panel-row" id="rsa-fp-screens-p2">
+                    <span class="rsa-fp-label rsa-fp-label-p2">P2 Screens:</span>
+                    <span class="rsa-fp-value" id="rsa-fp-screens-p2-val">None</span>
+                </div>
+                <div class="rsa-field-panel-row" id="rsa-fp-tailwind-p1">
+                    <span class="rsa-fp-label rsa-fp-label-p1">P1 Tailwind:</span>
+                    <span class="rsa-fp-value" id="rsa-fp-tailwind-p1-val">Off</span>
+                </div>
+                <div class="rsa-field-panel-row" id="rsa-fp-tailwind-p2">
+                    <span class="rsa-fp-label rsa-fp-label-p2">P2 Tailwind:</span>
+                    <span class="rsa-fp-value" id="rsa-fp-tailwind-p2-val">Off</span>
+                </div>
+                <div class="rsa-field-panel-row" id="rsa-fp-hazards-p1">
+                    <span class="rsa-fp-label rsa-fp-label-p1">P1 Hazards:</span>
+                    <span class="rsa-fp-value" id="rsa-fp-hazards-p1-val">None</span>
+                </div>
+                <div class="rsa-field-panel-row" id="rsa-fp-hazards-p2">
+                    <span class="rsa-fp-label rsa-fp-label-p2">P2 Hazards:</span>
+                    <span class="rsa-fp-value" id="rsa-fp-hazards-p2-val">None</span>
+                </div>
+                <div class="rsa-field-panel-row" id="rsa-fp-other">
+                    <span class="rsa-fp-label">Other:</span>
+                    <span class="rsa-fp-value" id="rsa-fp-other-val">—</span>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- ═══ Calc flows at full width below ═══ -->
+
+    <!-- Hidden legacy calc UI — still read by getWeather/getTerrain/getSpeedInfo/createField -->
+    <div id="rsa-legacy-calc" style="display:none">
 
     <div aria-label="Move selection" class="move-result-group" role="region" title="Select a move to show detailed results.">
         <div  aria-labelledby="resultHeaderL" class="move-result-subgroupL" id="move-result-subgroupL" role="radiogroup">
@@ -2038,6 +2135,9 @@
             </fieldset>
         </div>
     </div>
+
+    </div><!-- /#rsa-legacy-calc -->
+
     <script type="text/javascript">
         var linkExtension = '.template.html';
     </script>
@@ -2101,36 +2201,19 @@
 
 </div><!-- /.wrapper -->
 
-<div class="credits">Run and Bun AI %, Range Compare, and Quality of Life work done by SylmarDev. <br>Modified by dekzeh, ForwardFeed, Originaly Created by Honko, maintained by Austin and Kris, Special thanks to Hzla
-    <ul>
-        <li><a href="https://github.com/SylmarDev/syl-rnb-calc/tree/main" class="links-lighten" target="_blank">Modification Repository</a></li>
-        <li><a href="https://github.com/SylmarDev/syl-rnb-calc/issues/new" class="links-lighten" target="_blank">Report an issue</a></li>
-        <li><button id="show-changelog">Show Changelog</button></li>
-        <li>
-            <label class="unselectable" for="enableDebugLogging">Enable Debug Logging</label>
-            <input class="" type="checkbox" name="enableDebugLogging" id="enableDebugLogging" aria-describedby="aiOption" />
-        </li>
-        <li>
-            <label class="unselectable" for="disableAiMovePercentage">Disable AI Move %</label>
-            <input class="" type="checkbox" name="disableAiMovePercentage" id="disableAiMovePercentage" aria-describedby="aiOption" />
-        </li>
-        <li>
-            <label class="unselectable" for="toggleSearch">Show Search</label>
-            <input class="" type="checkbox" name="toggleSearch" id="toggleSearch" aria-describedby="aiOption" checked />
-        </li>
-        <li>
-            <label class="unselectable" for="rangeCompare">Enable Range Compare</label>
-            <input class="" type="checkbox" name="rangeCompare" id="rangeCompare" aria-describedby="aiOption" checked />
-        </li>
-        <li>
-            <label class="unselectable" for="teamsOnTop">Box On Top</label>
-            <input class="" type="checkbox" name="teamsOnTop" id="teamsOnTop" aria-describedby="aiOption" />
-        </li>
-        <li><a href="https://twitch.tv/princesssylmar" class="links-lighten" target="_blank">My twitch :3</a></li>
-        <li><p>Shoutouts to the original <a href="https://github.com/smogon/damage-calc/contributors" class="links-lighten" target="_blank">Smogon Contributors</a></p></li>
-    </ul>    
-        <button type="button" id="dark-theme-toggle"></button>
-        <script type="text/javascript" src="./js/dark-theme-toggle.js?"></script>
-    </div>
+<!-- Hidden legacy controls — still read by JS event handlers -->
+<div style="display:none">
+    <button id="show-changelog">Show Changelog</button>
+    <input type="checkbox" name="enableDebugLogging" id="enableDebugLogging" aria-describedby="aiOption" />
+    <input type="checkbox" name="disableAiMovePercentage" id="disableAiMovePercentage" aria-describedby="aiOption" />
+    <input type="checkbox" name="toggleSearch" id="toggleSearch" aria-describedby="aiOption" checked />
+    <input type="checkbox" name="rangeCompare" id="rangeCompare" aria-describedby="aiOption" checked />
+    <input type="checkbox" name="teamsOnTop" id="teamsOnTop" aria-describedby="aiOption" />
+</div>
+
+<div class="rsa-footer">
+    <button type="button" id="dark-theme-toggle"></button>
+    <script type="text/javascript" src="./js/dark-theme-toggle.js?"></script>
+</div>
 </body>
 </html>

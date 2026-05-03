@@ -1,0 +1,9 @@
+[     748ms] [ERROR] Error: <path> attribute d: Expected number, "…v1h1a1 1 0 0 1 1V14a1 1 0 0 1-1 …". @ http://localhost:8080/roundsim.html:66
+[    3844ms] TypeError: Cannot read properties of undefined (reading 'getAttribute')
+    at selectFirstMon (http://localhost:8080/js/shared_controls.js?c362a0c9:1764:21)
+    at HTMLDocument.<anonymous> (http://localhost:8080/js/moveset_import.js?67446e3f:477:3)
+    at c (http://localhost:8080/js/vendor/jquery-1.9.1.min.js:3:7857)
+    at Object.fireWith [as resolveWith] (http://localhost:8080/js/vendor/jquery-1.9.1.min.js:3:8658)
+    at b.ready (http://localhost:8080/js/vendor/jquery-1.9.1.min.js:3:3266)
+    at HTMLDocument.H (http://localhost:8080/js/vendor/jquery-1.9.1.min.js:3:695)
+[    5260ms] [ERROR] Failed to load resource: the server responded with a status of 404 (File not found) @ http://localhost:8080/favicon.ico:0

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Round Simulator App — Full battle planning tool
  * Manages teams, lines, rounds, extra damage sources, and integrates with the calc engine.
  */
@@ -14,23 +14,6 @@
     var TYPE_SPRITE_BASE = 'https://play.pokemonshowdown.com/sprites/types/';
     var CATEGORY_SPRITE_BASE = 'https://play.pokemonshowdown.com/sprites/categories/';
     var MAX_TEAM_SIZE = 6;
-
-    // Preload all type/category sprite images immediately so the browser
-    // caches them before injectMoveLabelSprites() is first called. Using
-    // new Image() triggers a real browser fetch (bypasses CORS) and stores
-    // the result in the browser's image cache for instant use later.
-    (function preloadTypeSprites() {
-        var types = ['Normal','Fire','Water','Electric','Grass','Ice','Fighting',
-                     'Poison','Ground','Flying','Psychic','Bug','Rock','Ghost',
-                     'Dragon','Dark','Steel','Fairy','???'];
-        var categories = ['Physical','Special','Status'];
-        var preloadList = types.map(function(t) { return TYPE_SPRITE_BASE + t + '.png'; })
-                    .concat(categories.map(function(c) { return CATEGORY_SPRITE_BASE + c + '.png'; }));
-        for (var i = 0; i < preloadList.length; i++) {
-            var img = new Image();
-            img.src = preloadList[i];
-        }
-    })();
 
     // ── Two-turn (charge) move constants ───────────────────────
     // Moves that make the user semi-invulnerable on the charge turn.
@@ -114,34 +97,13 @@
     var ALL_TYPES = ['Normal','Fire','Water','Electric','Grass','Ice','Fighting','Poison',
                      'Ground','Flying','Psychic','Bug','Rock','Ghost','Dragon','Dark','Steel','Fairy'];
 
-    /** Ability-based full type immunities: abilityKey → immuneType
-     *  DEPRECATED: Replaced by EffectsRegistry.abilities[key].typeImmunity in Phase 2.1.
-     *  Kept here as a fallback in case the registry hasn't loaded (defensive).
-     */
+    /** Ability-based full type immunities: abilityKey → immuneType */
     var ABILITY_IMMUNITIES = {
         levitate: 'Ground', flashfire: 'Fire',
         lightningrod: 'Electric', voltabsorb: 'Electric', motordrive: 'Electric',
         waterabsorb: 'Water', stormdrain: 'Water', dryskin: 'Water',
         sapsipper: 'Grass', eartheater: 'Ground', wellbakedbody: 'Fire'
     };
-
-    /** Lookup an ability's effect entry from the EffectsRegistry. Returns null if
-     *  the registry hasn't loaded or the ability isn't registered. */
-    function getAbilityEffects(abilityName) {
-        if (!abilityName) return null;
-        if (typeof window === 'undefined' || !window.EffectsRegistry) return null;
-        var key = String(abilityName).toLowerCase().replace(/[\s\-\']+/g, '');
-        return window.EffectsRegistry.abilities[key] || null;
-    }
-
-    /** Lookup an item's effect entry from the EffectsRegistry. Returns null if
-     *  the registry hasn't loaded or the item isn't registered. */
-    function getItemEffects(itemName) {
-        if (!itemName) return null;
-        if (typeof window === 'undefined' || !window.EffectsRegistry) return null;
-        var key = String(itemName).toLowerCase().replace(/[\s\-\']+/g, '');
-        return window.EffectsRegistry.items[key] || null;
-    }
 
     /** Get the defensive type multiplier for a single attacking type vs this pokemon.
      *  Takes into account dual typing and ability immunities. */
@@ -154,22 +116,14 @@
             var x = chart[atkType][defTypes[i]];
             if (typeof x === 'number') mult *= x;
         }
-        // Check ability immunity via EffectsRegistry (with hardcoded fallback)
+        // Check ability immunity
         if (abilityName) {
-            var ab = getAbilityEffects(abilityName);
-            if (ab) {
-                if (ab.typeImmunity === atkType) mult = 0;
-                if (ab.typeDamageMod && ab.typeDamageMod.type === atkType) {
-                    mult *= ab.typeDamageMod.multiplier;
-                }
-                if (ab.wonderGuard && mult <= 1) mult = 0;
-            } else {
-                // Fallback: registry not loaded — use legacy hardcoded constants
-                var key = abilityName.toLowerCase().replace(/[\s\-\']+/g, '');
-                if (ABILITY_IMMUNITIES[key] && ABILITY_IMMUNITIES[key] === atkType) mult = 0;
-                if (key === 'dryskin' && atkType === 'Fire') mult *= 1.25;
-                if (key === 'wonderguard' && mult <= 1) mult = 0;
-            }
+            var key = abilityName.toLowerCase().replace(/[\s\-\']+/g, '');
+            if (ABILITY_IMMUNITIES[key] && ABILITY_IMMUNITIES[key] === atkType) mult = 0;
+            // Dry Skin: Fire attacks do 1.25x damage
+            if (key === 'dryskin' && atkType === 'Fire') mult *= 1.25;
+            // Wonder Guard: only super-effective moves hit
+            if (key === 'wonderguard' && mult <= 1) mult = 0;
         }
         return mult;
     }
@@ -291,9 +245,7 @@
                     // Apply simulated item multiplier
                     pct0 = applySimItemMultiplier(pct0);
                     // Apply Guts boost if applicable
-                    var p1AeBox = getAbilityEffects(p1.ability);
-                    var p1HasGutsBox = p1AeBox ? !!p1AeBox.burnAttackBoost : (p1.ability === 'Guts');
-                    if (boxCalcSettings.burnGuts && p1HasGutsBox) {
+                    if (boxCalcSettings.burnGuts && p1.ability === 'Guts') {
                         var cat0 = p1.moves[j] ? p1.moves[j].category : '';
                         if (cat0 === 'Physical') pct0 *= 1.5;
                     }
@@ -527,37 +479,7 @@
             if (e.currentHP <= 0) continue;
 
             var p2;
-            try { p2 = createPokemon(e.setId); } catch (ex) {
-                // createPokemon() requires setdex[name][setName] to exist — it throws
-                // (not null-safe) when trainer sets aren't present in the smogon setdex.
-                // Fall back: build a calc.Pokemon directly from roster + lookupSet data.
-                try {
-                    var fbSet = lookupSet(e.setId);
-                    var fbMoveNames = (e.moves || []).slice(0, 4);
-                    while (fbMoveNames.length < 4) fbMoveNames.push('(No Move)');
-                    var fbCalcMoves = [];
-                    for (var mi = 0; mi < 4; mi++) {
-                        fbCalcMoves.push(new calc.Move(gen, fbMoveNames[mi] || '(No Move)'));
-                    }
-                    // Build EVs/IVs from set data (stored in legacy stat keys: hp/at/df/sa/sd/sp)
-                    var fbEvs = {}, fbIvs = {};
-                    var legacyToCalc = { hp: 'hp', at: 'atk', df: 'def', sa: 'spa', sd: 'spd', sp: 'spe' };
-                    for (var lk in legacyToCalc) {
-                        var ck = legacyToCalc[lk];
-                        fbEvs[ck] = (fbSet && fbSet.evs && fbSet.evs[lk] != null) ? fbSet.evs[lk] : 0;
-                        fbIvs[ck] = (fbSet && fbSet.ivs && fbSet.ivs[lk] != null) ? fbSet.ivs[lk] : 31;
-                    }
-                    p2 = new calc.Pokemon(gen, e.name, {
-                        level: fbSet ? (fbSet.level || 50) : 50,
-                        ability: e.ability || '',
-                        item: e.item || '',
-                        nature: fbSet ? (fbSet.nature || 'Hardy') : 'Hardy',
-                        ivs: fbIvs,
-                        evs: fbEvs,
-                        moves: fbCalcMoves
-                    });
-                } catch (ex2) { continue; }
-            }
+            try { p2 = createPokemon(e.setId); } catch (ex) { continue; }
 
             var result = computeSwitchScore(p1, p2, p1SpdOverride);
             candidates.push({
@@ -578,311 +500,7 @@
         }
 
         return { name: best.name, sprite: best.sprite, score: best.score,
-                 reason: best.reason, partyIdx: best.partyIdx, scores: candidates };
-    }
-
-    // ════════════════════════════════════════════════════════════
-    // BAIT ANALYSIS — HP threshold → switch-in / move distribution
-    // ════════════════════════════════════════════════════════════
-
-    /**
-     * Sweep P1's HP from 100% down to 0 and at each step determine:
-     *  - which P2 candidate wins the switch-in prediction
-     *  - what move distribution that winner would use
-     * Returns an array of threshold bands, sorted from high HP to low:
-     *   [{ hpUpper, hpLower, pctUpper, pctLower, baitName, baitSprite,
-     *      reason, score, faster, moves: [{move, rate}] }, ...]
-     */
-    function computeBaitAnalysis(p1Entry) {
-        var line = curLine();
-        var team = line.teams.p2;
-        if (!p1Entry || team.roster.length < 2) return [];
-
-        // Build P1 calc pokemon once, then vary its HP
-        var p1calc;
-        try { p1calc = createPokemon(p1Entry.setId); } catch (e) { return []; }
-        if (p1Entry.item !== undefined) p1calc.item = p1Entry.item;
-        if (p1Entry.ability) p1calc.ability = p1Entry.ability;
-        var maxHP = p1calc.rawStats ? p1calc.rawStats.hp : (p1calc.stats ? p1calc.stats.hp : 100);
-        if (maxHP <= 0) return [];
-
-        // P1 speed (effective, from form or roster)
-        var p1Spd;
-        try { p1Spd = getSpeedInfo().p1; } catch (e) { p1Spd = computeEntrySpeed(p1Entry); }
-        var tr = $('#trickroom').is(':checked');
-
-        // Pre-build all alive P2 candidate calc.Pokemon objects
-        var activeP2 = getActiveEntry(team);
-        var candidates = [];
-        for (var i = 0; i < team.roster.length; i++) {
-            var e = team.roster[i];
-            if (activeP2 && e.name === activeP2.name) continue;
-            if (e.currentHP <= 0) continue;
-            var p2calc;
-            try { p2calc = createPokemon(e.setId); } catch (ex) {
-                try {
-                    var fbSet = lookupSet(e.setId);
-                    var fbMoveNames = (e.moves || []).slice(0, 4);
-                    while (fbMoveNames.length < 4) fbMoveNames.push('(No Move)');
-                    var fbCalcMoves = [];
-                    for (var mi = 0; mi < 4; mi++) fbCalcMoves.push(new calc.Move(gen, fbMoveNames[mi] || '(No Move)'));
-                    var fbEvs = {}, fbIvs = {};
-                    var legacyToCalc = { hp: 'hp', at: 'atk', df: 'def', sa: 'spa', sd: 'spd', sp: 'spe' };
-                    for (var lk in legacyToCalc) {
-                        var ck = legacyToCalc[lk];
-                        fbEvs[ck] = (fbSet && fbSet.evs && fbSet.evs[lk] != null) ? fbSet.evs[lk] : 0;
-                        fbIvs[ck] = (fbSet && fbSet.ivs && fbSet.ivs[lk] != null) ? fbSet.ivs[lk] : 31;
-                    }
-                    p2calc = new calc.Pokemon(gen, e.name, {
-                        level: fbSet ? (fbSet.level || 50) : 50,
-                        ability: e.ability || '', item: e.item || '',
-                        nature: fbSet ? (fbSet.nature || 'Hardy') : 'Hardy',
-                        ivs: fbIvs, evs: fbEvs, moves: fbCalcMoves
-                    });
-                } catch (ex2) { continue; }
-            }
-            if (e.item !== undefined) p2calc.item = e.item;
-            if (e.ability) p2calc.ability = e.ability;
-            candidates.push({ entry: e, poke: p2calc, idx: i });
-        }
-        if (candidates.length === 0) return [];
-
-        // Pre-compute damage results and calc fields once (reused every HP sample)
-        var field = createField();
-        var fieldSwap = field.clone().swap();
-
-        // Pre-compute AI damage from each candidate and player damage to each candidate
-        var precomp = [];
-        for (var ci = 0; ci < candidates.length; ci++) {
-            var c = candidates[ci];
-            var aiDmgs = []; // each move's max damage to P1
-            for (var m = 0; m < 4; m++) {
-                try {
-                    var res = calc.calculate(gen, c.poke, p1calc, c.poke.moves[m], fieldSwap);
-                    var d = res.damage;
-                    var maxD = Array.isArray(d) ? d[d.length - 1] : d;
-                    var hits = c.poke.moves[m] ? (c.poke.moves[m].hits || 1) : 1;
-                    aiDmgs.push(maxD * hits);
-                } catch (e) { aiDmgs.push(0); }
-            }
-            var plDmgs = []; // each of P1's move's max damage to candidate
-            var p2hp = c.poke.curHP ? c.poke.curHP() : (c.poke.stats ? c.poke.stats.hp : 100);
-            if (!p2hp) p2hp = 100;
-            for (var m = 0; m < 4; m++) {
-                try {
-                    var res = calc.calculate(gen, p1calc, c.poke, p1calc.moves[m], field);
-                    var d = res.damage;
-                    var maxD = Array.isArray(d) ? d[d.length - 1] : d;
-                    var hits = p1calc.moves[m] ? (p1calc.moves[m].hits || 1) : 1;
-                    plDmgs.push(maxD * hits);
-                } catch (e) { plDmgs.push(0); }
-            }
-            var p2spd = c.poke.stats ? c.poke.stats.spe : 0;
-            var aiFaster = tr ? (p2spd < p1Spd) : (p2spd > p1Spd);
-            if (p1Spd === p2spd) aiFaster = false;
-
-            precomp.push({
-                candidate: c,
-                aiDmgs: aiDmgs,
-                plDmgs: plDmgs,
-                p2hp: p2hp,
-                p2spd: p2spd,
-                aiFaster: aiFaster,
-                aiSlower: !aiFaster && p1Spd !== p2spd
-            });
-        }
-
-        // Sample HP at every 1% granularity (fine enough for accurate thresholds)
-        var step = Math.max(1, Math.floor(maxHP / 100));
-        var bands = [];
-        var prevBaitName = null;
-        var prevMoveKey = null;
-
-        for (var hp = maxHP; hp >= 1; hp -= step) {
-            // Score each candidate at this P1 HP level
-            var bestScore = -999, bestIdx = -1;
-            for (var ci = 0; ci < precomp.length; ci++) {
-                var pc = precomp[ci];
-                // Recalculate damage % relative to current HP
-                var bestAiPct = 0;
-                for (var m = 0; m < pc.aiDmgs.length; m++) {
-                    var pct = pc.aiDmgs[m] / hp * 100;
-                    if (pct > bestAiPct) bestAiPct = pct;
-                }
-                var bestPlPct = 0;
-                for (var m = 0; m < pc.plDmgs.length; m++) {
-                    var pct = pc.plDmgs[m] / pc.p2hp * 100;
-                    if (pct > bestPlPct) bestPlPct = pct;
-                }
-                var aiOHKO = bestAiPct >= 100;
-                var plOHKO = bestPlPct >= 100;
-
-                var score;
-                var aiName = (pc.candidate.poke.name || '').toLowerCase();
-                if (aiName === 'ditto') { score = 2; }
-                else if (aiName === 'wynaut' || aiName === 'wobbuffet') {
-                    score = (pc.aiSlower && plOHKO) ? 0 : 2;
-                }
-                else if (pc.aiFaster && aiOHKO) score = 5;
-                else if (pc.aiSlower && aiOHKO && !plOHKO) score = 4;
-                else if (pc.aiFaster && bestAiPct > bestPlPct) score = 3;
-                else if (pc.aiSlower && bestAiPct > bestPlPct) score = 2;
-                else if (pc.aiFaster) score = 1;
-                else if (pc.aiSlower && plOHKO) score = -1;
-                else score = 0;
-
-                if (score > bestScore || (score === bestScore && bestIdx === -1)) {
-                    bestScore = score;
-                    bestIdx = ci;
-                }
-            }
-
-            if (bestIdx < 0) continue;
-            var winner = precomp[bestIdx];
-            var baitName = winner.candidate.entry.name;
-
-            // Get move rates for this matchup at this P1 HP
-            var fakeP1 = $.extend(true, {}, p1Entry);
-            fakeP1.currentHP = hp;
-            var moveRates = calcP2MoveRates(winner.candidate.entry, fakeP1);
-            // Count active moves (rate > ~0%) to group by
-            var activeMoveCount = 0;
-            for (var ri = 0; ri < moveRates.rates.length; ri++) {
-                if (moveRates.rates[ri].rate >= 0.005) activeMoveCount++;
-            }
-            var moveKey = baitName + '|' + activeMoveCount;
-
-            if (moveKey !== prevMoveKey) {
-                // New band — initialise min/max tracking per move
-                var movesWithRange = [];
-                for (var ri = 0; ri < moveRates.rates.length; ri++) {
-                    movesWithRange.push({
-                        move: moveRates.rates[ri].move,
-                        minRate: moveRates.rates[ri].rate,
-                        maxRate: moveRates.rates[ri].rate
-                    });
-                }
-                bands.push({
-                    hpUpper: hp,
-                    hpLower: hp,
-                    pctUpper: Math.round(hp / maxHP * 100),
-                    pctLower: Math.round(hp / maxHP * 100),
-                    baitName: baitName,
-                    baitSprite: winner.candidate.entry.sprite || getSprite(baitName),
-                    reason: winner.aiFaster ? 'Faster' : (winner.aiSlower ? 'Slower' : 'Tie'),
-                    score: bestScore,
-                    faster: winner.aiFaster,
-                    moves: movesWithRange
-                });
-                prevMoveKey = moveKey;
-                prevBaitName = baitName;
-            } else {
-                // Extend current band and widen min/max ranges
-                var cur = bands[bands.length - 1];
-                cur.hpLower = hp;
-                cur.pctLower = Math.round(hp / maxHP * 100);
-                for (var ri = 0; ri < moveRates.rates.length; ri++) {
-                    if (cur.moves[ri]) {
-                        cur.moves[ri].minRate = Math.min(cur.moves[ri].minRate, moveRates.rates[ri].rate);
-                        cur.moves[ri].maxRate = Math.max(cur.moves[ri].maxRate, moveRates.rates[ri].rate);
-                    }
-                }
-            }
-        }
-        return bands;
-    }
-
-    /**
-     * Render the bait analysis panel HTML from computed bands.
-     * currentHP/maxHP are P1's HP at time of analysis (for the position marker).
-     */
-    function renderBaitPanel(bands, p1Entry, currentHP, maxHP) {
-        if (!bands || bands.length === 0) {
-            return '<div class="rsa-bait-empty">No bait data — need at least 2 alive P2 mons.</div>';
-        }
-
-        // Assign a stable color to each unique bait name
-        var baitColors = {};
-        var colorPalette = ['#63b3ed','#fc8181','#68d391','#f6ad55','#b794f4','#f687b3','#4fd1c5','#ecc94b'];
-        var colorIdx = 0;
-        for (var i = 0; i < bands.length; i++) {
-            if (!baitColors[bands[i].baitName]) {
-                baitColors[bands[i].baitName] = colorPalette[colorIdx % colorPalette.length];
-                colorIdx++;
-            }
-        }
-
-        // Build the visual HP threshold bar
-        var barHtml = '<div class="rsa-bait-bar">';
-        for (var i = 0; i < bands.length; i++) {
-            var b = bands[i];
-            var left = (100 - b.pctUpper);
-            var width = b.pctUpper - b.pctLower;
-            if (width < 1) width = 1;
-            var col = baitColors[b.baitName];
-            barHtml += '<div class="rsa-bait-segment" ' +
-                'style="left:' + left + '%;width:' + width + '%;background:' + col + '" ' +
-                'title="' + esc(b.baitName) + ' (' + b.pctLower + '–' + b.pctUpper + '%)">' +
-            '</div>';
-        }
-        // Current HP marker
-        if (maxHP > 0) {
-            var curPct = Math.round(currentHP / maxHP * 100);
-            var markerPos = 100 - curPct;
-            barHtml += '<div class="rsa-bait-marker" style="left:' + markerPos + '%" title="Current HP: ' + currentHP + '/' + maxHP + ' (' + curPct + '%)"></div>';
-        }
-        barHtml += '</div>';
-
-        // Build the band detail rows
-        var detailHtml = '';
-        for (var i = 0; i < bands.length; i++) {
-            var b = bands[i];
-            var col = baitColors[b.baitName];
-            var spdIcon = b.faster ? '⚡' : '🐢';
-            var spdLabel = b.reason;
-
-            // Move breakdown — show [min–max] range; skip moves always at ~0%
-            var moveHtml = '';
-            for (var mi = 0; mi < b.moves.length; mi++) {
-                var m = b.moves[mi];
-                if (m.maxRate < 0.005) continue; // skip moves that never fire
-                var minPct = Math.round(m.minRate * 100);
-                var maxPct = Math.round(m.maxRate * 100);
-                var label = minPct === maxPct ? minPct + '%' : minPct + '–' + maxPct + '%';
-                var barW = Math.max(2, maxPct);
-                // Show a lighter section for the min portion inside the bar
-                var minW = Math.max(0, minPct);
-                moveHtml += '<div class="rsa-bait-move">' +
-                    '<span class="rsa-bait-move-name">' + esc(m.move) + '</span>' +
-                    '<div class="rsa-bait-move-bar-wrap">' +
-                        '<div class="rsa-bait-move-bar" style="width:' + barW + '%;background:' + col + ';opacity:0.45"></div>' +
-                        '<div class="rsa-bait-move-bar rsa-bait-move-bar-min" style="width:' + minW + '%;background:' + col + '"></div>' +
-                    '</div>' +
-                    '<span class="rsa-bait-move-pct">' + label + '</span>' +
-                '</div>';
-            }
-
-            var hpRange = b.pctLower === b.pctUpper
-                ? b.pctUpper + '%'
-                : b.pctLower + '–' + b.pctUpper + '%';
-
-            detailHtml += '<div class="rsa-bait-band">' +
-                '<div class="rsa-bait-band-header">' +
-                    '<span class="rsa-bait-swatch" style="background:' + col + '"></span>' +
-                    '<img class="rsa-bait-sprite" src="' + esc(b.baitSprite) + '" alt="" onerror="this.style.display=\'none\'">' +
-                    '<span class="rsa-bait-name">' + esc(b.baitName) + '</span>' +
-                    '<span class="rsa-bait-hp-range">' + hpRange + '</span>' +
-                    '<span class="rsa-bait-speed">' + spdIcon + ' ' + spdLabel + '</span>' +
-                '</div>' +
-                '<div class="rsa-bait-moves">' + moveHtml + '</div>' +
-            '</div>';
-        }
-
-        return '<div class="rsa-bait-content">' +
-            '<div class="rsa-bait-title">🎯 Bait Analysis — HP Thresholds</div>' +
-            barHtml +
-            '<div class="rsa-bait-bands">' + detailHtml + '</div>' +
-        '</div>';
+                 reason: best.reason, scores: candidates };
     }
 
     /**
@@ -1239,25 +857,16 @@
         var item = entry.item || '';
         var maxHP = entry.maxHP || 100;
 
-        var abilityEffects = getAbilityEffects(ability);
-        var itemEffects = getItemEffects(item);
-        var hasMagicGuard = abilityEffects ? !!abilityEffects.indirectDamageImmunity : (ability === 'Magic Guard');
+        var hasMagicGuard = ability === 'Magic Guard';
         var isFlying = types.indexOf('Flying') !== -1;
-        var hasLevitate = abilityEffects && abilityEffects.typeImmunity === 'Ground';
-        if (!abilityEffects) hasLevitate = (ability === 'Levitate');
-        var hasAirBalloon = itemEffects ? !!itemEffects.floatImmunity : (item === 'Air Balloon');
+        var hasLevitate = ability === 'Levitate';
+        var hasAirBalloon = item === 'Air Balloon';
         var isGrounded = !isFlying && !hasLevitate && !hasAirBalloon;
-        // Heavy-Duty Boots: ignore all entry hazards
-        var hasHazardImmunity = !!(itemEffects && itemEffects.hazardImmunity);
         // Poison and Steel types absorb Toxic Spikes
         var absorbsTSpikes = types.indexOf('Poison') !== -1 || types.indexOf('Steel') !== -1;
 
         var totalDamage = 0;
         var status = '';
-
-        if (hasHazardImmunity) {
-            return { damage: 0, status: '' };
-        }
 
         // Stealth Rocks — all pokemon, blocked only by Magic Guard
         if (hazards.sr && !hasMagicGuard) {
@@ -1444,8 +1053,6 @@
 
     /** Check if the attacker's ability ignores the defender's ability */
     function ignoresAbility(attackerAbility) {
-        var ae = getAbilityEffects(attackerAbility);
-        if (ae) return !!ae.ignoresAbility;
         return MOLD_BREAKER_ABILITIES.indexOf(attackerAbility) !== -1;
     }
 
@@ -1459,19 +1066,15 @@
         if (hpAfter > 0) return result; // not KO'd, no check needed
         if (hpBefore <= 0) return result; // already fainted
 
-        // Focus Sash-style: survive at 1 HP if at full HP (not blocked by Mold Breaker — it's an item)
-        var defItemEff = getItemEffects(defEntry.item);
-        var itemSurvives = defItemEff ? !!defItemEff.survivalFullHP : (defEntry.item === 'Focus Sash');
-        if (itemSurvives && hpBefore >= maxHP) {
+        // Focus Sash: survive at 1 HP if at full HP (not blocked by Mold Breaker — it's an item)
+        if (defEntry.item === 'Focus Sash' && hpBefore >= maxHP) {
             result.survived = true;
             result.sashed = true;
             return result;
         }
 
-        // Sturdy-style: survive at 1 HP if at full HP (blocked by Mold Breaker/Turboblaze/Teravolt)
-        var defAbilEff = getAbilityEffects(defEntry.ability);
-        var abilSurvives = defAbilEff ? !!defAbilEff.survivalFullHP : (defEntry.ability === 'Sturdy');
-        if (abilSurvives && hpBefore >= maxHP && !ignoresAbility(atkAbility)) {
+        // Sturdy: survive at 1 HP if at full HP (blocked by Mold Breaker/Turboblaze/Teravolt)
+        if (defEntry.ability === 'Sturdy' && hpBefore >= maxHP && !ignoresAbility(atkAbility)) {
             result.survived = true;
             result.sturdied = true;
             return result;
@@ -1506,14 +1109,6 @@
         var data = JSON.parse(json);
         if (!data || !Array.isArray(data.lines) || data.lines.length === 0) return false;
         lines = data.lines;
-        // Migrate old sessions that predate the branch feature
-        for (var li = 0; li < lines.length; li++) {
-            if (!Array.isArray(lines[li].branches)) lines[li].branches = [];
-            if (lines[li].activeBranchIdx == null) lines[li].activeBranchIdx = -1;
-            // Rebuild HP/status/items from round history to fix any stale values
-            // that may have been persisted from earlier builds with contamination bugs.
-            try { rebuildLineTeams(lines[li]); } catch (e) {}
-        }
         battleFormat = data.battleFormat || 'singles';
         currentLineIdx = Math.min(data.currentLineIdx || 0, lines.length - 1);
         return true;
@@ -1566,180 +1161,10 @@
             },
             fieldState: {},  // track field conditions per line
             teamSplit: null,  // for doubles-2t: { left: number } — first N mons are left team
-            battleFormat: 'singles',  // per-line format
-            // ── Branch support ──
-            branches: [],       // array of { id, name, forkRoundIdx, rounds[] }
-            activeBranchIdx: -1 // -1 = main line, >=0 = index into branches[]
+            battleFormat: 'singles'  // per-line format
         };
     }
     function curLine() { return lines[currentLineIdx]; }
-
-    // ── Branch helpers ──────────────────────────────────────
-    function createBranch(line, forkRoundIdx, name) {
-        var branchNum = line.branches.length + 1;
-        var branch = {
-            id: Date.now() + Math.random(),
-            name: name || (line.name + ' → B' + branchNum),
-            forkRoundIdx: forkRoundIdx, // rounds[0..forkRoundIdx-1] inherited from main
-            rounds: []                  // only rounds from forkRoundIdx onward
-        };
-        line.branches.push(branch);
-        return line.branches.length - 1;
-    }
-
-    /** Get the full round list for a branch (inherited + own) */
-    function getBranchRounds(line, branchIdx) {
-        if (branchIdx < 0) return line.rounds; // main line
-        var branch = line.branches[branchIdx];
-        if (!branch) return line.rounds;
-        return line.rounds.slice(0, branch.forkRoundIdx).concat(branch.rounds);
-    }
-
-    /** Get the rounds array that should be appended to (for logging new rounds) */
-    function getActiveRounds(line) {
-        if (!line.branches || line.activeBranchIdx == null || line.activeBranchIdx < 0) return line.rounds;
-        var branch = line.branches[line.activeBranchIdx];
-        return branch ? branch.rounds : line.rounds;
-    }
-
-    /** Get all display columns: main + visible branches */
-    function getVisibleColumns(line) {
-        var cols = [{ idx: -1, name: 'Main', rounds: line.rounds, forkRoundIdx: 0 }];
-        for (var i = 0; i < line.branches.length; i++) {
-            cols.push({
-                idx: i,
-                name: line.branches[i].name,
-                rounds: getBranchRounds(line, i),
-                forkRoundIdx: line.branches[i].forkRoundIdx
-            });
-        }
-        return cols;
-    }
-
-    /** Rebuild teams state for a specific branch view */
-    function rebuildBranchTeams(line, branchIdx) {
-        var rounds = getBranchRounds(line, branchIdx);
-        // Reset all roster HP/status/items to initial state
-        for (var s = 0; s < 2; s++) {
-            var side = s === 0 ? 'p1' : 'p2';
-            var team = line.teams[side];
-            // Reset active indices to first pokemon — replay will advance them correctly
-            team.activeIdx = team.roster.length > 0 ? 0 : -1;
-            if (team.activeIdxB !== undefined) {
-                // Only set slot-B in doubles; in singles always reset to -1 so slot-B
-                // is never mistakenly populated and hidden from predictSwitchIn.
-                team.activeIdxB = (isDoubles() && team.roster.length > 1) ? 1 : -1;
-            }
-            for (var ri = 0; ri < team.roster.length; ri++) {
-                var entry = team.roster[ri];
-                entry.currentHP = entry.maxHP;
-                entry.bestCaseHP = entry.maxHP;
-                entry.status = '';
-                entry.toxicCounter = 0;
-                entry.boosts = { at: 0, df: 0, sa: 0, sd: 0, sp: 0 };
-                if (entry.initialItem !== undefined) entry.item = entry.initialItem;
-            }
-        }
-        // Replay this branch's rounds
-        for (var i = 0; i < rounds.length; i++) {
-            var rd = rounds[i];
-            if (rd.isDoubles && rd.fighters) {
-                var slotToTeam = {
-                    p1a: { team: line.teams.p1, idxKey: 'activeIdx' },
-                    p1b: { team: line.teams.p1, idxKey: 'activeIdxB' },
-                    p2a: { team: line.teams.p2, idxKey: 'activeIdx' },
-                    p2b: { team: line.teams.p2, idxKey: 'activeIdxB' }
-                };
-                for (var sid in rd.fighters) {
-                    var f = rd.fighters[sid];
-                    var mapping = slotToTeam[sid];
-                    if (!f || !mapping) continue;
-                    var idx = findInRoster(mapping.team, f.name);
-                    if (idx >= 0) {
-                        var fHpCur = typeof f.hpAfter === 'object' ? f.hpAfter.current : f.hpAfter;
-                        var fHpBest = typeof f.hpAfter === 'object' ? (f.hpAfter.bestCase != null ? f.hpAfter.bestCase : fHpCur) : fHpCur;
-                        mapping.team.roster[idx].currentHP = fHpCur;
-                        mapping.team.roster[idx].bestCaseHP = fHpBest;
-                        if (f.item !== undefined) mapping.team.roster[idx].item = f.item;
-                        if (f.status !== undefined) mapping.team.roster[idx].status = f.status;
-                        mapping.team[mapping.idxKey] = idx;
-                    }
-                }
-            } else {
-                var p1i = findInRoster(line.teams.p1, rd.p1.name);
-                if (p1i >= 0) {
-                    line.teams.p1.roster[p1i].currentHP = rd.p1.hpAfter.current;
-                    line.teams.p1.roster[p1i].bestCaseHP = rd.p1.hpAfter.bestCase != null ? rd.p1.hpAfter.bestCase : rd.p1.hpAfter.current;
-                    if (rd.p1.status) line.teams.p1.roster[p1i].status = rd.p1.status;
-                    if (rd.p1.boosts) line.teams.p1.roster[p1i].boosts = $.extend({}, rd.p1.boosts);
-                    if (rd.p1.item !== undefined) line.teams.p1.roster[p1i].item = rd.p1.item;
-                    line.teams.p1.activeIdx = p1i;
-                }
-                var p2i = findInRoster(line.teams.p2, rd.p2.name);
-                if (p2i >= 0) {
-                    line.teams.p2.roster[p2i].currentHP = rd.p2.hpAfter.current;
-                    line.teams.p2.roster[p2i].bestCaseHP = rd.p2.hpAfter.bestCase != null ? rd.p2.hpAfter.bestCase : rd.p2.hpAfter.current;
-                    if (rd.p2.status) line.teams.p2.roster[p2i].status = rd.p2.status;
-                    if (rd.p2.boosts) line.teams.p2.roster[p2i].boosts = $.extend({}, rd.p2.boosts);
-                    if (rd.p2.item !== undefined) line.teams.p2.roster[p2i].item = rd.p2.item;
-                    line.teams.p2.activeIdx = p2i;
-                }
-            }
-        }
-
-        // If user confirmed a send-in after a KO (pendingSwitchP2Idx), apply it now
-        // so renderInlineControls shows the 'Next Round' panel rather than p2ko.
-        var _branchObj = (branchIdx >= 0 && line.branches) ? line.branches[branchIdx] : null;
-        var _pendingIdx = _branchObj ? _branchObj.pendingSwitchP2Idx :
-                          (branchIdx < 0 ? line.pendingSwitchP2Idx : undefined);
-        if (_pendingIdx !== undefined && _pendingIdx !== null &&
-            _pendingIdx >= 0 && _pendingIdx < line.teams.p2.roster.length) {
-            line.teams.p2.activeIdx = _pendingIdx;
-        }
-
-        // After replay, re-anchor both active indices to whatever pokemon is currently
-        // loaded in the calc form.  rebuildBranchTeams resets activeIdx = 0 before
-        // replay; if rounds exist but don't reference the loaded pokemon (e.g. user
-        // manually changed the form after the last logged round), activeIdx stays at
-        // the last-replayed index even though the form has a different pokemon.
-        // Only apply this when there are logged rounds — with 0 rounds the first
-        // pokemon in roster order (index 0) is always the correct active one, and
-        // re-anchoring to the form would pick up stale pokemon from a previous trainer.
-        if (rounds.length > 0) {
-            var _formP2Name = getP2Name ? getP2Name() : null;
-            if (_formP2Name) {
-                var _formP2i = findInRoster(line.teams.p2, _formP2Name);
-                if (_formP2i >= 0) line.teams.p2.activeIdx = _formP2i;
-            }
-            var _formP1Name = getP1Name ? getP1Name() : null;
-            if (_formP1Name) {
-                var _formP1i = findInRoster(line.teams.p1, _formP1Name);
-                if (_formP1i >= 0) line.teams.p1.activeIdx = _formP1i;
-            }
-        }
-
-        // Restore user-set pre-damage HP for P1 entries not referenced in any
-        // replayed round.  preDamageHP is set by the hp-edit handler and persists
-        // until the user explicitly changes it to a new value.
-        for (var _bpi = 0; _bpi < line.teams.p1.roster.length; _bpi++) {
-            var _bpe = line.teams.p1.roster[_bpi];
-            if (_bpe.preDamageHP !== undefined && _bpe.preDamageHP < _bpe.maxHP) {
-                var _bInRound = rounds.some(function(rd) {
-                    if (rd.isDoubles && rd.fighters) {
-                        for (var _bs in rd.fighters) {
-                            if (rd.fighters[_bs] && rd.fighters[_bs].name === _bpe.name) return true;
-                        }
-                        return false;
-                    }
-                    return rd.p1 && rd.p1.name === _bpe.name;
-                });
-                if (!_bInRound) {
-                    _bpe.currentHP  = _bpe.preDamageHP;
-                    _bpe.bestCaseHP = _bpe.preDamageHP;
-                }
-            }
-        }
-    }
 
     // ════════════════════════════════════════════════════════════
     // ROSTER MANAGEMENT
@@ -1780,11 +1205,6 @@
 
     /** Get the second active entry (B slot) for doubles */
     function getActiveEntryB(team) {
-        // Slot B only exists in doubles — always return null in singles so that
-        // a stale activeIdxB value (e.g. from a previous doubles session saved in
-        // localStorage, or from rebuildBranchTeams) never ghosts a pokemon out of
-        // predictSwitchIn candidates.
-        if (!isDoubles()) return null;
         if (team.activeIdxB >= 0 && team.activeIdxB < team.roster.length) {
             return team.roster[team.activeIdxB];
         }
@@ -1808,95 +1228,27 @@
         try {
             var poke = createPokemon(entry.setId);
             spd = poke.stats.spe || 50;
-            spd = applySpeedModifiers(spd, entry, '', '');
+            // Item modifiers
+            var itm = entry.item || '';
+            if (itm === 'Iron Ball' || itm === 'Macho Brace' || itm === 'Power Weight' ||
+                itm === 'Power Bracer' || itm === 'Power Belt' || itm === 'Power Lens' ||
+                itm === 'Power Band' || itm === 'Power Anklet') {
+                spd = Math.floor(spd * 0.5);
+            } else if (itm === 'Choice Scarf') {
+                spd = Math.floor(spd * 1.5);
+            } else if (itm === 'Quick Powder' && entry.name === 'Ditto') {
+                spd = spd * 2;
+            }
+            // Ability modifiers
+            if (entry.ability === 'Quick Feet' && entry.status) spd = Math.floor(spd * 1.5);
+            if (entry.ability === 'Slow Start') spd = Math.floor(spd * 0.5);
+            // Status modifier (paralysis halves speed; Quick Feet bypasses this)
+            if (entry.status === 'Paralysis' && entry.ability !== 'Quick Feet') spd = Math.floor(spd * 0.5);
             // Stat boost modifier
             var spdBoost = (entry.boosts && entry.boosts.sp) || 0;
             if (spdBoost > 0) spd = Math.floor(spd * (2 + spdBoost) / 2);
             else if (spdBoost < 0) spd = Math.floor(spd * 2 / (2 - spdBoost));
         } catch (err) {}
-        return spd;
-    }
-
-    /**
-     * Apply item, ability, and paralysis speed modifiers in the canonical order.
-     * Returns the new speed value. Does NOT apply boost stages — caller handles those.
-     *
-     *   spd            : current speed value
-     *   entry          : roster entry (.item, .ability, .status, .name)
-     *   weather        : weather string (or '' to skip weather-conditional mods)
-     *   terrain        : terrain string (or '' to skip terrain-conditional mods)
-     *
-     * Reads from EffectsRegistry. Falls back to legacy hardcoded behavior if the
-     * registry has not loaded.
-     */
-    function applySpeedModifiers(spd, entry, weather, terrain) {
-        var item    = entry.item    || '';
-        var ability = entry.ability || '';
-        var status  = entry.status  || '';
-        var species = entry.name    || '';
-
-        // --- Item speed modifier (registry-driven) ---
-        var itemReg = getItemEffects(item);
-        if (itemReg && itemReg.speedMod) {
-            var im = itemReg.speedMod;
-            var imApplies = true;
-            if (im.condition && im.condition.speciesOnly) {
-                imApplies = (species === im.condition.speciesOnly);
-            }
-            if (imApplies) {
-                spd = (im.multiplier === 2)
-                    ? spd * im.multiplier              // doubling — no floor (matches Quick Powder)
-                    : Math.floor(spd * im.multiplier); // halving / 1.5x — floored
-            }
-        } else if (!window.EffectsRegistry) {
-            // Fallback: registry not loaded — legacy hardcoded behavior
-            if (item === 'Iron Ball' || item === 'Macho Brace' || item === 'Power Weight' ||
-                item === 'Power Bracer' || item === 'Power Belt' || item === 'Power Lens' ||
-                item === 'Power Band' || item === 'Power Anklet') {
-                spd = Math.floor(spd * 0.5);
-            } else if (item === 'Choice Scarf') {
-                spd = Math.floor(spd * 1.5);
-            } else if (item === 'Quick Powder' && species === 'Ditto') {
-                spd = spd * 2;
-            }
-        }
-
-        // --- Ability speed modifier (registry-driven) ---
-        // Original behavior: only ONE ability speedMod applies (mutually exclusive
-        // if-else chain). Preserve that by short-circuiting on first match.
-        var abReg = getAbilityEffects(ability);
-        if (abReg && abReg.speedMod) {
-            var am = abReg.speedMod;
-            var amApplies = true;
-            var cond = am.condition || null;
-            if (cond) {
-                if (cond.weather)   amApplies = amApplies && cond.weather.indexOf(weather) !== -1;
-                if (cond.terrain)   amApplies = amApplies && cond.terrain.indexOf(terrain) !== -1;
-                if (cond.hasStatus) amApplies = amApplies && !!status;
-            }
-            if (amApplies) {
-                spd = (am.multiplier === 2)
-                    ? spd * am.multiplier
-                    : Math.floor(spd * am.multiplier);
-            }
-        } else if (!window.EffectsRegistry) {
-            // Fallback: registry not loaded
-            if (ability === 'Swift Swim' && (weather === 'Rain' || weather === 'Heavy Rain')) spd = spd * 2;
-            else if (ability === 'Chlorophyll' && (weather === 'Sun' || weather === 'Harsh Sunshine')) spd = spd * 2;
-            else if (ability === 'Sand Rush' && weather === 'Sand') spd = spd * 2;
-            else if (ability === 'Slush Rush' && (weather === 'Snow' || weather === 'Hail')) spd = spd * 2;
-            else if (ability === 'Surge Surfer' && terrain === 'Electric') spd = spd * 2;
-            else if (ability === 'Quick Feet' && status) spd = Math.floor(spd * 1.5);
-            else if (ability === 'Slow Start') spd = Math.floor(spd * 0.5);
-        }
-
-        // --- Status modifier (paralysis halves; Quick Feet bypasses) ---
-        // Quick Feet bypass uses the registry hasStatus speedMod check above by NAME.
-        // Preserve original behavior by checking for Quick Feet ability name directly.
-        if (status === 'Paralysis' && ability !== 'Quick Feet') {
-            spd = Math.floor(spd * 0.5);
-        }
-
         return spd;
     }
 
@@ -1969,33 +1321,6 @@
     function getTerrain() { return $("input:checkbox[name='terrain']:checked").val() || 'None'; }
 
     /**
-     * Sync the RSA field bar controls (weather/terrain/trick room/permanent)
-     * from the current hidden calc form state + fieldState, so that when
-     * switching lines or restoring a session, the bar reflects truth.
-     */
-    function syncFieldBarFromState() {
-        // Weather: read from hidden radio (authoritative)
-        var w = getWeather();
-        $('#rsa-weather-select').val(w === 'None' ? '' : w);
-
-        // Terrain
-        var t = getTerrain();
-        $('#rsa-terrain-select').val(t === 'None' ? '' : t);
-
-        // Trick Room
-        var tr = $('#trickroom').is(':checked');
-        $('#rsa-trickroom').prop('checked', tr);
-        $('#rsa-trickroom').closest('.rsa-trickroom-toggle').toggleClass('rsa-tr-active', tr);
-
-        // Permanent weather
-        var perma = !!(curLine().fieldState && curLine().fieldState.permanentWeather);
-        $('#rsa-perma-weather').prop('checked', perma);
-
-        // Update display panel
-        if (typeof window._rsaUpdateFieldPanel === 'function') window._rsaUpdateFieldPanel();
-    }
-
-    /**
      * Compute effective displayed speed for a roster entry.
      * Applies item, ability (including weather abilities), status, and boost modifiers.
      * `entry` = roster entry (has .item, .ability, .status, .boosts)
@@ -2009,10 +1334,35 @@
         var spd = baseSpe;
         var w = weather != null ? weather : getWeather();
         var t = terrain != null ? terrain : getTerrain();
+        var item = entry.item || '';
+        var ability = entry.ability || '';
+        var status = entry.status || '';
         var boost = (entry.boosts && entry.boosts.sp) || 0;
 
-        // Apply item, ability, and paralysis speed modifiers via shared helper
-        spd = applySpeedModifiers(spd, entry, w, t);
+        // Item modifiers
+        if (item === 'Iron Ball' || item === 'Macho Brace' || item === 'Power Weight' ||
+            item === 'Power Bracer' || item === 'Power Belt' || item === 'Power Lens' ||
+            item === 'Power Band' || item === 'Power Anklet') {
+            spd = Math.floor(spd * 0.5);
+        } else if (item === 'Choice Scarf') {
+            spd = Math.floor(spd * 1.5);
+        } else if (item === 'Quick Powder' && (entry.name || '') === 'Ditto') {
+            spd = spd * 2;
+        }
+
+        // Weather ability speed doublers
+        if (ability === 'Swift Swim' && (w === 'Rain' || w === 'Heavy Rain')) spd = spd * 2;
+        else if (ability === 'Chlorophyll' && (w === 'Sun' || w === 'Harsh Sunshine')) spd = spd * 2;
+        else if (ability === 'Sand Rush' && w === 'Sand') spd = spd * 2;
+        else if (ability === 'Slush Rush' && (w === 'Snow' || w === 'Hail')) spd = spd * 2;
+        // Terrain ability
+        else if (ability === 'Surge Surfer' && t === 'Electric') spd = spd * 2;
+        // Other ability modifiers
+        else if (ability === 'Quick Feet' && status) spd = Math.floor(spd * 1.5);
+        else if (ability === 'Slow Start') spd = Math.floor(spd * 0.5);
+
+        // Status modifiers (paralysis)
+        if (status === 'Paralysis' && ability !== 'Quick Feet') spd = Math.floor(spd * 0.5);
 
         // Boost stages
         if (boost !== 0) {
@@ -2476,23 +1826,20 @@
         var defMaxHP = defender.maxHP;
         var move = moveInfo.move;
 
-        var atkAbilEff = getAbilityEffects(attacker.ability);
-        var atkItemEff = getItemEffects(attacker.item);
-        var atkMagicGuard = atkAbilEff ? !!atkAbilEff.indirectDamageImmunity : (attacker.ability === 'Magic Guard');
-        var atkRockHead   = atkAbilEff ? !!atkAbilEff.recoilImmunity : (attacker.ability === 'Rock Head');
+        var atkMagicGuard = attacker.ability === 'Magic Guard';
+        var atkRockHead   = attacker.ability === 'Rock Head';
         // In Gen 5+, recoil is based on the raw damage roll, NOT capped at the
         // defender's remaining HP.  Drain moves ARE capped at actual HP lost.
         var defCurHP = Math.max(1, defender.currentHP || defender.maxHP);
         var effMinDmg = Math.min(moveInfo.minDmg, defCurHP);
         var effMaxDmg = Math.min(moveInfo.maxDmg, defCurHP);
 
-        // --- Life Orb-style recoil on attacker (blocked by Magic Guard) ---
-        var atkSelfRecoilFrac = atkItemEff && atkItemEff.attackerSelfRecoil ? atkItemEff.attackerSelfRecoil : (attacker.item === 'Life Orb' ? 1/10 : 0);
-        if (atkSelfRecoilFrac > 0 && moveInfo.minDmg > 0 && !atkMagicGuard) {
-            var loRecoil = Math.max(1, Math.floor(atkMaxHP * atkSelfRecoilFrac));
+        // --- Life Orb recoil on attacker (blocked by Magic Guard; fixed 1/10 of attacker maxHP) ---
+        if (attacker.item === 'Life Orb' && moveInfo.minDmg > 0 && !atkMagicGuard) {
+            var loRecoil = Math.max(1, Math.floor(atkMaxHP / 10));
             extras.push({
                 target: 'attacker',
-                source: attacker.item,
+                source: 'Life Orb',
                 damage: loRecoil,
                 type: 'recoil'
             });
@@ -2513,16 +1860,11 @@
 
         // --- Contact damage (Iron Barbs, Rough Skin, Rocky Helmet) — blocked by Magic Guard ---
         var isContact = !!(move.makesContact || move.flags && move.flags.contact);
-        // Protective Pads / Punching Glove: attacker bypasses contact effects
-        var atkContactAvoid = !!(atkItemEff && atkItemEff.contactAvoidance);
-        if (isContact && !atkContactAvoid && moveInfo.minDmg > 0 && !atkMagicGuard) {
+        if (isContact && moveInfo.minDmg > 0 && !atkMagicGuard) {
             // Defender ability
-            var defAbilEff = getAbilityEffects(defender.ability);
-            var defContactFrac = defAbilEff && defAbilEff.contactRecoil
-                ? defAbilEff.contactRecoil
-                : (CONTACT_DAMAGE_ABILITIES[defender.ability] || 0);
-            if (defContactFrac > 0) {
-                var contactDmg = Math.max(1, Math.floor(atkMaxHP * defContactFrac));
+            if (CONTACT_DAMAGE_ABILITIES[defender.ability]) {
+                var frac = CONTACT_DAMAGE_ABILITIES[defender.ability];
+                var contactDmg = Math.max(1, Math.floor(atkMaxHP * frac));
                 extras.push({
                     target: 'attacker',
                     source: defender.ability,
@@ -2531,12 +1873,9 @@
                 });
             }
             // Defender item
-            var defItemEff = getItemEffects(defender.item);
-            var defItemContactFrac = defItemEff && defItemEff.contactRecoilToAttacker
-                ? defItemEff.contactRecoilToAttacker
-                : (CONTACT_DAMAGE_ITEMS[defender.item] || 0);
-            if (defItemContactFrac > 0) {
-                var contactDmg2 = Math.max(1, Math.floor(atkMaxHP * defItemContactFrac));
+            if (CONTACT_DAMAGE_ITEMS[defender.item]) {
+                var frac2 = CONTACT_DAMAGE_ITEMS[defender.item];
+                var contactDmg2 = Math.max(1, Math.floor(atkMaxHP * frac2));
                 extras.push({
                     target: 'attacker',
                     source: defender.item,
@@ -2566,13 +1905,10 @@
         var eot = [];
         var maxHP = entry.maxHP;
         var ability = entry.ability || '';
-        var abilEff = getAbilityEffects(ability);
-        var itemEff = getItemEffects(entry.item || '');
-        var hasMagicGuard = abilEff ? !!abilEff.indirectDamageImmunity : (ability === 'Magic Guard');
-        var hasPoisonHeal = abilEff && abilEff.statusHeal && (abilEff.statusHeal.status === 'Poison' || abilEff.statusHeal.status === 'Badly Poisoned');
-        if (!abilEff) hasPoisonHeal = (ability === 'Poison Heal');
+        var hasMagicGuard = ability === 'Magic Guard';
+        var hasPoisonHeal = ability === 'Poison Heal';
         // Guts suppresses burn damage (but burn SpAtk drop still applies)
-        var hasGuts = abilEff ? !!abilEff.burnAttackBoost : (ability === 'Guts');
+        var hasGuts = ability === 'Guts';
 
         // --- Status damage (blocked by Magic Guard / Guts for burn) ---
         if (entry.status === 'Burn' && !hasMagicGuard && !hasGuts) {
@@ -2580,9 +1916,8 @@
             eot.push({ source: 'Burn', damage: burnDmg });
         }
         // Poison Heal: heal 1/8 instead of taking poison/toxic damage
-        var phHealFrac = (abilEff && abilEff.statusHeal && abilEff.statusHeal.frac) ? abilEff.statusHeal.frac : 1/8;
         if (hasPoisonHeal && (entry.status === 'Poison' || entry.status === 'Badly Poisoned')) {
-            eot.push({ source: 'Poison Heal', damage: -Math.max(1, Math.floor(maxHP * phHealFrac)) });
+            eot.push({ source: 'Poison Heal', damage: -Math.max(1, Math.floor(maxHP / 8)) });
         } else {
             if (entry.status === 'Poison' && !hasMagicGuard) {
                 var psnDmg = Math.max(1, Math.floor(maxHP / 8));
@@ -2614,44 +1949,23 @@
             }
         }
 
-        // --- Healing items (registry-driven via eotHealing) ---
-        if (itemEff && itemEff.eotHealing) {
-            var heal = itemEff.eotHealing;
-            var cond = heal.condition;
-            if (!cond) {
-                eot.push({ source: entry.item, damage: -Math.max(1, Math.floor(maxHP * heal.frac)) });
-            } else if (cond.holderType) {
-                if (hasType(entry, [cond.holderType])) {
-                    eot.push({ source: entry.item, damage: -Math.max(1, Math.floor(maxHP * heal.frac)) });
-                } else if (!hasMagicGuard) {
-                    var penalty = cond.elseDamageFrac || (heal.frac * 2);
-                    eot.push({ source: entry.item, damage: Math.max(1, Math.floor(maxHP * penalty)) });
-                }
-            }
-        } else {
-            // Fallback to legacy hardcoded behavior
-            if (entry.item === 'Leftovers') {
-                var leftHeal = Math.max(1, Math.floor(maxHP / 16));
-                eot.push({ source: 'Leftovers', damage: -leftHeal });
-            }
-            if (entry.item === 'Black Sludge') {
-                if (hasType(entry, ['Poison'])) {
-                    eot.push({ source: 'Black Sludge', damage: -Math.max(1, Math.floor(maxHP / 16)) });
-                } else if (!hasMagicGuard) {
-                    eot.push({ source: 'Black Sludge', damage: Math.max(1, Math.floor(maxHP / 8)) });
-                }
+        // --- Healing items ---
+        if (entry.item === 'Leftovers') {
+            var leftHeal = Math.max(1, Math.floor(maxHP / 16));
+            eot.push({ source: 'Leftovers', damage: -leftHeal });
+        }
+        if (entry.item === 'Black Sludge') {
+            if (hasType(entry, ['Poison'])) {
+                eot.push({ source: 'Black Sludge', damage: -Math.max(1, Math.floor(maxHP / 16)) });
+            } else if (!hasMagicGuard) {
+                // Magic Guard blocks Black Sludge damage (but not healing)
+                eot.push({ source: 'Black Sludge', damage: Math.max(1, Math.floor(maxHP / 8)) });
             }
         }
 
         // --- Grassy Terrain healing ---
         if (getTerrain() === 'Grassy') {
             eot.push({ source: 'Grassy Terrain', damage: -Math.max(1, Math.floor(maxHP / 16)) });
-        }
-
-        // --- Item EOT damage (Sticky Barb) — blocked by Magic Guard ---
-        if (itemEff && itemEff.eotDamage && !hasMagicGuard) {
-            var ed = itemEff.eotDamage;
-            eot.push({ source: entry.item, damage: Math.max(1, Math.floor(maxHP * ed.frac)) });
         }
 
         return eot;
@@ -2668,8 +1982,6 @@
     }
 
     function isWeatherImmune(ability) {
-        var ae = getAbilityEffects(ability);
-        if (ae) return !!ae.weatherDamageImmunity;
         return WEATHER_IMMUNE_ABILITIES.indexOf(ability) !== -1;
     }
 
@@ -2742,28 +2054,15 @@
         if (!entry || !entry.setId) return;
         // Suppress cascading recalculations during form population
         _loadingForm = true;
-        // Use val() + change() on the underlying input element only (not the Select2 DIV wrapper).
-        // Triggering change on the full '.set-selector' collection would also fire the DIV's
-        // calc-trigger handler BEFORE the set-selector handler populates the form, producing
-        // a spurious performCalculations() call with stale data. The Select2 display text is
-        // updated manually below, so we only need to trigger on the input that has class 'opposing'.
+        // Use val() + change() + select2-chosen text update (same pattern as trainer click handlers)
         var $sel = $('#' + side + ' .set-selector');
-        var $inputSel = $('#' + side + ' input.set-selector');
         $sel.val(entry.setId);
-        ($inputSel.length ? $inputSel : $sel).change();
+        $sel.change();
         // Update the Select2 display text to match
         $('#' + side + ' .set-selector').closest('.select2-container').find('.select2-chosen').text(entry.setId);
 
-        // Immediately calculate so move labels show the new pokemon's moves right away.
-        // .set-selector.change() already set NO_CALC = false before returning, so
-        // performCalculations() is safe to call. The MutationObserver will inject
-        // sprites synchronously before the next paint.
-        try { performCalculations(); } catch (e) {}
-
         // After the calc form has fully loaded, batch-set tracked values
-        // with NO_CALC + _loadingForm to prevent cascading recalculations.
-        // 0ms timeout: yield to the browser so Select2's internal handlers can
-        // settle, then immediately apply HP/status/ability/item/boosts and recalc.
+        // with NO_CALC + _loadingForm to prevent cascading recalculations
         setTimeout(function () {
             window.NO_CALC = true;
 
@@ -2813,7 +2112,7 @@
             injectMoveLabelSprites();
             // Re-render inline controls so damage % is up to date
             renderRoundLog();
-        }, 0);
+        }, 300);
     }
 
     /**
@@ -2867,42 +2166,10 @@
         if (suppressP2Sync) return;
         var line = curLine();
         var team = line.teams.p2;
-        // Rebuild from round history first so oldEntries has accurate (post-replay) HP.
-        // This prevents stale 0-HP values from a previous deleted sim from leaking in.
-        // When in a branch, rebuildLineTeams replays main-line rounds and would advance
-        // line.teams.p1.activeIdx to the main-line's final pokemon (e.g. the switched-in
-        // mon from a switch round that the branch forks before). Save and restore it so
-        // the branch-context active pokemon is unchanged after the rebuild.
-        var _savedP1ActiveIdx = (line.activeBranchIdx >= 0) ? line.teams.p1.activeIdx : null;
-        // rebuildLineTeams syncs the OLD roster's active entry item/HP to the P2 calc
-        // form. If a new trainer was just loaded, the form currently has the CORRECT
-        // item from selectTrainer — but the old roster still points at the previous
-        // trainer's pokemon. Save the form values before rebuildLineTeams clobbers them
-        // and restore after, so getItem('p2') below reads the new trainer's data.
-        var _formP2Name = getP2Name();
-        var _oldP2Active = getActiveEntry(team);
-        var _savedFormItem = null, _savedFormAbility = null;
-        if (_formP2Name && (!_oldP2Active || _oldP2Active.name !== _formP2Name)) {
-            _savedFormItem = getItem('p2');
-            _savedFormAbility = getAbility('p2');
-        }
-        rebuildLineTeams(line);
-        if (_savedFormItem !== null) {
-            window.NO_CALC = true;
-            $('#p2 .item').val(_savedFormItem);
-            if (_savedFormAbility) $('#p2 .ability').val(_savedFormAbility);
-            window.NO_CALC = false;
-        }
-        if (_savedP1ActiveIdx !== null && line.activeBranchIdx >= 0) {
-            line.teams.p1.activeIdx = _savedP1ActiveIdx;
-        }
-        // Preserve HP/status only for pokemon that have been involved in logged rounds.
-        // Deep-copy each entry to prevent object-reference sharing between oldEntries
-        // and the final newRoster — otherwise rebuildLineTeams mutations on shared
-        // references corrupt ability/item/status across roster slots.
+        // Preserve HP/status only for pokemon that have been involved in logged rounds
         var oldEntries = {};
         for (var i = 0; i < team.roster.length; i++) {
-            oldEntries[team.roster[i].name] = $.extend(true, {}, team.roster[i]);
+            oldEntries[team.roster[i].name] = team.roster[i];
         }
 
         var newRoster = [];
@@ -2946,17 +2213,15 @@
             var pokeName = pok.name;
             var setId = pok.setId;
 
-            // Only advance activeIdx past 0 when we have logged rounds — with no rounds
-            // the form's currently loaded pokemon may be stale (previous trainer or a
-            // non-lead pokemon), so we always default to slot 0 (the lead / first pokemon).
-            if (pokeName === p2Name && line.rounds.length > 0) newActiveIdx = k;
+            // Track which index is the currently active (loaded) pokemon
+            if (pokeName === p2Name) newActiveIdx = k;
 
             if (oldEntries[pokeName] && line.rounds.length > 0) {
                 if (pokeName === p2Name) {
-                    // Keep tracked HP/item/ability (from rebuildLineTeams replay).
-                    // Ability and item are NOT read from the form here to avoid async-transition
-                    // contamination (the set-selector updates before ability/item fields do).
+                    // Refresh live data (item/ability/moves may have changed) but keep tracked HP
                     var preserved = oldEntries[pokeName];
+                    preserved.item = getItem('p2') || preserved.item;
+                    preserved.ability = getAbility('p2') || preserved.ability;
                     var formMoves = getMoves('p2');
                     // Only update moves if the form has real moves (not all empty/No Move)
                     var hasRealMove = formMoves && formMoves.some(function(m) { return m && m !== '(No Move)'; });
@@ -3011,9 +2276,6 @@
         team.activeIdx = newActiveIdx;
         if (team.activeIdx < 0 && newRoster.length > 0) team.activeIdx = 0;
         if (team.activeIdx >= newRoster.length) team.activeIdx = newRoster.length - 1;
-        // In singles, always clear slot-B so a stale value from a saved session or
-        // a previous doubles match never hides the #2 roster pokemon from predictions.
-        if (!isDoubles()) team.activeIdxB = -1;
         // Doubles: auto-set A and B slots
         if (isDoubles() && team.roster.length >= 2) {
             if (battleFormat === 'doubles-2t' && line.teamSplit) {
@@ -3042,14 +2304,6 @@
                 }
             }
         }
-        // If currently on a branch, rebuildLineTeams (called above) replayed main-line
-        // rounds and left both P1 and P2 roster HP in the main-line end state (e.g. 0 after
-        // a KO).  Rebuild for the active branch so HP reflects that branch's own round history.
-        if (line.activeBranchIdx >= 0) {
-            rebuildBranchTeams(line, line.activeBranchIdx);
-            syncActiveStateToForm();
-        }
-
         renderTeamPanel('p2');
         if (isDoubles()) refreshDoublesUI();
         // Sync first-turn-out checkbox when P2 team changes
@@ -3065,50 +2319,6 @@
         // Use the global setdex (tracks current gen) with fallback to SETDEX_SV
         var sd = window.setdex || window.SETDEX_SV || {};
         return (sd[pokeName] && sd[pokeName][setName]) || null;
-    }
-
-    /**
-     * Ensure the P2 roster contains every pokemon from CURRENT_TRAINER_POKS.
-     * Adds any missing entries (with full HP) so predictSwitchIn never misses a candidate.
-     * Called after rebuild operations that might leave the roster incomplete.
-     */
-    function ensureP2RosterComplete() {
-        if (!window.CURRENT_TRAINER_POKS || !window.CURRENT_TRAINER_POKS.length) return;
-        var line = curLine();
-        var team = line.teams.p2;
-        var existing = {};
-        for (var i = 0; i < team.roster.length; i++) {
-            existing[team.roster[i].name] = true;
-        }
-        var added = false;
-        for (var t = 0; t < window.CURRENT_TRAINER_POKS.length; t++) {
-            var raw = window.CURRENT_TRAINER_POKS[t];
-            var setId = raw.indexOf(']') !== -1 ? raw.slice(raw.indexOf(']') + 1) : raw;
-            var pokeName = String(setId).split(' (')[0];
-            if (!pokeName || existing[pokeName]) continue;
-            // This pokemon is missing from the roster — add it
-            var set = lookupSet(setId);
-            var maxHP = set ? calcMaxHP(pokeName, set) : 100;
-            var types = [];
-            try {
-                var species = calc.SPECIES[gen || 9][pokeName];
-                if (species && species.types) types = species.types;
-            } catch (e) {}
-            var entry = createRosterEntry(
-                pokeName, setId,
-                getSprite(pokeName),
-                set ? (set.item || '') : '',
-                set ? (set.ability || '') : '',
-                set ? (set.moves || []) : [],
-                maxHP, types
-            );
-            team.roster.push(entry);
-            existing[pokeName] = true;
-            added = true;
-        }
-        if (added) {
-            renderTeamPanel('p2');
-        }
     }
 
     function addToTeam(side) {
@@ -3228,15 +2438,10 @@
     }
 
     function saveFormToRoster(side) {
-        if (_loadingForm) return; // form is mid-transition — values are stale
         var line = curLine();
         var team = line.teams[side];
         var entry = getActiveEntry(team);
         if (!entry) return;
-        // Verify the form's loaded pokemon matches the roster entry to prevent
-        // writing one pokemon's ability/item onto another's roster slot.
-        var formName = (side === 'p1') ? getP1Name() : getP2Name();
-        if (formName && formName !== entry.name) return;
 
         // Save current HP
         var hp = getCurrentHP(side);
@@ -3300,11 +2505,6 @@
         // Save current form state to roster
         saveFormToRoster('p1');
         saveFormToRoster('p2');
-
-        // Pre-damage is NOT cleared here — if this round is later deleted,
-        // rebuildLineTeams/rebuildBranchTeams will restore the user's pre-damage
-        // HP using preDamageHP.  It is only cleared when a NEW pre-damage value
-        // is set (hp-edit handler) or when the mon reaches maxHP after rebuild.
 
         // Sync boosts from roster to calc form before damage calculation
         syncBoostsToCalc();
@@ -3370,23 +2570,6 @@
         var p1Priority = (p1MoveData && typeof p1MoveData.priority === 'number') ? p1MoveData.priority : 0;
         var p2Priority = (p2MoveData && typeof p2MoveData.priority === 'number') ? p2MoveData.priority : 0;
 
-        // Ability priority modifiers (Prankster, Gale Wings, Triage)
-        function applyAbilityPriorityMod(entry, basePrio, moveData) {
-            if (!moveData) return basePrio;
-            var ae = getAbilityEffects(entry.ability);
-            if (!ae || !ae.priorityMod) return basePrio;
-            var pm = ae.priorityMod;
-            var c = pm.condition || {};
-            if (c.alwaysLast) return basePrio; // Stall handled separately via lastInBracket
-            if (c.category && moveData.category !== c.category) return basePrio;
-            if (c.moveType && moveData.type !== c.moveType) return basePrio;
-            if (c.fullHP && entry.currentHP < entry.maxHP) return basePrio;
-            if (c.isHealing && !(moveData.heal || moveData.drain)) return basePrio;
-            return basePrio + (pm.boost || 0);
-        }
-        p1Priority = applyAbilityPriorityMod(p1Entry, p1Priority, p1MoveData);
-        p2Priority = applyAbilityPriorityMod(p2Entry, p2Priority, p2MoveData);
-
         // Custap Berry: gives +1 priority bracket when at ≤25% HP (≤50% with Gluttony)
         var p1Custap = false, p2Custap = false;
         if (p1Entry.item === 'Custap Berry' && p1MoveIdx !== 'none') {
@@ -3407,20 +2590,6 @@
         if (p1Priority !== p2Priority) {
             // Higher priority bracket goes first (regardless of speed)
             speed.faster = p1Priority > p2Priority ? 'p1' : 'p2';
-        } else {
-            // Same bracket: check moveLastInBracket (Lagging Tail / Full Incense) and Stall
-            function movesLast(entry) {
-                var ie = getItemEffects(entry.item);
-                if (ie && ie.moveLastInBracket) return true;
-                var ae = getAbilityEffects(entry.ability);
-                if (ae && ae.priorityMod && ae.priorityMod.condition && ae.priorityMod.condition.alwaysLast) return true;
-                return false;
-            }
-            var p1Last = movesLast(p1Entry);
-            var p2Last = movesLast(p2Entry);
-            if (p1Last && !p2Last) speed.faster = 'p2';
-            else if (p2Last && !p1Last) speed.faster = 'p1';
-            // If both or neither, keep speed.faster as-is
         }
         // If same priority bracket, speed.faster from getSpeedInfo() is used as-is
 
@@ -3467,15 +2636,11 @@
 
         // Helper: check if a pokemon is immune to sleep
         function isSleepImmune(entry) {
-            var ae = getAbilityEffects(entry.ability || '');
-            if (ae && ae.statusImmunity && ae.statusImmunity.indexOf('Sleep') !== -1) return true;
             var ab = (entry.ability || '').toLowerCase().replace(/\s/g, '');
             return ab === 'insomnia' || ab === 'vitalspirit' || ab === 'sweetveil';
         }
         // Helper: check if a pokemon is immune to freeze
         function isFreezeImmune(entry) {
-            var ae = getAbilityEffects(entry.ability || '');
-            if (ae && ae.statusImmunity && ae.statusImmunity.indexOf('Freeze') !== -1) return true;
             var ab = (entry.ability || '').toLowerCase().replace(/\s/g, '');
             if (ab === 'magmaarmor') return true;
             // Ice types are freeze-immune in gen 6+
@@ -3484,13 +2649,6 @@
         }
         // Helper: check if item cures a status
         function itemCuresStatus(entry, status) {
-            var ie = getItemEffects(entry.item || '');
-            if (ie && ie.statusCure) {
-                if (ie.statusCure === 'any') return true;
-                if (ie.statusCure === status) return true;
-                // Treat Badly Poisoned as Poison for cure purposes
-                if (ie.statusCure === 'Poison' && status === 'Badly Poisoned') return true;
-            }
             var it = (entry.item || '').toLowerCase().replace(/\s/g, '');
             if (it === 'lumberry') return true;
             if (status === 'Sleep' && it === 'chestoberry') return true;
@@ -3517,13 +2675,6 @@
         var firstEntry  = (firstMover === 'p1') ? p1Entry : p2Entry;
         var secondEntry = (firstMover === 'p1') ? p2Entry : p1Entry;
 
-        // Track berry-nullified status/confusion for display in round card
-        var p1StatusNullifiedByBerry = null; // { status, berry }
-        var p2StatusNullifiedByBerry = null;
-        // Track any consumed item (Focus Sash, Custap Berry, Sitrus Berry, etc.) for display
-        var p1ItemConsumed = null; // item name string
-        var p2ItemConsumed = null;
-
         // Apply first mover's secondary effects
         var secondMoverBlocked = false;
         var secondMoverBlockReason = '';
@@ -3544,24 +2695,11 @@
                         if (!itemCuresStatus(secondEntry, 'Sleep')) {
                             secondMoverBlocked = true;
                             secondMoverBlockReason = 'sleep';
-                        } else {
-                            // Berry cured the sleep before it could block action
-                            var _sleepBerry = (secondEntry.item || '');
-                            secondEntry.status = '';
-                            secondEntry.item = ''; $('#' + (secondMover === 'p1' ? 'p1' : 'p2') + ' .item').val('');
-                            if (secondMover === 'p1') p1StatusNullifiedByBerry = { status: 'Sleep', berry: _sleepBerry };
-                            else p2StatusNullifiedByBerry = { status: 'Sleep', berry: _sleepBerry };
                         }
                     } else if (firstEff.status === 'Freeze') {
                         if (!itemCuresStatus(secondEntry, 'Freeze')) {
                             secondMoverBlocked = true;
                             secondMoverBlockReason = 'freeze';
-                        } else {
-                            var _freezeBerry = (secondEntry.item || '');
-                            secondEntry.status = '';
-                            secondEntry.item = ''; $('#' + (secondMover === 'p1' ? 'p1' : 'p2') + ' .item').val('');
-                            if (secondMover === 'p1') p1StatusNullifiedByBerry = { status: 'Freeze', berry: _freezeBerry };
-                            else p2StatusNullifiedByBerry = { status: 'Freeze', berry: _freezeBerry };
                         }
                     }
                 }
@@ -3576,10 +2714,7 @@
                     if (secItlc === 'persimberry' || secItlc === 'lumberry') {
                         secondEntry.confused = false;
                         secondEntry.confuseRounds = 0;
-                        var _confBerry1 = secondEntry.item;
                         secondEntry.item = ''; $('#' + (secondMover === 'p1' ? 'p1' : 'p2') + ' .item').val('');
-                        if (secondMover === 'p1') p1StatusNullifiedByBerry = { status: 'Confusion', berry: _confBerry1 };
-                        else p2StatusNullifiedByBerry = { status: 'Confusion', berry: _confBerry1 };
                     }
                 }
             }
@@ -3607,18 +2742,11 @@
         // ── Contact/hit ability effects ──
         // Cotton Down: when hit by a damaging move, -1 Speed to all other pokemon on the field
         // In singles: the attacker gets -1 Spe
-        function reactiveDrop(defAbility) {
-            var ae = getAbilityEffects(defAbility);
-            if (ae && ae.reactiveSpeedDrop) return ae.reactiveSpeedDrop;
-            return defAbility === 'Cotton Down' ? 1 : 0;
+        if (p1Dmg && p1Dmg.maxDmg > 0 && !p1Flinched && p2Entry.ability === 'Cotton Down') {
+            applyBoosts(p1Entry, { spe: -1 });
         }
-        var p2Reactive = reactiveDrop(p2Entry.ability);
-        if (p1Dmg && p1Dmg.maxDmg > 0 && !p1Flinched && p2Reactive) {
-            applyBoosts(p1Entry, { spe: -p2Reactive });
-        }
-        var p1Reactive = reactiveDrop(p1Entry.ability);
-        if (p2Dmg && p2Dmg.maxDmg > 0 && !p2Flinched && p1Reactive) {
-            applyBoosts(p2Entry, { spe: -p1Reactive });
+        if (p2Dmg && p2Dmg.maxDmg > 0 && !p2Flinched && p1Entry.ability === 'Cotton Down') {
+            applyBoosts(p2Entry, { spe: -1 });
         }
 
         // Increment toxic counter before EOT so the correct turn count is used
@@ -3784,12 +2912,12 @@
         }
 
         // Consume Focus Sash after speed-order resolution (Sturdy is not consumed)
-        if (p1Sashed) { p1ItemConsumed = p1Entry.item; p1Entry.item = ''; $('#p1 .item').val(''); }
-        if (p2Sashed) { p2ItemConsumed = p2Entry.item; p2Entry.item = ''; $('#p2 .item').val(''); }
+        if (p1Sashed) { p1Entry.item = ''; $('#p1 .item').val(''); }
+        if (p2Sashed) { p2Entry.item = ''; $('#p2 .item').val(''); }
 
         // Consume Custap Berry after it activated
-        if (p1Custap) { p1ItemConsumed = p1Entry.item; p1Entry.item = ''; $('#p1 .item').val(''); }
-        if (p2Custap) { p2ItemConsumed = p2Entry.item; p2Entry.item = ''; $('#p2 .item').val(''); }
+        if (p1Custap) { p1Entry.item = ''; $('#p1 .item').val(''); }
+        if (p2Custap) { p2Entry.item = ''; $('#p2 .item').val(''); }
 
         // Apply second mover's secondary effects ONLY if they are not blocked AND survived
         // (deferred until here so we can check if the second mover was KO'd)
@@ -3803,17 +2931,7 @@
                 if (secondEff.status === 'Sleep'  && isSleepImmune(firstEntry))  blocked2 = true;
                 if (secondEff.status === 'Freeze' && isFreezeImmune(firstEntry)) blocked2 = true;
                 if (isStatusImmune(firstEntry, secondEff.status))                blocked2 = true;
-                if (!blocked2) {
-                    firstEntry.status = secondEff.status;
-                    // Check if first mover's berry cures the status immediately
-                    if (itemCuresStatus(firstEntry, secondEff.status)) {
-                        var _berry2 = firstEntry.item;
-                        firstEntry.status = '';
-                        firstEntry.item = ''; $('#' + (firstMover === 'p1' ? 'p1' : 'p2') + ' .item').val('');
-                        if (firstMover === 'p1') p1StatusNullifiedByBerry = { status: secondEff.status, berry: _berry2 };
-                        else p2StatusNullifiedByBerry = { status: secondEff.status, berry: _berry2 };
-                    }
-                }
+                if (!blocked2) firstEntry.status = secondEff.status;
             }
             // Confusion applied to first mover
             if (secondEff.volatile === 'confusion') {
@@ -3824,10 +2942,7 @@
                     if (fstItlc === 'persimberry' || fstItlc === 'lumberry') {
                         firstEntry.confused = false;
                         firstEntry.confuseRounds = 0;
-                        var _confBerry2 = firstEntry.item;
                         firstEntry.item = ''; $('#' + (firstMover === 'p1' ? 'p1' : 'p2') + ' .item').val('');
-                        if (firstMover === 'p1') p1StatusNullifiedByBerry = { status: 'Confusion', berry: _confBerry2 };
-                        else p2StatusNullifiedByBerry = { status: 'Confusion', berry: _confBerry2 };
                     }
                 }
             }
@@ -3862,15 +2977,13 @@
         }
 
         // Apply end-of-turn damage (same for both — EOT is fixed)
-        // Skip EOT effects (including healing) for a tracker already at 0 HP — a fainted
-        // Pokémon cannot receive end-of-turn healing (e.g. Black Sludge, Leftovers).
         for (var i = 0; i < p1EOT.length; i++) {
-            if (p1HPAfter > 0) p1HPAfter = Math.max(0, Math.min(p1Entry.maxHP, p1HPAfter - p1EOT[i].damage));
-            if (p1BestAfter > 0) p1BestAfter = Math.max(0, Math.min(p1Entry.maxHP, p1BestAfter - p1EOT[i].damage));
+            p1HPAfter = Math.max(0, Math.min(p1Entry.maxHP, p1HPAfter - p1EOT[i].damage));
+            p1BestAfter = Math.max(0, Math.min(p1Entry.maxHP, p1BestAfter - p1EOT[i].damage));
         }
         for (var i = 0; i < p2EOT.length; i++) {
-            if (p2HPAfter > 0) p2HPAfter = Math.max(0, Math.min(p2Entry.maxHP, p2HPAfter - p2EOT[i].damage));
-            if (p2BestAfter > 0) p2BestAfter = Math.max(0, Math.min(p2Entry.maxHP, p2BestAfter - p2EOT[i].damage));
+            p2HPAfter = Math.max(0, Math.min(p2Entry.maxHP, p2HPAfter - p2EOT[i].damage));
+            p2BestAfter = Math.max(0, Math.min(p2Entry.maxHP, p2BestAfter - p2EOT[i].damage));
         }
 
         // ── Post-EOT item effects ──
@@ -3883,33 +2996,24 @@
         // Status-curing berries activate end-of-turn (after EOT status damage)
         // Sitrus Berry heals 25% max HP when at ≤ 50% HP
         function applyPostEOTBerries(entry, hpVar, bestVar, eotList, side) {
-            if (!entry.item || entry.currentHP <= 0) return { hp: hpVar, best: bestVar, berryCured: null, itemConsumed: null };
+            if (!entry.item || entry.currentHP <= 0) return { hp: hpVar, best: bestVar };
             var itlc = entry.item.toLowerCase().replace(/\s/g, '');
-            var itemName = entry.item;
             var cured = false;
-            var curedStatus = null;
 
             if (hpVar > 0) {
                 if (itlc === 'lumberry' && (entry.status || entry.confused)) {
-                    curedStatus = entry.status || 'Confusion';
                     entry.status = ''; entry.toxicCounter = 0; entry.confused = false; entry.confuseRounds = 0; cured = true;
                 } else if (itlc === 'persimberry' && entry.confused) {
-                    curedStatus = 'Confusion';
                     entry.confused = false; entry.confuseRounds = 0; cured = true;
                 } else if (itlc === 'rawstberry' && entry.status === 'Burn') {
-                    curedStatus = 'Burn';
                     entry.status = ''; cured = true;
                 } else if (itlc === 'pechaberry' && (entry.status === 'Poison' || entry.status === 'Badly Poisoned')) {
-                    curedStatus = entry.status;
                     entry.status = ''; entry.toxicCounter = 0; cured = true;
                 } else if (itlc === 'cheriberry' && entry.status === 'Paralysis') {
-                    curedStatus = 'Paralysis';
                     entry.status = ''; cured = true;
                 } else if (itlc === 'chestoberry' && entry.status === 'Sleep') {
-                    curedStatus = 'Sleep';
                     entry.status = ''; cured = true;
                 } else if (itlc === 'aspearberry' && entry.status === 'Freeze') {
-                    curedStatus = 'Freeze';
                     entry.status = ''; cured = true;
                 }
                 if (cured) consumeItem(entry, side);
@@ -3921,26 +3025,15 @@
                     bestVar = Math.min(entry.maxHP, bestVar + sitrusHeal);
                     eotList.push({ source: 'Sitrus Berry', damage: -sitrusHeal });
                     consumeItem(entry, side);
-                    // Sitrus is not a status cure — show it as a generic item consumption
-                    return { hp: hpVar, best: bestVar, berryCured: null, itemConsumed: itemName };
                 }
             }
-            return {
-                hp: hpVar, best: bestVar,
-                berryCured: cured ? { status: curedStatus, berry: itlc } : null,
-                // Status-cure berries are shown via berryCured/statusNullifiedByBerry — no double-tag
-                itemConsumed: null
-            };
+            return { hp: hpVar, best: bestVar };
         }
 
         var p1PostEOT = applyPostEOTBerries(p1Entry, p1HPAfter, p1BestAfter, p1EOT, 'p1');
         p1HPAfter = p1PostEOT.hp; p1BestAfter = p1PostEOT.best;
-        if (p1PostEOT.berryCured && !p1StatusNullifiedByBerry) p1StatusNullifiedByBerry = p1PostEOT.berryCured;
-        if (p1PostEOT.itemConsumed && !p1ItemConsumed) p1ItemConsumed = p1PostEOT.itemConsumed;
         var p2PostEOT = applyPostEOTBerries(p2Entry, p2HPAfter, p2BestAfter, p2EOT, 'p2');
         p2HPAfter = p2PostEOT.hp; p2BestAfter = p2PostEOT.best;
-        if (p2PostEOT.berryCured && !p2StatusNullifiedByBerry) p2StatusNullifiedByBerry = p2PostEOT.berryCured;
-        if (p2PostEOT.itemConsumed && !p2ItemConsumed) p2ItemConsumed = p2PostEOT.itemConsumed;
 
         // Toxic Orb / Flame Orb: inflict status at end of turn (no damage this turn; starts next)
         if (!p1Entry.status) {
@@ -3996,11 +3089,8 @@
             p2AllAIPcts);
 
         // Build round data
-        var _activeBranchObj = (line.branches && line.activeBranchIdx >= 0) ? line.branches[line.activeBranchIdx] : null;
         var rd = {
-            roundNum: _activeBranchObj
-                ? (_activeBranchObj.forkRoundIdx + _activeBranchObj.rounds.length + 1)
-                : ++line.roundCounter,
+            roundNum: ++line.roundCounter,
             speed: speed,
             p1Priority: p1Priority,
             p2Priority: p2Priority,
@@ -4051,8 +3141,6 @@
                 flinched: p1Flinched,
                 blockReason: (secondMover === 'p1') ? secondMoverBlockReason : '',
                 secondaryApplied: p1ApplySecondary && p1SecondaryApplied,
-                statusNullifiedByBerry: p1StatusNullifiedByBerry,
-                itemConsumed: p1ItemConsumed,
                 sashed: p1Sashed,
                 sturdied: p1Sturdied,
                 custap: p1Custap,
@@ -4088,8 +3176,6 @@
                 flinched: p2Flinched,
                 blockReason: (secondMover === 'p2') ? secondMoverBlockReason : '',
                 secondaryApplied: p2ApplySecondary && p2SecondaryApplied,
-                statusNullifiedByBerry: p2StatusNullifiedByBerry,
-                itemConsumed: p2ItemConsumed,
                 sashed: p2Sashed,
                 custap: p2Custap,
                 sturdied: p2Sturdied,
@@ -4520,10 +3606,7 @@
                         var hitSlot = dmgResults[di].target;
                         var hitEntry = fighters[hitSlot];
                         // Inner Focus and Shield Dust prevent flinch
-                        var hitAe = hitEntry ? getAbilityEffects(hitEntry.ability) : null;
-                        var flinchBlocked = hitAe ? (!!hitAe.flinchImmunity || !!hitAe.secondaryImmunity)
-                            : (hitEntry && (hitEntry.ability === 'Inner Focus' || hitEntry.ability === 'Shield Dust'));
-                        if (hitEntry && !flinchBlocked) {
+                        if (hitEntry && hitEntry.ability !== 'Inner Focus' && hitEntry.ability !== 'Shield Dust') {
                             flinched[hitSlot] = true;
                         }
                     }
@@ -4615,11 +3698,8 @@
         }
 
         // Build round data
-        var _activeBranchObjD = (line.branches && line.activeBranchIdx >= 0) ? line.branches[line.activeBranchIdx] : null;
         var rd = {
-            roundNum: _activeBranchObjD
-                ? (_activeBranchObjD.forkRoundIdx + _activeBranchObjD.rounds.length + 1)
-                : ++line.roundCounter,
+            roundNum: ++line.roundCounter,
             isDoubles: true,
             weather: weather,
             terrain: getTerrain(),
@@ -4968,40 +4048,6 @@
         if (p2Entry) syncStatusToForm('p2', p2Entry);
     }
 
-    /**
-     * Full sync of active pokemon state (HP, item, ability, status, boosts) to
-     * the calc form for both sides.  Call after any rebuild/round-delete so the
-     * calc form and roster never drift apart.
-     */
-    function syncActiveStateToForm() {
-        var line = curLine();
-        window.NO_CALC = true;
-        var sides = ['p1', 'p2'];
-        for (var si = 0; si < sides.length; si++) {
-            var side = sides[si];
-            var entry = getActiveEntry(line.teams[side]);
-            if (!entry) continue;
-            // HP
-            $('#' + side + ' .current-hp').val(entry.currentHP);
-            // Item
-            if (entry.item !== undefined) $('#' + side + ' .item').val(entry.item);
-            // Ability
-            if (entry.ability) $('#' + side + ' .ability').val(entry.ability);
-            // Status
-            syncStatusToForm(side, entry);
-            // Boosts
-            if (entry.boosts) {
-                var stats = ['at', 'df', 'sa', 'sd', 'sp'];
-                for (var sti = 0; sti < stats.length; sti++) {
-                    var b = entry.boosts[stats[sti]] || 0;
-                    $('#' + side + ' .' + stats[sti] + ' .boost').val(b);
-                }
-            }
-        }
-        window.NO_CALC = false;
-        try { performCalculations(); } catch (e) {}
-    }
-
     /** Apply stat boost changes to a roster entry, clamping to ±6 */
     function applyBoosts(entry, boosts) {
         if (!entry || !boosts) return;
@@ -5027,28 +4073,8 @@
     function toggleP2Crit(roundNum) {
         var line = curLine();
         var rdIdx = -1;
-        // Search main rounds first, then active branch rounds
         for (var i = 0; i < line.rounds.length; i++) {
             if (line.rounds[i].roundNum === roundNum) { rdIdx = i; break; }
-        }
-        if (rdIdx < 0 && line.branches && line.activeBranchIdx >= 0) {
-            var _activeBr = line.branches[line.activeBranchIdx];
-            if (_activeBr) {
-                for (var i = 0; i < _activeBr.rounds.length; i++) {
-                    if (_activeBr.rounds[i].roundNum === roundNum) {
-                        // Toggle crit directly on the branch round
-                        var brd = _activeBr.rounds[i];
-                        if (!brd.isDoubles && brd.p2 && brd.p2.damage) {
-                            brd.p2Crit = !brd.p2Crit;
-                            rebuildBranchTeams(line, line.activeBranchIdx);
-                            renderAll();
-                            syncActiveStatusToForm();
-                            autoSave();
-                        }
-                        return;
-                    }
-                }
-            }
         }
         if (rdIdx < 0) return;
         var rd = line.rounds[rdIdx];
@@ -5129,33 +4155,6 @@
     }
 
     function rebuildLineTeams(line) {
-        // For P1 entries not involved in any logged round (pre-first-round or after
-        // round deletion), preserve their serialized currentHP so user-set pre-damage
-        // survives the reset+replay cycle.
-        // Critically: do NOT read HP from the calc form here — the calc persists its
-        // own form state independently and may still show stale HP from a deleted round
-        // even though RSA's localStorage already has the correct value.
-        var _preDamageHP = {};
-        var _p1Roster = line.teams.p1.roster;
-        for (var _pi = 0; _pi < _p1Roster.length; _pi++) {
-            var _pe = _p1Roster[_pi];
-            var _inAnyRound = line.rounds.some(function (rd) {
-                if (rd.isDoubles && rd.fighters) {
-                    for (var _s in rd.fighters) {
-                        if (rd.fighters[_s] && rd.fighters[_s].name === _pe.name) return true;
-                    }
-                    return false;
-                }
-                return rd.p1 && rd.p1.name === _pe.name;
-            });
-            // Only preserve HP if the user explicitly set it as pre-damage
-            // (preDamageHP is set by the HP-edit handler and cleared when a
-            // round is captured).  Never restore stale post-round HP.
-            if (!_inAnyRound && _pe.preDamageHP !== undefined && _pe.preDamageHP < _pe.maxHP) {
-                _preDamageHP[_pe.name] = { current: _pe.preDamageHP, best: _pe.preDamageHP };
-            }
-        }
-
         // Reset all roster HP/status/items to initial state
         for (var s = 0; s < 2; s++) {
             var side = s === 0 ? 'p1' : 'p2';
@@ -5247,15 +4246,6 @@
                 applyHazardMoves(rd.p1 && rd.p1.move, rd.p2 && rd.p2.move);
             }
         }
-        // Restore pre-damage HP for P1 entries not involved in any round
-        for (var _ri = 0; _ri < _p1Roster.length; _ri++) {
-            var _re = _p1Roster[_ri];
-            if (_preDamageHP[_re.name]) {
-                _re.currentHP  = _preDamageHP[_re.name].current;
-                _re.bestCaseHP = _preDamageHP[_re.name].best;
-            }
-        }
-
         // Sync the updated HP and item to calc form
         window.NO_CALC = true;
         var p1Active = getActiveEntry(line.teams.p1);
@@ -5394,6 +4384,13 @@
                 teamRangeText = '<span class="rsa-team-hp-range">(' + bestHP + '–' + e.currentHP + ')</span>';
             }
 
+            // Defensive type tooltip for team sprites
+            var teamDefTooltip = e.name;
+            try {
+                var tInfo = getMonTypeInfo(e.name, e.setId);
+                teamDefTooltip = buildDefTooltip(e.name, tInfo.types, tInfo.ability);
+            } catch (ex) {}
+
             // Speed stat lookup (apply item/ability/status/weather/boost modifiers for accurate display)
             var speedText = '';
             try {
@@ -5411,9 +4408,9 @@
 
             var dragAttr = isDoubles() ? ' draggable="true"' : '';
             html += '<div class="rsa-team-slot rsa-team-slot-' + side + active + fainted + statusCls + ccClass + '"' + dragAttr + ' data-side="' + side + '" data-idx="' + i + '">' +
-                '<img class="rsa-team-sprite" src="' + esc(e.sprite) + '" alt="' + esc(e.name) + '">' +
+                '<img class="rsa-team-sprite" src="' + esc(e.sprite) + '" alt="' + esc(e.name) + '" title="' + esc(teamDefTooltip) + '">' +
                 '<div class="rsa-team-info">' +
-                    '<div class="rsa-team-name">' + esc(e.name) + ' ' + speedText + ' <button class="rsa-info-btn" data-side="' + side + '" data-idx="' + i + '" title="Show details">ⓘ</button></div>' +
+                    '<div class="rsa-team-name">' + esc(e.name) + ' ' + speedText + '</div>' +
                     '<div class="rsa-team-hp-bar"><div class="rsa-team-hp-fill" style="width:' + solidFillPct.toFixed(0) + '%;background:' + solidFillCol + '"></div>' + teamUncertainBar + '</div>' +
                     (side === 'p1'
                         ? '<div class="rsa-team-hp-text"><input type="number" class="rsa-hp-edit" data-side="p1" data-idx="' + i + '" value="' + e.currentHP + '" min="0" max="' + e.maxHP + '" title="Edit HP before round" /><span class="rsa-hp-max"> HP (' + pct.toFixed(0) + '%)' + (bestHP !== e.currentHP ? ' <span class="rsa-team-hp-range">(' + (side === 'p1' ? e.currentHP + '\u2013' + bestHP : bestHP + '\u2013' + e.currentHP) + ')</span>' : '') + '</span></div>' +
@@ -5471,31 +4468,6 @@
                     '<span class="' + cls + '">' + (s.score > 0 ? '+' : '') + s.score + '</span></span>';
             }
         }
-
-        // Get predicted move distribution for the winner
-        var movesHtml = '';
-        try {
-            var line = curLine();
-            var p2Entry = (pred.partyIdx != null) ? line.teams.p2.roster[pred.partyIdx] : null;
-            var p1Entry = getActiveEntry(line.teams.p1);
-            if (p2Entry && p1Entry) {
-                var moveRates = calcP2MoveRates(p2Entry, p1Entry);
-                if (moveRates.rates && moveRates.rates.length) {
-                    var moveParts = [];
-                    for (var mi = 0; mi < moveRates.rates.length; mi++) {
-                        var mr = moveRates.rates[mi];
-                        if (mr.rate > 0) {
-                            moveParts.push('<span class="rsa-swpred-move" title="' + esc(mr.move) + '">' +
-                                esc(mr.move) + ' <small>' + Math.round(mr.rate * 100) + '%</small></span>');
-                        }
-                    }
-                    if (moveParts.length) {
-                        movesHtml = '<div class="rsa-swpred-moves">Moves: ' + moveParts.join(', ') + '</div>';
-                    }
-                }
-            }
-        } catch (e) {}
-
         $el.html(
             '<div class="rsa-swpred-bar">' +
                 '<span class="rsa-swpred-label">🔮 AI sends:</span>' +
@@ -5503,7 +4475,6 @@
                 '<span class="rsa-swpred-name">' + esc(pred.name) + '</span>' +
                 '<span class="rsa-swpred-detail">(' + (pred.score > 0 ? '+' : '') + pred.score + ' — ' + esc(pred.reason) + ')</span>' +
             '</div>' +
-            movesHtml +
             (scoresCells ? '<div class="rsa-swpred-all">' + scoresCells + '</div>' : '')
         );
     }
@@ -5525,95 +4496,23 @@
     function renderRoundLog() {
         var line = curLine();
         var $log = $('#rsa-round-log');
-        var hasBranches = line.branches && line.branches.length > 0;
-
-        if (line.rounds.length === 0 && !hasBranches) {
+        if (line.rounds.length === 0) {
             $log.html('<div class="rsa-empty">No rounds yet. Set your teams, load the calc, and log rounds.</div>');
             return;
         }
-
-        if (!hasBranches) {
-            // Single column (original behavior)
-            var html = '';
-            for (var i = 0; i < line.rounds.length; i++) {
-                var rd = line.rounds[i];
-                html += rd.isDoubles ? renderDoublesRoundCard(rd) : renderRoundCard(rd, -1);
-            }
-            if (!isDoubles()) html += renderInlineControls();
-            $log.html(html);
-            $('#rsa-round-count').text(line.rounds.length);
-            syncInlineControls();
-            return;
+        var html = '';
+        for (var i = 0; i < line.rounds.length; i++) {
+            var rd = line.rounds[i];
+            html += rd.isDoubles ? renderDoublesRoundCard(rd) : renderRoundCard(rd);
         }
-
-        // ── Multi-column branch layout ───────────────────────────
-        var cols = getVisibleColumns(line);
-        var maxVisible = 3;
-        var visibleCols = cols.slice(0, maxVisible);
-        var hiddenCols = cols.slice(maxVisible);
-
-        var html = '<div class="rsa-branch-bar">';
-        for (var ci = 0; ci < cols.length; ci++) {
-            var col = cols[ci];
-            var active = col.idx === line.activeBranchIdx ? ' rsa-branch-tab-active' : '';
-            var hidden = ci >= maxVisible ? ' rsa-branch-tab-hidden' : '';
-            var tabClose = col.idx >= 0
-                ? ' <span class="rsa-branch-tab-delete" data-branch-idx="' + col.idx + '" title="Delete branch">&times;</span>'
-                : '';
-            html += '<button class="rsa-branch-tab' + active + hidden + '" data-branch-idx="' + col.idx + '">' +
-                esc(col.name) + ' <small>(' + col.rounds.length + ')</small>' + tabClose + '</button>';
+        // Inline quick-controls at the bottom of the log
+        if (!isDoubles()) {
+            html += renderInlineControls();
         }
-        html += '</div>';
-
-        html += '<div class="rsa-branch-columns" style="--branch-count:' + Math.min(cols.length, maxVisible) + '">';
-
-        for (var ci = 0; ci < visibleCols.length; ci++) {
-            var col = visibleCols[ci];
-            var isActive = col.idx === line.activeBranchIdx;
-            var colClass = 'rsa-branch-col' + (isActive ? ' rsa-branch-col-active' : '');
-            html += '<div class="' + colClass + '" data-branch-idx="' + col.idx + '">';
-            html += '<div class="rsa-branch-col-header">' +
-                '<span class="rsa-branch-col-title">' + esc(col.name) + '</span>' +
-                (col.idx >= 0 ? '<button class="rsa-branch-delete" data-branch-idx="' + col.idx + '" title="Delete branch">×</button>' : '') +
-            '</div>';
-
-            // Rebuild teams for this branch to get correct HP state
-            rebuildBranchTeams(line, col.idx);
-
-            for (var ri = 0; ri < col.rounds.length; ri++) {
-                var rd = col.rounds[ri];
-                var inherited = (col.idx >= 0 && ri < col.forkRoundIdx);
-                // Fork separator between last inherited round and first own round
-                if (col.idx >= 0 && col.forkRoundIdx > 0 && ri === col.forkRoundIdx) {
-                    html += '<div class="rsa-fork-separator"><span>⑂ Branch diverges here</span></div>';
-                }
-                var cardHtml = rd.isDoubles ? renderDoublesRoundCard(rd) : renderRoundCard(rd, col.idx);
-                if (inherited) {
-                    cardHtml = '<div class="rsa-inherited-round">' + cardHtml + '</div>';
-                }
-                html += cardHtml;
-            }
-            // Fork separator when branch has no own rounds yet (only inherited)
-            if (col.idx >= 0 && col.forkRoundIdx > 0 && col.forkRoundIdx >= col.rounds.length) {
-                html += '<div class="rsa-fork-separator"><span>⑂ Branch diverges here</span></div>';
-            }
-
-            // Inline controls for this column (only for active branch)
-            if (isActive && !isDoubles()) {
-                html += renderInlineControls();
-            }
-
-            html += '</div>'; // .rsa-branch-col
-        }
-
-        html += '</div>'; // .rsa-branch-columns
-
-        // Rebuild teams for the active branch so team panel shows correct state
-        rebuildBranchTeams(line, line.activeBranchIdx);
-
         $log.html(html);
-        var activeRounds = getBranchRounds(line, line.activeBranchIdx);
-        $('#rsa-round-count').text(activeRounds.length);
+        // Update round counter badge
+        $('#rsa-round-count').text(line.rounds.length);
+        // Sync inline controls with main controls
         syncInlineControls();
     }
 
@@ -5665,27 +4564,9 @@
 
             var predHtml = '';
             if (pred) {
-                var predMovesHtml = '';
-                try {
-                    var p2PredEntry = (pred.partyIdx != null) ? line.teams.p2.roster[pred.partyIdx] : null;
-                    if (p2PredEntry && p1) {
-                        var predMoveRates = calcP2MoveRates(p2PredEntry, p1);
-                        if (predMoveRates.rates && predMoveRates.rates.length) {
-                            var predMoveParts = [];
-                            for (var pmi = 0; pmi < predMoveRates.rates.length; pmi++) {
-                                var pmr = predMoveRates.rates[pmi];
-                                if (pmr.rate > 0) {
-                                    predMoveParts.push(esc(pmr.move) + ' <small>' + Math.round(pmr.rate * 100) + '%</small>');
-                                }
-                            }
-                            if (predMoveParts.length) predMovesHtml = '<div class="rsa-swpred-moves" style="font-size:0.8em">' + predMoveParts.join(', ') + '</div>';
-                        }
-                    }
-                } catch (e) {}
                 predHtml = '<div class="rsa-inline-pred">' +
                     '<img class="rsa-inline-sprite" src="' + esc(pred.sprite) + '" alt="">' +
                     '<span class="rsa-swpred-label">🔮 ' + esc(pred.name) + '</span>' +
-                    predMovesHtml +
                 '</div>';
             }
 
@@ -5706,12 +4587,9 @@
         var p2Sprite = p2.sprite ? '<img class="rsa-inline-sprite" src="' + esc(p2.sprite) + '" alt="">' : '';
 
         // Build P1 move options with min damage %
-        // Prefer roster moves (always match the current branch's active mon) over form moves
         var p1MoveOpts = '';
         for (var m = 0; m < 4; m++) {
-            var rosterLabel1 = p1.moves && p1.moves[m];
-            var formLabel1 = getMoveNames(0, m);
-            var label = (rosterLabel1 && rosterLabel1 !== '—' && rosterLabel1 !== '(No Move)') ? rosterLabel1 : formLabel1;
+            var label = getMoveNames(0, m);
             if (label && label !== '—' && label !== '(No Move)') {
                 var sel = (selectedP1Move === m) ? ' selected' : '';
                 var dmgTag = '';
@@ -5726,9 +4604,7 @@
         // Build P2 move options with max damage % and AI probability
         var p2MoveOpts = '';
         for (var m = 0; m < 4; m++) {
-            var rosterLabel2 = p2.moves && p2.moves[m];
-            var formLabel2 = getMoveNames(1, m);
-            var label = (rosterLabel2 && rosterLabel2 !== '—' && rosterLabel2 !== '(No Move)') ? rosterLabel2 : formLabel2;
+            var label = getMoveNames(1, m);
             if (label && label !== '—' && label !== '(No Move)') {
                 var sel = (selectedP2Move === m) ? ' selected' : '';
                 var dmgTag = '';
@@ -5799,7 +4675,7 @@
         }
     }
 
-    function renderRoundCard(rd, branchIdx) {
+    function renderRoundCard(rd) {
         var speedLabel;
         var priorityOverride = (rd.p1Priority !== undefined && rd.p2Priority !== undefined && rd.p1Priority !== rd.p2Priority);
         if (rd.speed.faster === 'tie') speedLabel = 'Speed Tie';
@@ -5898,7 +4774,6 @@
                 tags +
                 probHtml +
                 (rd.isDoubles ? '' : '<button class="rsa-toggle-crit' + (rd.p2Crit ? ' rsa-crit-active' : '') + '" data-round="' + rd.roundNum + '" title="Toggle P2 critical hit and recalculate">⚔ Crit</button>') +
-                '<button class="rsa-branch-round" data-round="' + rd.roundNum + '" data-branch-idx="' + (branchIdx != null ? branchIdx : -1) + '" title="Branch from this round">🔀</button>' +
                 '<button class="rsa-delete-round" data-round="' + rd.roundNum + '" title="Delete round">×</button>' +
             '</div>' +
             '<div class="rsa-round-body">' +
@@ -5920,17 +4795,8 @@
 
         // Move + damage
         var moveHtml;
-        // Berry-nullified status tag — computed up-front so it can show even when no move was used
-        var berryNullHtml = '';
-        if (actor.statusNullifiedByBerry && actor.statusNullifiedByBerry.status) {
-            var _bn = actor.statusNullifiedByBerry;
-            var _berryName = (_bn.berry || 'Berry').replace(/berry$/i, ' Berry');
-            berryNullHtml = '<span class="rsa-tag rsa-berry-cure-tag" title="' +
-                esc(_bn.status) + ' was nullified by ' + esc(_berryName) + '">🍓 ' +
-                esc(_bn.status) + ' → ' + esc(_berryName) + '</span>';
-        }
         if (actor.moveIdx === 'none' || actor.moveIdx === -1) {
-            moveHtml = '<div class="rsa-move-name rsa-no-move">— No Move</div>' + berryNullHtml;
+            moveHtml = '<div class="rsa-move-name rsa-no-move">— No Move</div>';
         } else {
             var d = actor.damage;
             var rng = d ? '<span class="rsa-dmg-range">Dmg: ' + d.minDmg + '-' + d.maxDmg + '</span>' : '';
@@ -5977,7 +4843,7 @@
                 '<div class="rsa-move-name">' + typeSprite + catSprite + ' ' + esc(actor.move) + '</div>' +
                 moveStats +
             '</div>' +
-            effectsHtml + blockedHtml + berryNullHtml +
+            effectsHtml + blockedHtml +
             '<div class="rsa-damage-inline">' + rng + crit + '</div>';
         }
 
@@ -6086,11 +4952,9 @@
                 '</div>' +
             '</div>' +
             moveHtml + extrasHtml + eotHtml + hpSim +
-            (side === 'p1' ? '<button class="rsa-bait-toggle" data-round="' + rd.roundNum + '" title="Analyze bait thresholds at this HP">🎯 Bait</button><div class="rsa-bait-panel" data-round="' + rd.roundNum + '"></div>' : '') +
             (actor.sashed ? '<span class=\"rsa-tag rsa-sash-tag\">Focus Sash!</span>' : '') +
             (actor.sturdied ? '<span class=\"rsa-tag rsa-sash-tag\">Sturdy!</span>' : '') +
             (actor.custap ? '<span class=\"rsa-tag rsa-sash-tag\">Custap Berry!</span>' : '') +
-            (actor.itemConsumed ? '<span class=\"rsa-tag rsa-item-consumed-tag\" title=\"' + esc(actor.itemConsumed) + ' was consumed\">🎒 ' + esc(actor.itemConsumed) + ' consumed</span>' : '') +
         '</div>';
     }
 
@@ -6100,59 +4964,11 @@
         renderTeamPanel('p1');
         renderTeamPanel('p2');
         renderBox('p1');
-        renderRoundLog(); // rebuilds branch teams at end, leaving active branch state
-        // Re-render team panels now that renderRoundLog has set the correct branch HP
-        var _rl = curLine();
-        if (_rl.branches && _rl.branches.length > 0) {
-            renderTeamPanel('p1');
-            renderTeamPanel('p2');
-        }
+        renderRoundLog();
         updateMovePickDisplay();
         populateSwitchDropdown();
         syncHazardsToCalc();
         if (isDoubles()) refreshDoublesUI();
-        // Sync field bar controls from fieldState
-        syncFieldBarFromState();
-        // Passively persist a compact debug snapshot after every render so
-        // Playwright can read the latest state without any user action.
-        try { localStorage.setItem('_rsaState', captureDebugSnapshot()); } catch(e) {}
-    }
-
-    function captureDebugSnapshot() {
-        var line = curLine();
-        var p2Team = line.teams.p2;
-        var p1Team = line.teams.p1;
-        var _activeBranchRounds = (line.activeBranchIdx >= 0 && line.branches && line.branches[line.activeBranchIdx])
-            ? getBranchRounds(line, line.activeBranchIdx).length : 0;
-        var snap = {
-            ts: new Date().toISOString(),
-            format: battleFormat,
-            lineIdx: currentLineIdx,
-            activeBranchIdx: line.activeBranchIdx,
-            roundCount: line.rounds.length,
-            activeBranchRoundCount: _activeBranchRounds,
-            p1: {
-                activeIdx: p1Team.activeIdx,
-                activeIdxB: p1Team.activeIdxB,
-                roster: p1Team.roster.map(function(e, i) {
-                    return { i: i, name: e.name, hp: e.currentHP + '/' + e.maxHP,
-                             active: i === p1Team.activeIdx || i === p1Team.activeIdxB };
-                })
-            },
-            p2: {
-                activeIdx: p2Team.activeIdx,
-                activeIdxB: p2Team.activeIdxB,
-                roster: p2Team.roster.map(function(e, i) {
-                    return { i: i, name: e.name, hp: e.currentHP + '/' + e.maxHP,
-                             active: i === p2Team.activeIdx || i === p2Team.activeIdxB,
-                             setId: e.setId };
-                })
-            },
-            CURRENT_TRAINER_POKS: window.CURRENT_TRAINER_POKS || [],
-            p1Form: typeof getP1Name === 'function' ? getP1Name() : null,
-            p2Form: typeof getP2Name === 'function' ? getP2Name() : null
-        };
-        return JSON.stringify(snap, null, 2);
     }
 
     function populateSwitchDropdown() {
@@ -6201,24 +5017,6 @@
     // ════════════════════════════════════════════════════════════
 
     function updateMovePickDisplay() {
-        // Re-anchor the calc's move-result-group into our moves area.
-        // The calc framework regenerates this element on every set change
-        // (loadPokemonIntoForm -> $sel.change()), so the one-time relocation
-        // at init is not enough — check on every render and re-append if needed.
-        var moveGroup = document.querySelector('.move-result-group');
-        var movesArea = document.getElementById('rsa-moves-area');
-        var _justAnchored = false;
-        if (moveGroup && movesArea && !movesArea.contains(moveGroup)) {
-            movesArea.appendChild(moveGroup);
-            _justAnchored = true;
-        }
-        // Re-inject type/category sprites whenever the group is freshly anchored
-        // (calc framework resets label text on pokemon change) or always if not
-        // currently loading a form (lightweight, idempotent).
-        if (!_loadingForm) {
-            injectMoveLabelSprites();
-        }
-
         // Highlight the selected move rows
         $('.move-result-subgroupL > div').removeClass('rsa-move-selected');
         if (selectedP1Move !== 'none') {
@@ -6529,9 +5327,6 @@
                 var $label = $('label[for="resultMove' + side.prefix + i + '"]');
                 if (!$label.length) continue;
 
-                // Skip if sprites are already injected (avoids redundant work)
-                if ($label.find('.rsa-btn-move-sprites').length) continue;
-
                 // Get current move name — prefer existing name span, else plain text
                 var moveName = $label.find('.rsa-btn-move-name').text().trim() || $label.text().trim();
                 if (!moveName || moveName === 'Loading...') continue;
@@ -6619,9 +5414,7 @@
             if ($('#p2 .status').val() === 'Paralyzed' && p2s === p2sBase) p2s = Math.floor(p2s * 0.75);
 
             var p1AbilityToggle = $('#p1').find('.abilityToggle').is(':checked');
-            var p1AbilEffBox = getAbilityEffects(p1.ability);
-            var p1HasUnburden = p1AbilEffBox ? !!p1AbilEffBox.unburden : (p1.ability === 'Unburden');
-            if (p1HasUnburden && !p1AbilityToggle) p1s = Math.floor(p1s / 2);
+            if (p1.ability === 'Unburden' && !p1AbilityToggle) p1s = Math.floor(p1s / 2);
             var fastest = p1s > p2s ? 'F' : p1s < p2s ? 'S' : 'T';
 
             var p1KO = 0, p2KO = 0, p1HD = 0, p2HD = 0;
@@ -6643,9 +5436,7 @@
                 loPct0 = applySimItemMultiplier(loPct0);
                 hiPct0 = applySimItemMultiplier(hiPct0);
                 // Apply Guts burn boost
-                var p1AeBox2 = getAbilityEffects(p1.ability);
-                var p1HasGutsBox2 = p1AeBox2 ? !!p1AeBox2.burnAttackBoost : (p1.ability === 'Guts');
-                if (boxCalcSettings.burnGuts && p1HasGutsBox2) {
+                if (boxCalcSettings.burnGuts && p1.ability === 'Guts') {
                     var cat0 = p1.moves[i] ? (p1.moves[i].category || '') : '';
                     if (cat0 === 'Physical') { loPct0 *= 1.5; hiPct0 *= 1.5; }
                 }
@@ -6899,11 +5690,7 @@
                 var _p2Active = getActiveEntry(_line.teams.p2);
                 setTimeout(function () {
                     if (_p1Active) loadPokemonIntoForm('p1', _p1Active);
-                    if (_p2Active) {
-                        suppressP2Sync = true;
-                        loadPokemonIntoForm('p2', _p2Active);
-                        setTimeout(function () { suppressP2Sync = false; }, 500);
-                    }
+                    if (_p2Active) loadPokemonIntoForm('p2', _p2Active);
                 }, 500);
             } catch (ex) {
                 console.warn('RSA: failed to restore session', ex);
@@ -6988,9 +5775,7 @@
                 var isA = slot === 'p2a';
                 var p2Entry = isA ? getActiveEntry(line.teams.p2) : getActiveEntryB(line.teams.p2);
                 if (p2Entry) {
-                    suppressP2Sync = true;
                     loadPokemonIntoForm('p2', p2Entry);
-                    setTimeout(function () { suppressP2Sync = false; }, 500);
                     var moveName = move;
                     var moves = getEntryMoves(p2Entry);
                     var moveIdx = moves.indexOf(moveName);
@@ -7187,36 +5972,11 @@
         })(40); // up to 40 × 500ms = 20 seconds
 
         // ── Line management ──
-        $('#rsa-bug-report').on('click', function () {
-            var snap = captureDebugSnapshot();
-            var btn = $(this);
-            if (navigator.clipboard && navigator.clipboard.writeText) {
-                navigator.clipboard.writeText(snap).then(function() {
-                    btn.addClass('rsa-copied').text('✅ Copied!');
-                    setTimeout(function() { btn.removeClass('rsa-copied').text('📋 Bug Report'); }, 2000);
-                });
-            } else {
-                // Fallback for non-secure contexts
-                var ta = document.createElement('textarea');
-                ta.value = snap;
-                ta.style.position = 'fixed'; ta.style.opacity = '0';
-                document.body.appendChild(ta);
-                ta.select();
-                document.execCommand('copy');
-                document.body.removeChild(ta);
-                btn.addClass('rsa-copied').text('✅ Copied!');
-                setTimeout(function() { btn.removeClass('rsa-copied').text('📋 Bug Report'); }, 2000);
-            }
-        });
-
         $('#rsa-add-line').on('click', function () {
             var name = prompt('Name for new line:', 'Line ' + String.fromCharCode(65 + lines.length));
             if (!name) return;
             lines.push(createLine(name));
             currentLineIdx = lines.length - 1;
-            // Inherit the current P1 and trainer's roster into the new line
-            initP1Team();
-            syncP2Team();
             renderAll();
             autoSave();
         });
@@ -7307,11 +6067,7 @@
             var p1Active = getActiveEntry(line.teams.p1);
             var p2Active = getActiveEntry(line.teams.p2);
             if (p1Active) loadPokemonIntoForm('p1', p1Active);
-            if (p2Active) {
-                suppressP2Sync = true;
-                loadPokemonIntoForm('p2', p2Active);
-                setTimeout(function () { suppressP2Sync = false; }, 500);
-            }
+            if (p2Active) loadPokemonIntoForm('p2', p2Active);
         });
 
         // ── Team management (click to switch active, click × to remove) ──
@@ -7333,13 +6089,11 @@
                     var line = curLine();
                     var entry = line.teams.p2.roster[idx];
                     if (!entry) return;
-                    suppressP2Sync = true;
                     loadPokemonIntoForm('p2', entry);
                     setTimeout(function () {
-                        suppressP2Sync = false;
                         try { cachedRankings = computeBoxRankings(); } catch (e) { cachedRankings = []; }
                         renderBox('p1');
-                    }, 500);
+                    }, 300);
                 }
                 return; // In doubles, P1 uses drag-to-slot
             }
@@ -7353,36 +6107,20 @@
             var line = curLine();
             var entry = line.teams.p2.roster[idx];
             if (!entry || entry.currentHP <= 0) return;
-            suppressP2Sync = true;
             loadPokemonIntoForm('p2', entry);
             setTimeout(function () {
-                suppressP2Sync = false;
                 try { cachedRankings = computeBoxRankings(); } catch (e) { cachedRankings = []; }
                 renderBox('p1');
-            }, 500);
+            }, 300);
         });
 
         // ── Log round ──
         $('#rsa-log-round').on('click', function () {
-            // Guard: if a form transition is still in progress (loadPokemonIntoForm
-            // 300ms timer hasn't fired yet), the HP/item/ability fields may be stale.
-            // Block the capture and let the user click again once the form settles.
-            if (_loadingForm) {
-                showSaveToast('⏳ Form still loading — please wait a moment and try again.', 2000);
-                return;
-            }
             var comment = $('#rsa-comment').val().trim();
 
             function finishRound(rd) {
                 if (!rd) return;
-                getActiveRounds(curLine()).push(rd);
-                // Clear pending-switch flag now that the round has been logged
-                var _fl = curLine();
-                if (_fl.activeBranchIdx >= 0 && _fl.branches && _fl.branches[_fl.activeBranchIdx]) {
-                    _fl.branches[_fl.activeBranchIdx].pendingSwitchP2Idx = undefined;
-                } else {
-                    _fl.pendingSwitchP2Idx = undefined;
-                }
+                curLine().rounds.push(rd);
 
                 // Snapshot hazard state before applying move effects
                 var hazBefore = {
@@ -7412,7 +6150,6 @@
                     p2: $.extend({}, getFieldHazards('p2'))
                 };
                 rd.hazardChanges = diffHazards(hazBefore, hazAfter);
-                syncActiveStateToForm();
                 renderAll();
                 autoSave();
                 if (isDoubles()) refreshDoublesUI();
@@ -7527,11 +6264,6 @@
 
             // Wait for the calc engine to recalculate with the new P1 pokemon
             setTimeout(function () {
-                // rebuildBranchTeams (fired by loadPokemonIntoForm's 300ms timer) may have
-                // reset team.p1.activeIdx back to the pre-switch mon via replay. Re-apply
-                // the switch index so captureRound uses the correct incoming pokemon.
-                curLine().teams.p1.activeIdx = switchIdx;
-
                 // Auto-apply entry hazard damage for the incoming P1 pokemon
                 var switchEntry = getActiveEntry(curLine().teams.p1);
                 var hazResult = { damage: 0, status: '' };
@@ -7548,7 +6280,7 @@
                 var p2Move = (rd.p2 && rd.p2.move !== '—') ? rd.p2.move : null;
                 if (p2Move) applyHazardMoves(null, p2Move);
 
-                getActiveRounds(curLine()).push(rd);
+                line.rounds.push(rd);
                 renderAll();
 
                 $('#rsa-comment').val('');
@@ -7586,208 +6318,29 @@
             var line = curLine();
             var oldP1 = getActiveEntry(line.teams.p1);
             var oldP2 = getActiveEntry(line.teams.p2);
-            // Suppress async syncP2Team calls (MutationObserver / set-selector change)
-            // during the entire rebuild+render cycle to prevent roster corruption.
-            suppressP2Sync = true;
-            // Delete from the correct round array (main or active branch)
-            if (line.activeBranchIdx >= 0) {
-                var branch = line.branches[line.activeBranchIdx];
-                if (branch) {
-                    branch.rounds = branch.rounds.filter(function (r) { return r.roundNum !== num; });
-                }
-            } else {
-                line.rounds = line.rounds.filter(function (r) { return r.roundNum !== num; });
-            }
-            rebuildBranchTeams(line, line.activeBranchIdx);
-            ensureP2RosterComplete();
+            line.rounds = line.rounds.filter(function (r) { return r.roundNum !== num; });
+            rebuildLineTeams(line);
             var newP1 = getActiveEntry(line.teams.p1);
             var newP2 = getActiveEntry(line.teams.p2);
             // If the active mon changed after rebuild, reload the calc form
             if (newP1 && (!oldP1 || oldP1.name !== newP1.name)) loadPokemonIntoForm('p1', newP1);
-            if (newP2 && (!oldP2 || oldP2.name !== newP2.name)) {
-                loadPokemonIntoForm('p2', newP2);
-            }
-            // Full-sync HP/item/ability/status/boosts so calc form matches roster
-            syncActiveStateToForm();
+            if (newP2 && (!oldP2 || oldP2.name !== newP2.name)) loadPokemonIntoForm('p2', newP2);
             renderAll();
-            autoSave();
-            // After all async form mutations have settled (loadPokemonIntoForm 300ms timer,
-            // performCalculations callbacks, etc.), re-anchor the roster HP to the rebuilt
-            // state and save again.  This prevents any stale form value written by an
-            // in-flight async timer from corrupting the persisted roster HP.
-            setTimeout(function () {
-                rebuildBranchTeams(curLine(), curLine().activeBranchIdx);
-                syncActiveStateToForm();
-                renderAll();
-                autoSave();
-                suppressP2Sync = false;
-            }, 700);
-        });
-
-        // ── Bait Analysis toggle (🎯 button) ──
-        $(document).on('click', '.rsa-bait-toggle', function (e) {
-            e.stopPropagation();
-            var $btn = $(this);
-            var $panel = $btn.next('.rsa-bait-panel');
-            if ($panel.hasClass('rsa-bait-open')) {
-                $panel.removeClass('rsa-bait-open').html('');
-                return;
-            }
-            // Find the P1 entry at this round's HP state
-            var roundNum = ~~$btn.data('round');
-            var line = curLine();
-            var rounds = line.activeBranchIdx >= 0 ? getBranchRounds(line, line.activeBranchIdx) : line.rounds;
-            var rd = null;
-            for (var i = 0; i < rounds.length; i++) {
-                if (rounds[i].roundNum === roundNum) { rd = rounds[i]; break; }
-            }
-            if (!rd || !rd.p1) return;
-            // Build a fake P1 entry at this round's after-HP
-            var p1Entry = getActiveEntry(line.teams.p1);
-            if (!p1Entry) return;
-            var fakeP1 = $.extend(true, {}, p1Entry);
-            fakeP1.currentHP = rd.p1.hpAfter.current;
-            fakeP1.item = rd.p1.item;
-            fakeP1.ability = rd.p1.ability;
-            fakeP1.status = rd.p1.status;
-            fakeP1.boosts = rd.p1.boosts ? $.extend({}, rd.p1.boosts) : { at:0,df:0,sa:0,sd:0,sp:0 };
-            // Find the matching roster entry for the correct setId
-            for (var ri = 0; ri < line.teams.p1.roster.length; ri++) {
-                if (line.teams.p1.roster[ri].name === rd.p1.name) {
-                    fakeP1.setId = line.teams.p1.roster[ri].setId;
-                    fakeP1.name = rd.p1.name;
-                    fakeP1.sprite = rd.p1.sprite;
-                    fakeP1.moves = line.teams.p1.roster[ri].moves;
-                    fakeP1.maxHP = rd.p1.hpAfter.max;
-                    break;
-                }
-            }
-            $panel.html('<div class="rsa-bait-loading">Computing bait thresholds…</div>');
-            $panel.addClass('rsa-bait-open');
-            setTimeout(function () {
-                var bands = computeBaitAnalysis(fakeP1);
-                $panel.html(renderBaitPanel(bands, fakeP1, rd.p1.hpAfter.current, rd.p1.hpAfter.max));
-            }, 20);
-        });
-
-        // ── Branch from round (🔀 button) ──
-        $(document).on('click', '.rsa-branch-round', function (e) {
-            e.stopPropagation();
-            var roundNum = ~~$(this).data('round');
-            var line = curLine();
-            // Find forkRoundIdx: how many rounds to inherit (rounds before this one)
-            var forkIdx = 0;
-            for (var i = 0; i < line.rounds.length; i++) {
-                if (line.rounds[i].roundNum === roundNum) { forkIdx = i; break; }
-            }
-            var newIdx = createBranch(line, forkIdx);
-            line.activeBranchIdx = newIdx;
-            rebuildBranchTeams(line, newIdx);
-            // Sync calc form to the branch's HP state so captureRound starts from correct HP
-            var _bp1 = getActiveEntry(line.teams.p1);
-            var _bp2 = getActiveEntry(line.teams.p2);
-            if (_bp1) loadPokemonIntoForm('p1', _bp1);
-            if (_bp2) {
-                suppressP2Sync = true;
-                loadPokemonIntoForm('p2', _bp2);
-                setTimeout(function () { suppressP2Sync = false; }, 500);
-            }
-            // Full sync (HP, item, ability, status, boosts) — same as branch-tab handler.
-            // captureRound reads HP from the form immediately, so this must be synchronous.
-            // loadPokemonIntoForm's setTimeout(0) only sets form HP asynchronously; without
-            // this call the form still shows the previous round's HP (0 after a KO) until
-            // the timeout fires, causing the branch's first round to start from 0 HP.
-            syncActiveStateToForm();
-            renderAll();
-            autoSave();
-        });
-
-        // ── Branch tab click (switch active branch) ──
-        $(document).on('click', '.rsa-branch-tab', function (e) {
-            e.stopPropagation();
-            var branchIdx = ~~$(this).data('branch-idx');
-            var line = curLine();
-            line.activeBranchIdx = branchIdx;
-            rebuildBranchTeams(line, branchIdx);
-            ensureP2RosterComplete();
-            var p1 = getActiveEntry(line.teams.p1);
-            var p2 = getActiveEntry(line.teams.p2);
-            if (p1) loadPokemonIntoForm('p1', p1);
-            if (p2) {
-                suppressP2Sync = true;
-                loadPokemonIntoForm('p2', p2);
-                setTimeout(function () { suppressP2Sync = false; }, 500);
-            }
-            syncActiveStateToForm();
-            renderAll();
-            autoSave();
-        });
-
-        // ── Branch delete (column header × or tab ×) ──
-        $(document).on('click', '.rsa-branch-delete, .rsa-branch-tab-delete', function (e) {
-            e.stopPropagation();
-            var branchIdx = ~~$(this).data('branch-idx');
-            var line = curLine();
-            if (branchIdx < 0 || branchIdx >= line.branches.length) return;
-            var branchName = line.branches[branchIdx].name;
-            if (!confirm('Delete branch "' + branchName + '"?')) return;
-            line.branches.splice(branchIdx, 1);
-            // Fix activeBranchIdx after removal
-            if (line.activeBranchIdx === branchIdx) {
-                line.activeBranchIdx = -1; // back to main
-            } else if (line.activeBranchIdx > branchIdx) {
-                line.activeBranchIdx--;
-            }
-            rebuildBranchTeams(line, line.activeBranchIdx);
-            ensureP2RosterComplete();
-            syncActiveStateToForm();
-            renderAll();
-            autoSave();
-        });
-
-        // ── Branch rename (double-click tab) ──
-        $(document).on('dblclick', '.rsa-branch-tab', function (e) {
-            e.stopPropagation();
-            var branchIdx = ~~$(this).data('branch-idx');
-            var line = curLine();
-            if (branchIdx < 0) {
-                // Rename main line
-                var newName = prompt('Rename main line:', line.name);
-                if (newName && newName.trim()) { line.name = newName.trim(); }
-            } else if (line.branches[branchIdx]) {
-                var newName = prompt('Rename branch:', line.branches[branchIdx].name);
-                if (newName && newName.trim()) { line.branches[branchIdx].name = newName.trim(); }
-            }
-            renderAll();
+            syncActiveStatusToForm();
             autoSave();
         });
 
         // ── Delete All Rounds (log header button) ──
         $(document).on('click', '#rsa-delete-all-rounds', function () {
             var line = curLine();
-            var totalRounds = line.rounds.length;
-            for (var _bi = 0; _bi < line.branches.length; _bi++) {
-                totalRounds += line.branches[_bi].rounds.length;
-            }
-            if (totalRounds === 0) return;
-            if (!confirm('Delete all ' + totalRounds + ' rounds (including ' + line.branches.length + ' branch(es)) in "' + line.name + '"?')) return;
-            suppressP2Sync = true;
+            if (line.rounds.length === 0) return;
+            if (!confirm('Delete all ' + line.rounds.length + ' rounds in "' + line.name + '"?')) return;
             line.rounds = [];
             line.roundCounter = 0;
-            line.branches = [];
-            line.activeBranchIdx = -1;
             rebuildLineTeams(line);
-            ensureP2RosterComplete();
-            syncActiveStateToForm();
             renderAll();
+            syncActiveStatusToForm();
             autoSave();
-            setTimeout(function () {
-                rebuildLineTeams(curLine());
-                syncActiveStateToForm();
-                renderAll();
-                autoSave();
-                suppressP2Sync = false;
-            }, 700);
         });
 
         // ── Clear line ──
@@ -7795,21 +6348,12 @@
             var line = curLine();
             if (line.rounds.length === 0) return;
             if (!confirm('Clear all rounds in "' + line.name + '"?')) return;
-            suppressP2Sync = true;
             line.rounds = [];
             line.roundCounter = 0;
             rebuildLineTeams(line);
-            ensureP2RosterComplete();
-            syncActiveStateToForm();
             renderAll();
+            syncActiveStatusToForm();
             autoSave();
-            setTimeout(function () {
-                rebuildLineTeams(curLine());
-                syncActiveStateToForm();
-                renderAll();
-                autoSave();
-                suppressP2Sync = false;
-            }, 700);
         });
 
         // ── Import panel toggle ──
@@ -7843,75 +6387,6 @@
             syncP2Team();
             renderAll();
         });
-
-        // ── Trainer search ──
-        (function () {
-            var $input = $('#rsa-trainer-search');
-            var $sugg  = $('#rsa-trainer-suggestions');
-
-            $input.on('input', function () {
-                var query = $(this).val().trim().toLowerCase();
-                $sugg.empty();
-                if (!query) { $sugg.hide(); return; }
-
-                // TR_NAMES entries: "[index]MonName (Trainer Name)"
-                var seen = {};
-                var results = [];
-                (window.TR_NAMES || []).forEach(function (entry) {
-                    var idxMatch     = entry.match(/^\[(\d+)\]/);
-                    var trainerMatch = entry.match(/\(([^)]+)\)$/);
-                    if (!idxMatch || !trainerMatch) return;
-                    var idx  = parseInt(idxMatch[1], 10);
-                    var name = trainerMatch[1];
-                    if (seen[idx]) return;
-                    if (name.toLowerCase().includes(query)) {
-                        seen[idx] = true;
-                        results.push({ idx: idx, name: name });
-                    }
-                });
-
-                if (!results.length) { $sugg.hide(); return; }
-
-                results.slice(0, 20).forEach(function (r) {
-                    $('<div class="rsa-trainer-sugg-item">')
-                        .text(r.name)
-                        .on('click', function () {
-                            $input.val(r.name);
-                            $sugg.hide();
-                            var line = curLine();
-                            if (line.rounds.length > 0) {
-                                var save = confirm(
-                                    'You have ' + line.rounds.length + ' round(s) logged in "' + line.name + '".\n\n' +
-                                    'OK = Save this line and start a new one\n' +
-                                    'Cancel = Discard rounds and load next opponent'
-                                );
-                                if (save) {
-                                    lines.push(createLine('Line ' + String.fromCharCode(65 + lines.length)));
-                                    currentLineIdx = lines.length - 1;
-                                } else {
-                                    line.rounds = [];
-                                    line.roundCounter = 0;
-                                    line.teams = { p1: { roster: [], activeIdx: -1 }, p2: { roster: [], activeIdx: -1 } };
-                                }
-                                renderAll();
-                            }
-                            selectTrainer(r.idx);
-                            setTimeout(function () {
-                                syncP2Team();
-                                setTimeout(autoSelectP2MostProbable, 500);
-                            }, 500);
-                        })
-                        .appendTo($sugg);
-                });
-                $sugg.show();
-            });
-
-            $(document).on('click', function (e) {
-                if (!$(e.target).closest('.rsa-trainer-search-wrap').length) {
-                    $sugg.hide();
-                }
-            });
-        })();
 
         // ── Export ──
         $('#rsa-export').on('click', function () {
@@ -8004,16 +6479,11 @@
 
             // Wait for the form to fully load, then capture the round
             setTimeout(function () {
-                // rebuildBranchTeams (fired by loadPokemonIntoForm's 300ms timer) may have
-                // reset team.p2.activeIdx back to the KO'd mon via replay. Re-apply the
-                // send-in index so captureRound logs the correct incoming pokemon.
-                curLine().teams.p2.activeIdx = p2SendIdx;
-
                 var p1MoveIdx = selectedP1Move;
                 var rd = captureRound(p1MoveIdx, 'none', false, 0, '', inlineComment, false, false);
                 if (!rd) { return; }
                 rd.isP2Switch = true;
-                getActiveRounds(curLine()).push(rd);
+                curLine().rounds.push(rd);
                 renderAll();
                 syncActiveStatusToForm();
                 autoSave();
@@ -8027,28 +6497,10 @@
             var line = curLine();
             var entry = line.teams.p2.roster[idx];
             if (!entry) return;
-            // Persist the confirmed send-in so rebuildBranchTeams restores it correctly
-            // (loadPokemonIntoForm -> renderRoundLog -> rebuildBranchTeams would otherwise
-            //  reset activeIdx back to the KO'd pokemon)
-            if (line.activeBranchIdx >= 0 && line.branches && line.branches[line.activeBranchIdx]) {
-                line.branches[line.activeBranchIdx].pendingSwitchP2Idx = idx;
-            } else {
-                line.pendingSwitchP2Idx = idx;
-            }
             switchActive('p2', idx);
             setTimeout(function () {
-                // Ensure the switch is still applied (failsafe: rebuildBranchTeams
-                // checks pendingSwitchP2Idx, but also set activeIdx directly here)
-                var line2 = curLine();
-                line2.teams.p2.activeIdx = idx;
-                var $existingInline = $('#rsa-round-log .rsa-inline-controls');
-                if ($existingInline.length) {
-                    var newInlineHtml = renderInlineControls();
-                    $existingInline.replaceWith($(newInlineHtml));
-                    syncInlineControls();
-                }
                 $('.rsa-inline-comment').val('P2 sends ' + entry.name);
-            }, 400);
+            }, 350);
         }
         $(document).on('click', '.rsa-inline-p2-confirm', doP2SendIn);
 
@@ -8149,14 +6601,13 @@
 
                 var set = lookupSet(data.setId);
                 var maxHP = set ? calcMaxHP(data.name, set) : 100;
-                var typeInfo = getMonTypeInfo(data.name, data.setId);
                 var entry = createRosterEntry(
                     data.name, data.setId,
                     getSprite(data.name),
                     set ? (set.item || '') : '',
                     set ? (set.ability || '') : '',
                     set ? (set.moves || []) : [],
-                    maxHP, typeInfo.types
+                    maxHP, []
                 );
                 team.roster.push(entry);
                 var newIdx = team.roster.length - 1;
@@ -8326,14 +6777,6 @@
             entry.currentHP = val;
             // User explicitly set HP — clear uncertainty range
             entry.bestCaseHP = val;
-            // Remember this as the user-set pre-damage baseline so it can be
-            // restored after round deletion (cleared when a round is logged).
-            if (side === 'p1') entry.preDamageHP = val;
-            // Sync to calc form so damage calculations use the updated HP
-            if (idx === line.teams[side].activeIdx) {
-                $('#' + side + ' .current-hp').val(val);
-                try { performCalculations(); } catch (e) {}
-            }
             renderTeamPanel(side);
             autoSave();
         });
@@ -8428,397 +6871,6 @@
             }, 400);
         });
 
-        // ══════════════════════════════════════════════════════════════
-        //  RSA Field Bar — wire weather/terrain/trick room controls
-        // ══════════════════════════════════════════════════════════════
-
-        // Weather dropdown → sync to hidden radio buttons
-        $('#rsa-weather-select').on('change', function () {
-            var val = $(this).val();
-            if (val) {
-                // Map value to the hidden radio id
-                var radioMap = {
-                    'Sun': 'sun', 'Rain': 'rain', 'Sand': 'sand', 'Snow': 'snow', 'Hail': 'hail',
-                    'Harsh Sunshine': 'harsh-sunshine', 'Heavy Rain': 'heavy-rain', 'Strong Winds': 'strong-winds'
-                };
-                var radioId = radioMap[val];
-                if (radioId) $('#' + radioId).prop('checked', true);
-            } else {
-                // None — check the "clear" radio
-                $('input:radio[name="weather"][value=""]').prop('checked', true);
-            }
-            try { performCalculations(); } catch (e) {}
-            updateFieldPanel();
-            refreshTeamSpeeds();
-        });
-
-        // Permanent weather checkbox
-        $('#rsa-perma-weather').on('change', function () {
-            curLine().fieldState.permanentWeather = $(this).is(':checked');
-            updateFieldPanel();
-            autoSave();
-        });
-
-        // Terrain dropdown → sync to hidden checkboxes
-        $('#rsa-terrain-select').on('change', function () {
-            var val = $(this).val();
-            // Uncheck all terrain checkboxes first
-            $('input:checkbox[name="terrain"]').prop('checked', false);
-            if (val) {
-                var terrainMap = { 'Electric': 'electric', 'Grassy': 'grassy', 'Misty': 'misty', 'Psychic': 'psychic' };
-                var cbId = terrainMap[val];
-                if (cbId) $('#' + cbId).prop('checked', true);
-            }
-            try { performCalculations(); } catch (e) {}
-            updateFieldPanel();
-            refreshTeamSpeeds();
-        });
-
-        // Trick Room toggle
-        $('#rsa-trickroom').on('change', function () {
-            var on = $(this).is(':checked');
-            $('#trickroom').prop('checked', on);
-            $(this).closest('.rsa-trickroom-toggle').toggleClass('rsa-tr-active', on);
-            try { performCalculations(); } catch (e) {}
-            updateFieldPanel();
-            autoSave();
-        });
-
-        // Field state panel collapse/expand
-        $('#rsa-field-panel-toggle').on('click', function () {
-            $('#rsa-field-panel').toggleClass('rsa-collapsed');
-        });
-        // Start collapsed
-        $('#rsa-field-panel').addClass('rsa-collapsed');
-
-        // ══════════════════════════════════════════════════════════════
-        //  RSA Info Tooltip (ⓘ button) — click to show/hide popup
-        // ══════════════════════════════════════════════════════════════
-        var _activeInfoPopup = null;
-
-        function closeInfoPopup() {
-            if (_activeInfoPopup) { _activeInfoPopup.remove(); _activeInfoPopup = null; }
-        }
-
-        function describeAbilityEffects(name) {
-            var reg = window.EffectsRegistry && window.EffectsRegistry.ability(name);
-            if (!reg) return '';
-            var parts = [];
-            if (reg.typeImmunity)           parts.push('Immune to ' + reg.typeImmunity);
-            if (reg.wonderGuard)            parts.push('Only super-effective moves hit');
-            if (reg.speedMod) {
-                var cond = reg.speedMod.condition;
-                var desc = reg.speedMod.multiplier + '× Speed';
-                if (cond) {
-                    if (cond.weather)   desc += ' in ' + cond.weather.join('/');
-                    if (cond.terrain)   desc += ' on ' + cond.terrain.join('/') + ' Terrain';
-                    if (cond.hasStatus) desc += ' when statused';
-                }
-                parts.push(desc);
-            }
-            if (reg.weatherDamageImmunity)  parts.push('Immune to weather damage');
-            if (reg.indirectDamageImmunity) parts.push('Immune to indirect damage');
-            if (reg.recoilImmunity)         parts.push('Immune to recoil');
-            if (reg.contactRecoil)          parts.push('1/' + Math.round(1/reg.contactRecoil) + ' attacker HP on contact');
-            if (reg.ignoresAbility)         parts.push('Ignores defender abilities');
-            if (reg.survivalFullHP)         parts.push('Survives one hit at 1 HP from full');
-            if (reg.statusImmunity)         parts.push('Immune to: ' + reg.statusImmunity.join(', '));
-            if (reg.burnAttackBoost)        parts.push('Ignores burn Atk drop + chip');
-            if (reg.priorityMod) {
-                var pm = reg.priorityMod;
-                if (pm.condition && pm.condition.alwaysLast) parts.push('Always moves last');
-                else parts.push('+' + pm.boost + ' priority' + (pm.condition ? ' (conditional)' : ''));
-            }
-            if (reg.unburden)               parts.push('2× Speed when item lost');
-            return parts.join(' · ');
-        }
-
-        function describeItemEffects(name) {
-            var reg = window.EffectsRegistry && window.EffectsRegistry.item(name);
-            if (!reg) return '';
-            var parts = [];
-            if (reg.speedMod)                   parts.push(reg.speedMod.multiplier + '× Speed');
-            if (reg.contactRecoilToAttacker)    parts.push('1/' + Math.round(1/reg.contactRecoilToAttacker) + ' attacker HP on contact');
-            if (reg.attackerSelfRecoil)         parts.push('1/' + Math.round(1/reg.attackerSelfRecoil) + ' self HP after attacking');
-            if (reg.eotHealing)                 parts.push('Heals 1/' + Math.round(1/reg.eotHealing.frac) + ' HP/turn');
-            if (reg.eotStatusInflict)           parts.push('Inflicts ' + reg.eotStatusInflict + ' at EOT');
-            if (reg.survivalFullHP)             parts.push('Survives one hit at 1 HP from full');
-            if (reg.statusCure)                 parts.push('Cures ' + reg.statusCure);
-            if (reg.hpRestore)                  parts.push('Restores 1/' + Math.round(1/reg.hpRestore.frac) + ' HP');
-            if (reg.floatImmunity)              parts.push('Ground immunity (floats)');
-            if (reg.hazardImmunity)             parts.push('Immune to hazards');
-            if (reg.moveLastInBracket)          parts.push('Moves last in bracket');
-            if (reg.contactAvoidance)           parts.push('Avoids contact effects');
-            return parts.join(' · ');
-        }
-
-        function buildInfoPopup(entry, side) {
-            var $pop = $('<div class="rsa-info-popup"></div>');
-            var typeSprite = function (t) { return '<img class="rsa-info-type-sprite" src="' + getTypeSpriteUrl(t) + '" alt="' + t + '">'; };
-
-            // Header: sprite + type icons + name
-            var spriteSrc = entry.sprite || '';
-            var $header = $('<div class="rsa-info-popup-header"></div>');
-            if (spriteSrc) $header.append('<img class="rsa-info-popup-sprite" src="' + spriteSrc + '" alt="">');
-            var headerTypes = entry.types || [];
-            if (!headerTypes.length) {
-                try { headerTypes = getMonTypeInfo(entry.name, entry.setId).types || []; } catch(ex){}
-            }
-            $header.append('<span class="rsa-info-popup-name">' + (entry.species || entry.name || '?') + '</span>');
-            for (var _ti = 0; _ti < headerTypes.length; _ti++) {
-                $header.append(typeSprite(headerTypes[_ti]));
-            }
-            $pop.append($header);
-
-            // Types with sprites
-            var types = entry.types || [];
-            if (types.length) {
-                var typeHtml = types.map(function (t) { return typeSprite(t) + ' ' + t; }).join(' / ');
-                $pop.append('<div class="rsa-info-row"><span class="rsa-info-key">Types</span><span class="rsa-info-val">' + typeHtml + '</span></div>');
-            }
-
-            // Ability
-            if (entry.ability) {
-                var abEff = describeAbilityEffects(entry.ability);
-                $pop.append('<div class="rsa-info-row"><span class="rsa-info-key">Ability</span><span class="rsa-info-val">' + entry.ability +
-                    (abEff ? '<br><span class="rsa-info-effect">' + abEff + '</span>' : '') + '</span></div>');
-            }
-
-            // Item
-            if (entry.item) {
-                var itEff = describeItemEffects(entry.item);
-                $pop.append('<div class="rsa-info-row"><span class="rsa-info-key">Item</span><span class="rsa-info-val">' + entry.item +
-                    (itEff ? '<br><span class="rsa-info-effect">' + itEff + '</span>' : '') + '</span></div>');
-            }
-
-            // Stats table — Base / IV / EV / Final / Effective
-            try {
-                var _poke = createPokemon(entry.setId);
-                if (_poke && _poke.stats) {
-                    var statNames = [
-                        { key: 'hp',  label: 'HP' },
-                        { key: 'atk', label: 'Atk' },
-                        { key: 'def', label: 'Def' },
-                        { key: 'spa', label: 'SpA' },
-                        { key: 'spd', label: 'SpD' },
-                        { key: 'spe', label: 'Spe' }
-                    ];
-                    var boostKeyMap = { atk: 'at', def: 'df', spa: 'sa', spd: 'sd', spe: 'sp' };
-                    var baseStats = (_poke.species && _poke.species.baseStats) || {};
-                    var ivs = _poke.ivs || {};
-                    var evs = _poke.evs || {};
-                    var nature = _poke.nature || '';
-
-                    var tbl = '<table class="rsa-stat-table"><thead><tr>' +
-                        '<th></th><th>Base</th><th>IV</th><th>EV</th><th>Final</th><th>Boost</th><th>Eff.</th>' +
-                        '</tr></thead><tbody>';
-
-                    for (var si = 0; si < statNames.length; si++) {
-                        var sn = statNames[si];
-                        var base = baseStats[sn.key] || 0;
-                        var iv = ivs[sn.key] != null ? ivs[sn.key] : 31;
-                        var ev = evs[sn.key] || 0;
-                        var final = _poke.rawStats[sn.key] || _poke.stats[sn.key] || 0;
-                        var bKey = boostKeyMap[sn.key];
-                        var boost = (bKey && entry.boosts && entry.boosts[bKey]) || 0;
-                        var effective = final;
-                        if (sn.key !== 'hp' && boost !== 0) {
-                            effective = boost >= 0
-                                ? Math.floor(final * (2 + boost) / 2)
-                                : Math.floor(final * 2 / (2 - boost));
-                        }
-                        // Apply speed modifiers for Spe row
-                        if (sn.key === 'spe') {
-                            var w = getWeather(), t = getTerrain();
-                            effective = computeEntrySpeed(entry, w, t);
-                        }
-                        var boostStr = boost === 0 ? '—' : (boost > 0 ? '<span style="color:#68d391">+' + boost + '</span>' : '<span style="color:#fc8181">' + boost + '</span>');
-                        var effStr = (effective !== final || boost !== 0) ? '<b>' + effective + '</b>' : '' + effective;
-                        // Highlight nature effects
-                        var natureUp = '', natureDown = '';
-                        try {
-                            var nData = calc.NATURES && calc.NATURES[nature];
-                            if (nData) { natureUp = nData[0] || ''; natureDown = nData[1] || ''; }
-                        } catch (ex) {}
-                        var labelCls = '';
-                        if (sn.key === natureUp) labelCls = ' style="color:#68d391"';
-                        else if (sn.key === natureDown) labelCls = ' style="color:#fc8181"';
-
-                        tbl += '<tr><td' + labelCls + '>' + sn.label + '</td>' +
-                            '<td>' + base + '</td><td>' + iv + '</td><td>' + ev + '</td>' +
-                            '<td>' + final + '</td><td>' + boostStr + '</td><td>' + effStr + '</td></tr>';
-                    }
-                    tbl += '</tbody></table>';
-                    if (nature) tbl = '<div class="rsa-info-nature">Nature: <b>' + nature + '</b></div>' + tbl;
-                    $pop.append('<div class="rsa-info-stats">' + tbl + '</div>');
-                }
-            } catch (ex) {}
-
-            // HP
-            if (entry.currentHP !== undefined && entry.maxHP) {
-                var pct = Math.round(entry.currentHP / entry.maxHP * 100);
-                $pop.append('<div class="rsa-info-row"><span class="rsa-info-key">HP</span><span class="rsa-info-val">' +
-                    entry.currentHP + '/' + entry.maxHP + ' (' + pct + '%)</span></div>');
-            }
-
-            // Status
-            if (entry.status && entry.status !== 'Healthy') {
-                $pop.append('<div class="rsa-info-row"><span class="rsa-info-key">Status</span><span class="rsa-info-val">' + entry.status + '</span></div>');
-            }
-
-            // Defensive Profile (weaknesses/resistances/immunities) with type sprites
-            try {
-                var tInfo = getMonTypeInfo(entry.name, entry.setId);
-                var profile = getDefensiveProfile(tInfo.types, tInfo.ability);
-                var immunes = [], quad = [], resists = [], weak = [], quadWeak = [];
-                for (var dt in profile) {
-                    var m = profile[dt];
-                    if (m === 0) immunes.push(dt);
-                    else if (m <= 0.25) quad.push(dt);
-                    else if (m < 1 && m > 0.25) resists.push(dt);
-                    else if (m >= 4) quadWeak.push(dt);
-                    else if (m > 1 && m < 4) weak.push(dt);
-                }
-                var defHtml = '';
-                if (immunes.length) defHtml += '<div class="rsa-def-row"><span class="rsa-def-label rsa-def-immune">Immune:</span> ' + immunes.map(function(t){ return typeSprite(t); }).join(' ') + '</div>';
-                if (quad.length) defHtml += '<div class="rsa-def-row"><span class="rsa-def-label rsa-def-qresist">¼× Resist:</span> ' + quad.map(function(t){ return typeSprite(t); }).join(' ') + '</div>';
-                if (resists.length) defHtml += '<div class="rsa-def-row"><span class="rsa-def-label rsa-def-resist">½× Resist:</span> ' + resists.map(function(t){ return typeSprite(t); }).join(' ') + '</div>';
-                if (weak.length) defHtml += '<div class="rsa-def-row"><span class="rsa-def-label rsa-def-weak">2× Weak:</span> ' + weak.map(function(t){ return typeSprite(t); }).join(' ') + '</div>';
-                if (quadWeak.length) defHtml += '<div class="rsa-def-row"><span class="rsa-def-label rsa-def-qweak">4× Weak:</span> ' + quadWeak.map(function(t){ return typeSprite(t); }).join(' ') + '</div>';
-                if (defHtml) {
-                    $pop.append('<div class="rsa-info-defense"><div class="rsa-info-section-title">Defensive Profile</div>' + defHtml + '</div>');
-                }
-            } catch (ex) {}
-
-            return $pop;
-        }
-
-        // Globally delegate click on ⓘ buttons
-        $(document).on('click', '.rsa-info-btn', function (e) {
-            e.stopPropagation();
-            closeInfoPopup();
-
-            var $btn = $(this);
-            var side = $btn.data('side');
-            var idx = parseInt($btn.data('idx'));
-            var line = curLine();
-            var team = line.teams[side];
-            if (!team || !team.roster[idx]) return;
-
-            var entry = team.roster[idx];
-            var $pop = buildInfoPopup(entry, side);
-
-            // Position near the button
-            var btnOff = $btn.offset();
-            $pop.css({ top: btnOff.top + 22, left: Math.min(btnOff.left, window.innerWidth - 340) });
-            $('body').append($pop);
-            _activeInfoPopup = $pop;
-        });
-
-        // Close popup on click outside
-        $(document).on('click', function () { closeInfoPopup(); });
-
-        // ══════════════════════════════════════════════════════════════
-        //  Update Field Panel display state
-        // ══════════════════════════════════════════════════════════════
-        function updateFieldPanel() {
-            var w = getWeather(), t = getTerrain();
-            var tr = $('#rsa-trickroom').is(':checked');
-            var perma = curLine().fieldState.permanentWeather;
-
-            // Weather
-            var wText = (w && w !== 'None') ? w : 'None';
-            if (wText !== 'None' && perma) wText += ' <span class="rsa-fp-permanent">(Permanent)</span>';
-            $('#rsa-fp-weather-val').html(wText).toggleClass('rsa-fp-active', wText !== 'None');
-
-            // Terrain
-            var tText = (t && t !== 'None') ? t + ' Terrain' : 'None';
-            $('#rsa-fp-terrain-val').text(tText).toggleClass('rsa-fp-active', tText !== 'None');
-
-            // Trick Room
-            $('#rsa-fp-trickroom-val').text(tr ? 'Active' : 'Off').toggleClass('rsa-fp-active', tr);
-
-            // Gravity
-            var grav = $('#gravity').is(':checked');
-            $('#rsa-fp-gravity-val').text(grav ? 'Active' : 'Off').toggleClass('rsa-fp-active', grav);
-
-            // Screens (per side)
-            ['L', 'R'].forEach(function (suffix, i) {
-                var side = i === 0 ? 'p1' : 'p2';
-                var screens = [];
-                if ($('#reflect' + suffix).is(':checked')) screens.push('Reflect');
-                if ($('#lightScreen' + suffix).is(':checked')) screens.push('Light Screen');
-                if ($('#auroraVeil' + suffix).is(':checked')) screens.push('Aurora Veil');
-                $('#rsa-fp-screens-' + side + '-val').text(screens.length ? screens.join(', ') : 'None').toggleClass('rsa-fp-active', screens.length > 0);
-            });
-
-            // Tailwind (per side)
-            ['L', 'R'].forEach(function (suffix, i) {
-                var side = i === 0 ? 'p1' : 'p2';
-                var tw = $('#tailwind' + suffix).is(':checked');
-                $('#rsa-fp-tailwind-' + side + '-val').text(tw ? 'Active' : 'Off').toggleClass('rsa-fp-active', tw);
-            });
-
-            // Hazards
-            var fld = curLine().fieldState;
-            var hazards = (fld && fld.hazards) || {};
-            ['p1', 'p2'].forEach(function (s) {
-                var h = hazards[s] || {};
-                var parts = [];
-                if (h.sr) parts.push('SR');
-                if (h.spikes) parts.push('Spikes ×' + h.spikes);
-                if (h.tspikes) parts.push('T.Spikes ×' + h.tspikes);
-                if (h.stickyWeb) parts.push('Sticky Web');
-                $('#rsa-fp-hazards-' + s + '-val').text(parts.length ? parts.join(', ') : 'None').toggleClass('rsa-fp-active', parts.length > 0);
-            });
-
-            // Other modifiers
-            var others = [];
-            if ($('#magicroom').is(':checked')) others.push('Magic Room');
-            if ($('#wonderroom').is(':checked')) others.push('Wonder Room');
-            ['L', 'R'].forEach(function (suffix, i) {
-                var tag = i === 0 ? 'P1' : 'P2';
-                if ($('#protect' + suffix).is(':checked')) others.push(tag + ' Protect');
-                if ($('#leechSeed' + suffix).is(':checked')) others.push(tag + ' Leech Seed');
-                if ($('#foresight' + suffix).is(':checked')) others.push(tag + ' Foresight');
-                if ($('#helpingHand' + suffix).is(':checked')) others.push(tag + ' Helping Hand');
-                if ($('#substitute' + suffix).is(':checked')) others.push(tag + ' Substitute');
-                if ($('#focusEnergy' + suffix).is(':checked')) others.push(tag + ' Focus Energy');
-                if ($('#battery' + suffix).is(':checked')) others.push(tag + ' Battery');
-                if ($('#powerSpot' + suffix).is(':checked')) others.push(tag + ' Power Spot');
-            });
-            $('#rsa-fp-other-val').text(others.length ? others.join(', ') : '—').toggleClass('rsa-fp-active', others.length > 0);
-
-            // Also update hazard badges in field bar
-            updateHazardBadges();
-        }
-
-        function updateHazardBadges() {
-            var $container = $('#rsa-hazard-badges').empty();
-            var fld = curLine().fieldState;
-            var hazards = (fld && fld.hazards) || {};
-            ['p1', 'p2'].forEach(function (s) {
-                var h = hazards[s] || {};
-                var badgeClass = (s === 'p1') ? 'rsa-hz-badge-p1' : 'rsa-hz-badge-p2';
-                var prefix = s.toUpperCase() + ': ';
-                if (h.sr) $container.append('<span class="rsa-hz-badge ' + badgeClass + '">' + prefix + 'SR</span>');
-                if (h.spikes) $container.append('<span class="rsa-hz-badge ' + badgeClass + '">' + prefix + 'Spikes ×' + h.spikes + '</span>');
-                if (h.tspikes) $container.append('<span class="rsa-hz-badge ' + badgeClass + '">' + prefix + 'T.Spikes ×' + h.tspikes + '</span>');
-                if (h.stickyWeb) $container.append('<span class="rsa-hz-badge ' + badgeClass + '">' + prefix + 'Web</span>');
-            });
-        }
-
-        // Refresh team speed displays when weather/terrain change
-        function refreshTeamSpeeds() {
-            try {
-                renderTeam('p1');
-                renderTeam('p2');
-            } catch (e) {}
-        }
-
-        // Expose updateFieldPanel for use from other parts of the code
-        window._rsaUpdateFieldPanel = updateFieldPanel;
-
         // ── Inject initial damage badges after calc loads ──
         setTimeout(function () {
             renderBox('p1');
@@ -8826,34 +6878,6 @@
             injectMoveLabelSprites();
             // Try to compute initial rankings
             try { cachedRankings = computeBoxRankings(); renderBox('p1'); } catch (e) {}
-
-            // ── MutationObserver: auto-reinject sprites when calc overwrites labels ──
-            // performCalculations() in index_randoms_controls.js uses jQuery .text()
-            // to write plain move names into the <label> elements, wiping our sprite
-            // HTML.  This observer fires as a microtask immediately after the DOM
-            // mutation and re-injects sprites synchronously, so the user never sees
-            // a frame without sprites.
-            var _spriteReinjectPending = false;
-            var moveLabels = document.querySelectorAll(
-                'label[for^="resultMoveL"], label[for^="resultMoveR"]'
-            );
-            var spriteObserver = new MutationObserver(function () {
-                // Guard: injectMoveLabelSprites itself mutates labels (adding sprite
-                // spans), which re-triggers this observer.  The skip-if-present check
-                // inside injectMoveLabelSprites handles idempotency, but we still
-                // avoid redundant calls in the same microtask batch.
-                if (_spriteReinjectPending) return;
-                _spriteReinjectPending = true;
-                // Use queueMicrotask so all 8 label mutations in one
-                // performCalculations() call are batched into one re-inject.
-                queueMicrotask(function () {
-                    _spriteReinjectPending = false;
-                    injectMoveLabelSprites();
-                });
-            });
-            for (var li = 0; li < moveLabels.length; li++) {
-                spriteObserver.observe(moveLabels[li], { childList: true, characterData: true, subtree: true });
-            }
         }, 2500);
     });
 

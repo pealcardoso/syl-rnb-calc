@@ -1,0 +1,2 @@
+[     313ms] [ERROR] Error: <path> attribute d: Expected number, "…v1h1a1 1 0 0 1 1V14a1 1 0 0 1-1 …". @ http://localhost:8080/roundsim.html:66
+[ 1015716ms] [LOG] damage[damage.length - 1] === 0. @ http://localhost:8080/calc/util.js?8fa0c7ff:12

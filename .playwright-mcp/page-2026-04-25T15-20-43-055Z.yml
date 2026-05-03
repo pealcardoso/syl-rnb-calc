@@ -1,0 +1,957 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - generic [ref=e3]: Round Simulator
+    - link "← Back to Calculator" [ref=e4] [cursor=pointer]:
+      - /url: ./index.template.html
+  - navigation [ref=e5]
+  - generic [ref=e7]:
+    - region "Settings" [ref=e8]:
+      - text: Pokémon Damage Calculator
+      - radiogroup "Select the generation.":
+        - generic [ref=e9]: Select the generation.
+        - radio [checked] [ref=e10]
+      - radiogroup "Select the output notation.":
+        - generic [ref=e11]: Select the output notation.
+        - radio [ref=e12]
+        - radio [ref=e13]
+      - radiogroup "Select the calculator's mode of function." [ref=e14]:
+        - generic [ref=e15]: Select the calculator's mode of function.
+        - radio [checked] [ref=e16]
+        - radio [ref=e17]
+        - radio [ref=e18]
+        - radio [ref=e19]
+    - separator [ref=e20]
+    - generic [ref=e21]:
+      - generic [ref=e22]: "Lines:"
+      - button "+ New Line" [ref=e23] [cursor=pointer]
+      - button "Delete Line" [ref=e24] [cursor=pointer]
+      - button "💾 Save" [ref=e25] [cursor=pointer]
+      - button "📂 Load" [ref=e26] [cursor=pointer]
+      - button "✕ Clear Save" [ref=e27] [cursor=pointer]
+    - generic [ref=e28]:
+      - generic [ref=e29]: "Battle Format:"
+      - generic [ref=e30]:
+        - button "Singles" [ref=e31] [cursor=pointer]
+        - button "Doubles (1 Trainer)" [ref=e32] [cursor=pointer]
+        - button "Doubles (2 Trainers)" [ref=e33] [cursor=pointer]
+    - generic [ref=e35]:
+      - generic [ref=e36]:
+        - generic [ref=e37]: Your Box
+        - generic [ref=e38]: "0"
+        - generic [ref=e39]:
+          - button "📥 Import" [ref=e40] [cursor=pointer]
+          - button "🗑 Delete" [ref=e41] [cursor=pointer]
+          - button "📊 Coverage" [ref=e42] [cursor=pointer]
+          - button "🚫 Items" [ref=e43] [cursor=pointer]
+      - generic [ref=e44]:
+        - generic [ref=e45]: "Sort:"
+        - button "Default" [ref=e46] [cursor=pointer]
+        - button "⚔ Offense" [ref=e47] [cursor=pointer]
+        - button "🛡 Move Def" [ref=e48] [cursor=pointer]
+        - button "🛡 All Def" [ref=e49] [cursor=pointer]
+        - button "⚙ Settings" [ref=e50] [cursor=pointer]
+    - generic [ref=e51]:
+      - generic [ref=e53]:
+        - generic [ref=e54]: Your Team (drag from box)
+        - generic [ref=e55]: "0"
+      - generic [ref=e57]:
+        - generic [ref=e58]: Opponent Team
+        - generic [ref=e59]: "0"
+        - generic [ref=e60]:
+          - button "◀" [ref=e61] [cursor=pointer]
+          - button "▶" [ref=e62] [cursor=pointer]
+          - button "🚚" [ref=e63] [cursor=pointer]
+    - generic [ref=e64]:
+      - generic [ref=e65]: Log Round
+      - generic [ref=e67]:
+        - generic [ref=e68]: Select a P1 move
+        - generic [ref=e69]: Select a P2 move
+      - generic [ref=e70]:
+        - generic [ref=e71]:
+          - checkbox "P2 Crits" [ref=e72]
+          - generic [ref=e73]: P2 Crits
+        - generic [ref=e74]:
+          - checkbox "Apply P1 Effect" [ref=e75]
+          - generic [ref=e76]: Apply P1 Effect
+        - generic [ref=e77]:
+          - checkbox "Apply P2 Effect" [checked] [ref=e78]
+          - generic [ref=e79]: Apply P2 Effect
+      - generic [ref=e81]:
+        - generic [ref=e82]: Comment
+        - textbox "Comment" [ref=e83]:
+          - /placeholder: Note...
+      - generic [ref=e84]:
+        - button "▶ Log Round" [ref=e85] [cursor=pointer]
+        - generic [ref=e86]:
+          - combobox "Switch P1 active" [ref=e87]:
+            - option "— Switch P1 —" [selected]
+          - button "⇄ Switch In" [ref=e88] [cursor=pointer]
+        - button "📋 Copy Log" [ref=e89] [cursor=pointer]
+        - button "Clear Line" [ref=e90] [cursor=pointer]
+    - generic [ref=e91]:
+      - generic [ref=e92]:
+        - generic [ref=e93]: Round Log
+        - generic [ref=e94]: "0"
+        - button "⊖ Collapse All" [ref=e95] [cursor=pointer]
+        - button "🗑 Delete All" [ref=e96] [cursor=pointer]
+      - generic [ref=e98]: No rounds yet. Set your teams, load the calc, and log rounds.
+    - region "Calculation results" [ref=e99]:
+      - generic "Click to copy." [ref=e100]: Loading...
+      - generic [ref=e101]: (If you see this message for more than a few seconds, try enabling JavaScript.)
+    - generic [ref=e102]:
+      - region "trainer-poks"
+      - region "Pokémon 1" [ref=e103]:
+        - group "Pokémon 1" [ref=e104]:
+          - generic [ref=e105]: Pokémon 1
+          - textbox [ref=e106]
+          - generic [ref=e107]:
+            - generic [ref=e108]:
+              - generic [ref=e109]: Type
+              - combobox "type1" [ref=e110]
+              - combobox "type2" [ref=e111]
+              - generic [ref=e112]:
+                - text: (
+                - link "Smogon analysis" [ref=e113] [cursor=pointer]:
+                  - /url: ""
+                - text: )
+            - generic [ref=e114]:
+              - generic [ref=e115]: Tera Type
+              - combobox [ref=e116]
+              - checkbox "Has this Pokémon terastalized?" [ref=e117]
+            - generic [ref=e118]:
+              - generic [ref=e119]:
+                - generic [ref=e120]: Level
+                - textbox "Level" [ref=e121]: "100"
+              - button "Assign Target" [ref=e122] [cursor=pointer]:
+                - img [ref=e123]
+          - table [ref=e129]:
+            - rowgroup [ref=e130]:
+              - row "Base IVs EVs" [ref=e131]:
+                - columnheader [ref=e132]
+                - columnheader "Base" [ref=e133]
+                - columnheader "IVs" [ref=e134]
+                - columnheader "EVs" [ref=e135]
+                - columnheader [ref=e136]
+                - columnheader [ref=e137]
+            - rowgroup [ref=e138]:
+              - row "HP 100 31 0 341" [ref=e139]:
+                - rowheader "HP" [ref=e140]:
+                  - generic [ref=e141]: HP
+                - cell "100" [ref=e142]:
+                  - textbox [ref=e143]: "100"
+                - cell "31" [ref=e144]:
+                  - textbox [ref=e145]: "31"
+                - cell "0" [ref=e146]:
+                  - spinbutton [ref=e147]: "0"
+                - cell "341" [ref=e148]:
+                  - generic [ref=e149]: "341"
+                - cell [ref=e150]
+              - row "Attack 100 31 0 236 --" [ref=e151]:
+                - rowheader "Attack" [ref=e152]:
+                  - generic [ref=e153]: Attack
+                - cell "100" [ref=e154]:
+                  - textbox [ref=e155]: "100"
+                - cell "31" [ref=e156]:
+                  - textbox [ref=e157]: "31"
+                - cell "0" [ref=e158]:
+                  - spinbutton [ref=e159]: "0"
+                - cell "236" [ref=e160]:
+                  - generic [ref=e161]: "236"
+                - cell "--" [ref=e162]:
+                  - combobox [ref=e163]:
+                    - option "+6"
+                    - option "+5"
+                    - option "+4"
+                    - option "+3"
+                    - option "+2"
+                    - option "+1"
+                    - option "--" [selected]
+                    - option "-1"
+                    - option "-2"
+                    - option "-3"
+                    - option "-4"
+                    - option "-5"
+                    - option "-6"
+              - row "Defense 100 31 0 236 --" [ref=e164]:
+                - rowheader "Defense" [ref=e165]:
+                  - generic [ref=e166]: Defense
+                - cell "100" [ref=e167]:
+                  - textbox [ref=e168]: "100"
+                - cell "31" [ref=e169]:
+                  - textbox [ref=e170]: "31"
+                - cell "0" [ref=e171]:
+                  - spinbutton [ref=e172]: "0"
+                - cell "236" [ref=e173]:
+                  - generic [ref=e174]: "236"
+                - cell "--" [ref=e175]:
+                  - combobox [ref=e176]:
+                    - option "+6"
+                    - option "+5"
+                    - option "+4"
+                    - option "+3"
+                    - option "+2"
+                    - option "+1"
+                    - option "--" [selected]
+                    - option "-1"
+                    - option "-2"
+                    - option "-3"
+                    - option "-4"
+                    - option "-5"
+                    - option "-6"
+              - row "Sp. Atk 100 31 0 236 --" [ref=e177]:
+                - rowheader "Sp. Atk" [ref=e178]:
+                  - generic [ref=e179]: Sp. Atk
+                - cell "100" [ref=e180]:
+                  - textbox [ref=e181]: "100"
+                - cell "31" [ref=e182]:
+                  - textbox [ref=e183]: "31"
+                - cell "0" [ref=e184]:
+                  - spinbutton [ref=e185]: "0"
+                - cell "236" [ref=e186]:
+                  - generic [ref=e187]: "236"
+                - cell "--" [ref=e188]:
+                  - combobox [ref=e189]:
+                    - option "+6"
+                    - option "+5"
+                    - option "+4"
+                    - option "+3"
+                    - option "+2"
+                    - option "+1"
+                    - option "--" [selected]
+                    - option "-1"
+                    - option "-2"
+                    - option "-3"
+                    - option "-4"
+                    - option "-5"
+                    - option "-6"
+              - row "Sp. Def 100 31 0 236 --" [ref=e190]:
+                - rowheader "Sp. Def" [ref=e191]:
+                  - generic [ref=e192]: Sp. Def
+                - cell "100" [ref=e193]:
+                  - textbox [ref=e194]: "100"
+                - cell "31" [ref=e195]:
+                  - textbox [ref=e196]: "31"
+                - cell "0" [ref=e197]:
+                  - spinbutton [ref=e198]: "0"
+                - cell "236" [ref=e199]:
+                  - generic [ref=e200]: "236"
+                - cell "--" [ref=e201]:
+                  - combobox [ref=e202]:
+                    - option "+6"
+                    - option "+5"
+                    - option "+4"
+                    - option "+3"
+                    - option "+2"
+                    - option "+1"
+                    - option "--" [selected]
+                    - option "-1"
+                    - option "-2"
+                    - option "-3"
+                    - option "-4"
+                    - option "-5"
+                    - option "-6"
+              - row "Speed 100 31 0 236 -- ---" [ref=e203]:
+                - rowheader "Speed" [ref=e204]:
+                  - generic [ref=e205]: Speed
+                - cell "100" [ref=e206]:
+                  - textbox [ref=e207]: "100"
+                - cell "31" [ref=e208]:
+                  - textbox [ref=e209]: "31"
+                - cell "0" [ref=e210]:
+                  - spinbutton [ref=e211]: "0"
+                - cell "236" [ref=e212]:
+                  - generic [ref=e213]: "236"
+                - cell "--" [ref=e214]:
+                  - combobox [ref=e215]:
+                    - option "+6"
+                    - option "+5"
+                    - option "+4"
+                    - option "+3"
+                    - option "+2"
+                    - option "+1"
+                    - option "--" [selected]
+                    - option "-1"
+                    - option "-2"
+                    - option "-3"
+                    - option "-4"
+                    - option "-5"
+                    - option "-6"
+                - cell "---" [ref=e216]:
+                  - generic [ref=e217]: "---"
+          - generic [ref=e218]:
+            - generic [ref=e219]:
+              - generic [ref=e220]: Nature
+              - combobox "Nature" [ref=e221]:
+                - option "Adamant (+Atk, -SpA)"
+                - option "Bashful"
+                - option "Bold (+Def, -Atk)"
+                - option "Brave (+Atk, -Spe)"
+                - option "Calm (+SpD, -Atk)"
+                - option "Careful (+SpD, -SpA)"
+                - option "Docile"
+                - option "Gentle (+SpD, -Def)"
+                - option "Hardy" [selected]
+                - option "Hasty (+Spe, -Def)"
+                - option "Impish (+Def, -SpA)"
+                - option "Jolly (+Spe, -SpA)"
+                - option "Lax (+Def, -SpD)"
+                - option "Lonely (+Atk, -Def)"
+                - option "Mild (+SpA, -Def)"
+                - option "Modest (+SpA, -Atk)"
+                - option "Naive (+Spe, -SpD)"
+                - option "Naughty (+Atk, -SpD)"
+                - option "Quiet (+SpA, -Spe)"
+                - option "Quirky"
+                - option "Rash (+SpA, -SpD)"
+                - option "Relaxed (+Def, -Spe)"
+                - option "Sassy (+SpD, -Spe)"
+                - option "Serious"
+                - option "Timid (+Spe, -Atk)"
+            - generic [ref=e222]:
+              - generic [ref=e223]: Ability
+              - combobox "Ability" [ref=e224]
+            - generic [ref=e225]:
+              - generic [ref=e226]: Item
+              - combobox "Item" [ref=e227]
+            - generic [ref=e228]:
+              - generic [ref=e229]: Status
+              - combobox "Status" [ref=e230]:
+                - option "Healthy" [selected]
+                - option "Poisoned"
+                - option "Badly Poisoned"
+                - option "Burned"
+                - option "Paralyzed"
+                - option "Asleep"
+                - option "Frozen"
+          - generic "Has this Pokémon been cured with Salt Cure?" [ref=e232]:
+            - checkbox "Salt Cure" [ref=e233]
+            - generic [ref=e234] [cursor=pointer]: Salt Cure
+          - generic [ref=e235]:
+            - generic [ref=e236]: Current HP
+            - textbox "Current HP" [ref=e237]: "341"
+            - text: /
+            - generic [ref=e238]: "341"
+            - text: (
+            - textbox [ref=e239]: "100"
+            - text: "%)"
+            - text: Health
+          - generic [ref=e241]:
+            - combobox [ref=e242]
+            - textbox [ref=e243]: "50"
+            - combobox [ref=e244]
+            - combobox [ref=e245]:
+              - option "Physical" [selected]
+              - option "Special"
+            - checkbox "Crit" [ref=e246]
+            - generic "Force this attack to be a critical hit?" [ref=e247] [cursor=pointer]: Crit
+          - generic [ref=e248]:
+            - combobox [ref=e249]
+            - textbox [ref=e250]: "0"
+            - combobox [ref=e251]
+            - combobox [ref=e252]:
+              - option "Physical" [selected]
+              - option "Special"
+            - checkbox "Crit" [ref=e253]
+            - generic "Force this attack to be a critical hit?" [ref=e254] [cursor=pointer]: Crit
+          - generic [ref=e255]:
+            - combobox [ref=e256]
+            - textbox [ref=e257]: "0"
+            - combobox [ref=e258]
+            - combobox [ref=e259]:
+              - option "Physical" [selected]
+              - option "Special"
+            - checkbox "Crit" [ref=e260]
+            - generic "Force this attack to be a critical hit?" [ref=e261] [cursor=pointer]: Crit
+          - generic [ref=e262]:
+            - combobox [ref=e263]
+            - textbox [ref=e264]: "0"
+            - combobox [ref=e265]
+            - combobox [ref=e266]:
+              - option "Physical" [selected]
+              - option "Special"
+            - checkbox "Crit" [ref=e267]
+            - generic "Force this attack to be a critical hit?" [ref=e268] [cursor=pointer]: Crit
+      - region "trash"
+    - generic [ref=e269]:
+      - region "Field information" [ref=e270]:
+        - group "Field" [ref=e271]:
+          - generic [ref=e272]: Field
+          - radiogroup "Select the battle format." [ref=e273]:
+            - generic [ref=e274]: Select the battle format.
+            - radio "Singles" [ref=e275]
+            - generic [ref=e276] [cursor=pointer]: Singles
+            - radio "Doubles" [ref=e277]
+            - generic [ref=e278] [cursor=pointer]: Doubles
+          - group "Select the current terrain." [ref=e279]:
+            - generic [ref=e280]: Select the current terrain.
+            - checkbox "Electric Terrain" [ref=e281]
+            - generic [ref=e282] [cursor=pointer]: Electric Terrain
+            - checkbox "Grassy Terrain" [ref=e283]
+            - generic [ref=e284] [cursor=pointer]: Grassy Terrain
+            - checkbox "Misty Terrain" [ref=e285]
+            - generic [ref=e286] [cursor=pointer]: Misty Terrain
+            - checkbox "Psychic Terrain" [ref=e287]
+            - generic [ref=e288] [cursor=pointer]: Psychic Terrain
+          - group "Select the active Ruin abilities from other Pokeémon on the field." [ref=e289]:
+            - generic [ref=e290]: Select the active Ruin abilities from other Pokeémon on the field.
+            - checkbox "Beads of Ruin" [ref=e291]
+            - generic [ref=e292] [cursor=pointer]: Beads of Ruin
+            - checkbox "Tablets of Ruin" [ref=e293]
+            - generic [ref=e294] [cursor=pointer]: Tablets of Ruin
+            - checkbox "Sword of Ruin" [ref=e295]
+            - generic [ref=e296] [cursor=pointer]: Sword of Ruin
+            - checkbox "Vessel of Ruin" [ref=e297]
+            - generic [ref=e298] [cursor=pointer]: Vessel of Ruin
+          - separator [ref=e299]
+          - radiogroup "Select the current weather condition." [ref=e300]:
+            - generic [ref=e301]: Select the current weather condition.
+            - generic "Select the current weather condition." [ref=e302]:
+              - radio [checked] [ref=e303]
+              - generic [ref=e304]: None
+              - radio [ref=e305]
+              - generic [ref=e306] [cursor=pointer]: Sun
+              - radio [ref=e307]
+              - generic [ref=e308] [cursor=pointer]: Rain
+              - radio [ref=e309]
+              - generic [ref=e310] [cursor=pointer]: Sand
+              - radio "Snow" [ref=e311]
+              - generic [ref=e312] [cursor=pointer]: Snow
+            - generic "Select the current weather condition." [ref=e313]:
+              - radio "Harsh Sunshine" [ref=e314]
+              - generic [ref=e315] [cursor=pointer]: Harsh Sunshine
+              - radio "Heavy Rain" [ref=e316]
+              - generic [ref=e317] [cursor=pointer]: Heavy Rain
+              - radio "Strong Winds" [ref=e318]
+              - generic [ref=e319] [cursor=pointer]: Strong Winds
+          - generic [ref=e320]:
+            - checkbox "Magic Room" [ref=e321]
+            - generic [ref=e322] [cursor=pointer]: Magic Room
+            - checkbox "Wonder Room" [ref=e323]
+            - generic [ref=e324] [cursor=pointer]: Wonder Room
+            - checkbox "Trick Room" [ref=e325]
+            - generic [ref=e326] [cursor=pointer]: Trick Room
+          - generic "Is gravity in effect?" [ref=e327]:
+            - checkbox "Gravity" [ref=e328]
+            - generic [ref=e329] [cursor=pointer]: Gravity
+          - separator [ref=e330]
+          - table [ref=e331]:
+            - rowgroup:
+              - row "Pokémon 1's side Pokémon 2's side":
+                - columnheader "Pokémon 1's side":
+                  - generic [ref=e332]: Pokémon 1's side
+                - columnheader "Pokémon 2's side":
+                  - generic [ref=e333]: Pokémon 2's side
+            - rowgroup [ref=e334]:
+              - row "Stealth Rock Stealth Rock" [ref=e335]:
+                - cell "Stealth Rock" [ref=e336]:
+                  - generic "Is Stealth Rock affecting this side of the field?" [ref=e337]:
+                    - checkbox "Stealth Rock" [ref=e338]
+                    - generic [ref=e339] [cursor=pointer]: Stealth Rock
+                - cell "Stealth Rock" [ref=e340]:
+                  - generic "Is Stealth Rock affecting this side of the field?" [ref=e341]:
+                    - checkbox "Stealth Rock" [ref=e342]
+                    - generic [ref=e343] [cursor=pointer]: Stealth Rock
+              - row "Are there Spikes on this side of the field? Are there Spikes on this side of the field?" [ref=e344]:
+                - cell "Are there Spikes on this side of the field?" [ref=e345]:
+                  - radiogroup "Are there Spikes on this side of the field?" [ref=e346]:
+                    - radio "0" [checked] [ref=e347]
+                    - generic [ref=e348]: "0"
+                    - radio "1" [ref=e349]
+                    - generic [ref=e350] [cursor=pointer]: "1"
+                    - radio "2" [ref=e351]
+                    - generic [ref=e352] [cursor=pointer]: "2"
+                    - radio "3 Spikes" [ref=e353]
+                    - generic [ref=e354] [cursor=pointer]: 3 Spikes
+                - cell "Are there Spikes on this side of the field?" [ref=e355]:
+                  - radiogroup "Are there Spikes on this side of the field?" [ref=e356]:
+                    - radio "3 Spikes" [ref=e357]
+                    - generic [ref=e358] [cursor=pointer]: 3 Spikes
+                    - radio "2" [ref=e359]
+                    - generic [ref=e360] [cursor=pointer]: "2"
+                    - radio "1" [ref=e361]
+                    - generic [ref=e362] [cursor=pointer]: "1"
+                    - radio "0" [checked] [ref=e363]
+                    - generic [ref=e364]: "0"
+              - row "Are there Toxic Spikes on this side of the field? Are there Toxic Spikes on this side of the field?" [ref=e365]:
+                - cell "Are there Toxic Spikes on this side of the field?" [ref=e366]:
+                  - radiogroup "Are there Toxic Spikes on this side of the field?" [ref=e367]:
+                    - radio "0" [checked] [ref=e368]
+                    - generic [ref=e369]: "0"
+                    - radio "1" [ref=e370]
+                    - generic [ref=e371] [cursor=pointer]: "1"
+                    - radio "2 Toxic Spikes" [ref=e372]
+                    - generic [ref=e373] [cursor=pointer]: 2 Toxic Spikes
+                - cell "Are there Toxic Spikes on this side of the field?" [ref=e374]:
+                  - radiogroup "Are there Toxic Spikes on this side of the field?" [ref=e375]:
+                    - radio "2 Toxic Spikes" [ref=e376]
+                    - generic [ref=e377] [cursor=pointer]: 2 Toxic Spikes
+                    - radio "1" [ref=e378]
+                    - generic [ref=e379] [cursor=pointer]: "1"
+                    - radio "0" [checked] [ref=e380]
+                    - generic [ref=e381]: "0"
+              - row "Spikes Spikes" [ref=e382]:
+                - cell "Spikes" [ref=e383]:
+                  - generic "Are there Spikes on this side of the field?" [ref=e384]:
+                    - checkbox "Spikes" [ref=e385]
+                    - generic [ref=e386] [cursor=pointer]: Spikes
+                - cell "Spikes" [ref=e387]:
+                  - generic "Are there Spikes on this side of the field?" [ref=e388]:
+                    - checkbox "Spikes" [ref=e389]
+                    - generic [ref=e390] [cursor=pointer]: Spikes
+              - row "Reflect Light Screen Light Screen Reflect" [ref=e391]:
+                - cell "Reflect Light Screen" [ref=e392]:
+                  - generic "Is this Pokémon protected by Reflect and/or Light Screen?" [ref=e393]:
+                    - checkbox "Reflect" [ref=e394]
+                    - generic [ref=e395] [cursor=pointer]: Reflect
+                    - checkbox "Light Screen" [ref=e396]
+                    - generic [ref=e397] [cursor=pointer]: Light Screen
+                - cell "Light Screen Reflect" [ref=e398]:
+                  - generic "Is this Pokémon protected by Reflect and/or Light Screen?" [ref=e399]:
+                    - checkbox "Light Screen" [ref=e400]
+                    - generic [ref=e401] [cursor=pointer]: Light Screen
+                    - checkbox "Reflect" [ref=e402]
+                    - generic [ref=e403] [cursor=pointer]: Reflect
+              - row "Protect Protect" [ref=e404]:
+                - cell "Protect" [ref=e405]:
+                  - generic "Is this Pokémon protected?" [ref=e406]:
+                    - checkbox "Protect" [ref=e407]
+                    - generic [ref=e408] [cursor=pointer]: Protect
+                - cell "Protect" [ref=e409]:
+                  - generic "Is this Pokémon protected?" [ref=e410]:
+                    - checkbox "Protect" [ref=e411]
+                    - generic [ref=e412] [cursor=pointer]: Protect
+              - row "Leech Seed Leech Seed" [ref=e413]:
+                - cell "Leech Seed" [ref=e414]:
+                  - generic "Has this Pokémon been affected by Leech Seed?" [ref=e415]:
+                    - checkbox "Leech Seed" [ref=e416]
+                    - generic [ref=e417] [cursor=pointer]: Leech Seed
+                - cell "Leech Seed" [ref=e418]:
+                  - generic "Has this Pokémon been affected by Leech Seed?" [ref=e419]:
+                    - checkbox "Leech Seed" [ref=e420]
+                    - generic [ref=e421] [cursor=pointer]: Leech Seed
+              - row "Foresight Foresight" [ref=e422]:
+                - cell "Foresight" [ref=e423]:
+                  - generic "Has this Pokémon been revealed with Foresight or Odor Sleuth?" [ref=e424]:
+                    - checkbox "Foresight" [ref=e425]
+                    - generic [ref=e426] [cursor=pointer]: Foresight
+                - cell "Foresight" [ref=e427]:
+                  - generic "Has this Pokémon been revealed with Foresight or Odor Sleuth?" [ref=e428]:
+                    - checkbox "Foresight" [ref=e429]
+                    - generic [ref=e430] [cursor=pointer]: Foresight
+              - row "Helping Hand Helping Hand" [ref=e431]:
+                - cell "Helping Hand" [ref=e432]:
+                  - generic "Has this Pokémon's power been boosted by an ally's Helping Hand?" [ref=e433]:
+                    - checkbox "Helping Hand" [ref=e434]
+                    - generic [ref=e435] [cursor=pointer]: Helping Hand
+                - cell "Helping Hand" [ref=e436]:
+                  - generic "Has this Pokémon's power been boosted by an ally's Helping Hand?" [ref=e437]:
+                    - checkbox "Helping Hand" [ref=e438]
+                    - generic [ref=e439] [cursor=pointer]: Helping Hand
+              - row "Tailwind Tailwind" [ref=e440]:
+                - cell "Tailwind" [ref=e441]:
+                  - generic "Has this Pokémon's speed been boosted by Tailwind?" [ref=e442]:
+                    - checkbox "Tailwind" [ref=e443]
+                    - generic [ref=e444] [cursor=pointer]: Tailwind
+                - cell "Tailwind" [ref=e445]:
+                  - generic "Has this Pokémon's speed been boosted by Tailwind?" [ref=e446]:
+                    - checkbox "Tailwind" [ref=e447]
+                    - generic [ref=e448] [cursor=pointer]: Tailwind
+              - row "Substitute Substitute" [ref=e449]:
+                - cell "Substitute" [ref=e450]:
+                  - generic "Is Substitute up for the player?" [ref=e451]:
+                    - checkbox "Substitute" [ref=e452]
+                    - generic [ref=e453] [cursor=pointer]: Substitute
+                - cell "Substitute" [ref=e454]:
+                  - generic "Is Substitute up for the AI?" [ref=e455]:
+                    - checkbox "Substitute" [ref=e456]
+                    - generic [ref=e457] [cursor=pointer]: Substitute
+              - row "Focus Energy Focus Energy" [ref=e458]:
+                - cell "Focus Energy" [ref=e459]:
+                  - generic "Is Focus Energy buffing the player?" [ref=e460]:
+                    - checkbox "Focus Energy" [ref=e461]
+                    - generic [ref=e462] [cursor=pointer]: Focus Energy
+                - cell "Focus Energy" [ref=e463]:
+                  - generic "Is Focus Energy buffing the AI?" [ref=e464]:
+                    - checkbox "Focus Energy" [ref=e465]
+                    - generic [ref=e466] [cursor=pointer]: Focus Energy
+              - row "Flower Gift Flower Gift" [ref=e467]:
+                - cell "Flower Gift" [ref=e468]:
+                  - generic "Is the Pokémon affected by an ally's Flower Gift?" [ref=e469]:
+                    - checkbox "Flower Gift" [ref=e470]
+                    - generic [ref=e471] [cursor=pointer]: Flower Gift
+                - cell "Flower Gift" [ref=e472]:
+                  - generic "Is the Pokémon affected by an ally's Flower Gift?" [ref=e473]:
+                    - checkbox "Flower Gift" [ref=e474]
+                    - generic [ref=e475] [cursor=pointer]: Flower Gift
+              - row "Friend Guard Friend Guard" [ref=e476]:
+                - cell "Friend Guard" [ref=e477]:
+                  - generic "Is the Pokémon protected by an ally's Friend Guard?" [ref=e478]:
+                    - checkbox "Friend Guard" [ref=e479]
+                    - generic [ref=e480] [cursor=pointer]: Friend Guard
+                - cell "Friend Guard" [ref=e481]:
+                  - generic "Is the Pokémon protected by an ally's Friend Guard?" [ref=e482]:
+                    - checkbox "Friend Guard" [ref=e483]
+                    - generic [ref=e484] [cursor=pointer]: Friend Guard
+              - row "Aurora Veil Aurora Veil" [ref=e485]:
+                - cell "Aurora Veil" [ref=e486]:
+                  - generic "Is the Pokémon protected by an ally's Aurora Veil?" [ref=e487]:
+                    - checkbox "Aurora Veil" [ref=e488]
+                    - generic [ref=e489] [cursor=pointer]: Aurora Veil
+                - cell "Aurora Veil" [ref=e490]:
+                  - generic "Is the Pokémon protected by an ally's Aurora Veil?" [ref=e491]:
+                    - checkbox "Aurora Veil" [ref=e492]
+                    - generic [ref=e493] [cursor=pointer]: Aurora Veil
+              - row "+1 All Stats +1 All Stats" [ref=e494]:
+                - cell "+1 All Stats" [ref=e495]:
+                  - generic "Has the Pokémon boosted all its stats one stage?" [ref=e496]:
+                    - checkbox "+1 All Stats" [ref=e497]
+                    - generic [ref=e498] [cursor=pointer]: +1 All Stats
+                - cell "+1 All Stats" [ref=e499]:
+                  - generic "Has the Pokémon boosted all its stats one stage?" [ref=e500]:
+                    - checkbox "+1 All Stats" [ref=e501]
+                    - generic [ref=e502] [cursor=pointer]: +1 All Stats
+              - row "Battery Battery" [ref=e503]:
+                - cell "Battery" [ref=e504]:
+                  - generic "Is the Pokémon boosted by an ally's Battery ability?" [ref=e505]:
+                    - checkbox "Battery" [ref=e506]
+                    - generic [ref=e507] [cursor=pointer]: Battery
+                - cell "Battery" [ref=e508]:
+                  - generic "Is the Pokémon boosted by an ally's Battery ability?" [ref=e509]:
+                    - checkbox "Battery" [ref=e510]
+                    - generic [ref=e511] [cursor=pointer]: Battery
+              - row "Power Spot Power Spot" [ref=e512]:
+                - cell "Power Spot" [ref=e513]:
+                  - generic "Is the Pokémon boosted by an ally's Power Spot ability?" [ref=e514]:
+                    - checkbox "Power Spot" [ref=e515]
+                    - generic [ref=e516] [cursor=pointer]: Power Spot
+                - cell "Power Spot" [ref=e517]:
+                  - generic "Is the Pokémon boosted by an ally's Power Spot ability?" [ref=e518]:
+                    - checkbox "Power Spot" [ref=e519]
+                    - generic [ref=e520] [cursor=pointer]: Power Spot
+              - row "Switching Out Switching Out" [ref=e521]:
+                - cell "Switching Out" [ref=e522]:
+                  - generic "Is the defending Pokémon switching out?" [ref=e523]:
+                    - checkbox "Switching Out" [ref=e524]
+                    - generic [ref=e525] [cursor=pointer]: Switching Out
+                - cell "Switching Out" [ref=e526]:
+                  - generic "Is the defending Pokémon switching out?" [ref=e527]:
+                    - checkbox "Switching Out" [ref=e528]
+                    - generic [ref=e529] [cursor=pointer]: Switching Out
+              - row "Export Export All Export" [ref=e530]:
+                - cell "Export Export All" [ref=e531]:
+                  - generic "Export the leftmost Pokémon set" [ref=e532]:
+                    - button "Export" [ref=e533]
+                    - button "Export All" [ref=e534]
+                - cell "Export" [ref=e535]:
+                  - generic "Export the rightmost Pokémon set" [ref=e536]:
+                    - button "Export" [ref=e537]
+      - region "Import team"
+    - generic [ref=e538]:
+      - region "trainer-poks"
+      - region "Pokémon 2" [ref=e539]:
+        - group "Pokémon 2" [ref=e540]:
+          - generic [ref=e541]: Pokémon 2
+          - textbox [ref=e542]
+          - generic [ref=e543]:
+            - generic [ref=e544]:
+              - generic [ref=e545]: Type
+              - combobox "Type 1" [ref=e546]
+              - combobox "Type 2" [ref=e547]
+              - generic [ref=e548]:
+                - text: (
+                - link "Smogon analysis" [ref=e549] [cursor=pointer]:
+                  - /url: ""
+                - text: )
+            - generic [ref=e550]:
+              - generic [ref=e551]: Tera Type
+              - combobox [ref=e552]
+              - checkbox "Has this Pokémon terastalized?" [ref=e553]
+            - generic [ref=e554]:
+              - generic [ref=e555]:
+                - generic [ref=e556]: Level
+                - textbox "Level" [ref=e557]: "100"
+              - button "Assign Target" [ref=e558] [cursor=pointer]:
+                - img [ref=e559]
+          - table [ref=e565]:
+            - rowgroup [ref=e566]:
+              - row "Base IVs EVs" [ref=e567]:
+                - columnheader [ref=e568]
+                - columnheader "Base" [ref=e569]
+                - columnheader "IVs" [ref=e570]
+                - columnheader "EVs" [ref=e571]
+                - columnheader [ref=e572]
+                - columnheader [ref=e573]
+            - rowgroup [ref=e574]:
+              - row "HP 100 31 0 341" [ref=e575]:
+                - rowheader "HP" [ref=e576]:
+                  - generic [ref=e577]: HP
+                - cell "100" [ref=e578]:
+                  - textbox [ref=e579]: "100"
+                - cell "31" [ref=e580]:
+                  - textbox [ref=e581]: "31"
+                - cell "0" [ref=e582]:
+                  - spinbutton [ref=e583]: "0"
+                - cell "341" [ref=e584]:
+                  - generic [ref=e585]: "341"
+                - cell [ref=e586]
+              - row "Attack 100 31 0 236 --" [ref=e587]:
+                - rowheader "Attack" [ref=e588]:
+                  - generic [ref=e589]: Attack
+                - cell "100" [ref=e590]:
+                  - textbox [ref=e591]: "100"
+                - cell "31" [ref=e592]:
+                  - textbox [ref=e593]: "31"
+                - cell "0" [ref=e594]:
+                  - spinbutton [ref=e595]: "0"
+                - cell "236" [ref=e596]:
+                  - generic [ref=e597]: "236"
+                - cell "--" [ref=e598]:
+                  - combobox [ref=e599]:
+                    - option "+6"
+                    - option "+5"
+                    - option "+4"
+                    - option "+3"
+                    - option "+2"
+                    - option "+1"
+                    - option "--" [selected]
+                    - option "-1"
+                    - option "-2"
+                    - option "-3"
+                    - option "-4"
+                    - option "-5"
+                    - option "-6"
+              - row "Defense 100 31 0 236 --" [ref=e600]:
+                - rowheader "Defense" [ref=e601]:
+                  - generic [ref=e602]: Defense
+                - cell "100" [ref=e603]:
+                  - textbox [ref=e604]: "100"
+                - cell "31" [ref=e605]:
+                  - textbox [ref=e606]: "31"
+                - cell "0" [ref=e607]:
+                  - spinbutton [ref=e608]: "0"
+                - cell "236" [ref=e609]:
+                  - generic [ref=e610]: "236"
+                - cell "--" [ref=e611]:
+                  - combobox [ref=e612]:
+                    - option "+6"
+                    - option "+5"
+                    - option "+4"
+                    - option "+3"
+                    - option "+2"
+                    - option "+1"
+                    - option "--" [selected]
+                    - option "-1"
+                    - option "-2"
+                    - option "-3"
+                    - option "-4"
+                    - option "-5"
+                    - option "-6"
+              - row "Sp. Atk 100 31 0 236 --" [ref=e613]:
+                - rowheader "Sp. Atk" [ref=e614]:
+                  - generic [ref=e615]: Sp. Atk
+                - cell "100" [ref=e616]:
+                  - textbox [ref=e617]: "100"
+                - cell "31" [ref=e618]:
+                  - textbox [ref=e619]: "31"
+                - cell "0" [ref=e620]:
+                  - spinbutton [ref=e621]: "0"
+                - cell "236" [ref=e622]:
+                  - generic [ref=e623]: "236"
+                - cell "--" [ref=e624]:
+                  - combobox [ref=e625]:
+                    - option "+6"
+                    - option "+5"
+                    - option "+4"
+                    - option "+3"
+                    - option "+2"
+                    - option "+1"
+                    - option "--" [selected]
+                    - option "-1"
+                    - option "-2"
+                    - option "-3"
+                    - option "-4"
+                    - option "-5"
+                    - option "-6"
+              - row "Sp. Def 100 31 0 236 --" [ref=e626]:
+                - rowheader "Sp. Def" [ref=e627]:
+                  - generic [ref=e628]: Sp. Def
+                - cell "100" [ref=e629]:
+                  - textbox [ref=e630]: "100"
+                - cell "31" [ref=e631]:
+                  - textbox [ref=e632]: "31"
+                - cell "0" [ref=e633]:
+                  - spinbutton [ref=e634]: "0"
+                - cell "236" [ref=e635]:
+                  - generic [ref=e636]: "236"
+                - cell "--" [ref=e637]:
+                  - combobox [ref=e638]:
+                    - option "+6"
+                    - option "+5"
+                    - option "+4"
+                    - option "+3"
+                    - option "+2"
+                    - option "+1"
+                    - option "--" [selected]
+                    - option "-1"
+                    - option "-2"
+                    - option "-3"
+                    - option "-4"
+                    - option "-5"
+                    - option "-6"
+              - row "Speed 100 31 0 236 -- ---" [ref=e639]:
+                - rowheader "Speed" [ref=e640]:
+                  - generic [ref=e641]: Speed
+                - cell "100" [ref=e642]:
+                  - textbox [ref=e643]: "100"
+                - cell "31" [ref=e644]:
+                  - textbox [ref=e645]: "31"
+                - cell "0" [ref=e646]:
+                  - spinbutton [ref=e647]: "0"
+                - cell "236" [ref=e648]:
+                  - generic [ref=e649]: "236"
+                - cell "--" [ref=e650]:
+                  - combobox [ref=e651]:
+                    - option "+6"
+                    - option "+5"
+                    - option "+4"
+                    - option "+3"
+                    - option "+2"
+                    - option "+1"
+                    - option "--" [selected]
+                    - option "-1"
+                    - option "-2"
+                    - option "-3"
+                    - option "-4"
+                    - option "-5"
+                    - option "-6"
+                - cell "---" [ref=e652]:
+                  - generic [ref=e653]: "---"
+          - generic [ref=e654]:
+            - generic [ref=e655]:
+              - generic [ref=e656]: Nature
+              - combobox "Nature" [ref=e657]:
+                - option "Adamant (+Atk, -SpA)"
+                - option "Bashful"
+                - option "Bold (+Def, -Atk)"
+                - option "Brave (+Atk, -Spe)"
+                - option "Calm (+SpD, -Atk)"
+                - option "Careful (+SpD, -SpA)"
+                - option "Docile"
+                - option "Gentle (+SpD, -Def)"
+                - option "Hardy" [selected]
+                - option "Hasty (+Spe, -Def)"
+                - option "Impish (+Def, -SpA)"
+                - option "Jolly (+Spe, -SpA)"
+                - option "Lax (+Def, -SpD)"
+                - option "Lonely (+Atk, -Def)"
+                - option "Mild (+SpA, -Def)"
+                - option "Modest (+SpA, -Atk)"
+                - option "Naive (+Spe, -SpD)"
+                - option "Naughty (+Atk, -SpD)"
+                - option "Quiet (+SpA, -Spe)"
+                - option "Quirky"
+                - option "Rash (+SpA, -SpD)"
+                - option "Relaxed (+Def, -Spe)"
+                - option "Sassy (+SpD, -Spe)"
+                - option "Serious"
+                - option "Timid (+Spe, -Atk)"
+            - generic [ref=e658]:
+              - generic [ref=e659]: Ability
+              - combobox "Ability" [ref=e660]
+            - generic [ref=e661]:
+              - generic [ref=e662]: Item
+              - combobox "Item" [ref=e663]
+            - generic [ref=e664]:
+              - generic [ref=e665]: Status
+              - combobox "Status" [ref=e666]:
+                - option "Healthy" [selected]
+                - option "Poisoned"
+                - option "Badly Poisoned"
+                - option "Burned"
+                - option "Paralyzed"
+                - option "Asleep"
+                - option "Frozen"
+          - generic "Has this Pokémon been cured with Salt Cure?" [ref=e668]:
+            - checkbox "Salt Cure" [ref=e669]
+            - generic [ref=e670] [cursor=pointer]: Salt Cure
+          - generic [ref=e671]:
+            - generic [ref=e672]: Current HP
+            - textbox "Current HP" [ref=e673]: "341"
+            - text: /
+            - generic [ref=e674]: "341"
+            - text: (
+            - textbox [ref=e675]: "100"
+            - text: "%)"
+            - text: Health
+          - generic [ref=e677]:
+            - combobox [ref=e678]
+            - textbox [ref=e679]: "50"
+            - combobox [ref=e680]
+            - combobox [ref=e681]:
+              - option "Physical" [selected]
+              - option "Special"
+            - checkbox "Crit" [ref=e682]
+            - generic "Force this attack to be a critical hit?" [ref=e683] [cursor=pointer]: Crit
+          - generic [ref=e684]:
+            - combobox [ref=e685]
+            - textbox [ref=e686]: "0"
+            - combobox [ref=e687]
+            - combobox [ref=e688]:
+              - option "Physical" [selected]
+              - option "Special"
+            - checkbox "Crit" [ref=e689]
+            - generic "Force this attack to be a critical hit?" [ref=e690] [cursor=pointer]: Crit
+          - generic [ref=e691]:
+            - combobox [ref=e692]
+            - textbox [ref=e693]: "0"
+            - combobox [ref=e694]
+            - combobox [ref=e695]:
+              - option "Physical" [selected]
+              - option "Special"
+            - checkbox "Crit" [ref=e696]
+            - generic "Force this attack to be a critical hit?" [ref=e697] [cursor=pointer]: Crit
+          - generic [ref=e698]:
+            - combobox [ref=e699]
+            - textbox [ref=e700]: "0"
+            - combobox [ref=e701]
+            - combobox [ref=e702]:
+              - option "Physical" [selected]
+              - option "Special"
+            - checkbox "Crit" [ref=e703]
+            - generic "Force this attack to be a critical hit?" [ref=e704] [cursor=pointer]: Crit
+  - generic [ref=e705]:
+    - text: Run and Bun AI %, Range Compare, and Quality of Life work done by SylmarDev.
+    - text: Modified by dekzeh, ForwardFeed, Originaly Created by Honko, maintained by Austin and Kris, Special thanks to Hzla
+    - list [ref=e706]:
+      - listitem [ref=e707]:
+        - link "Modification Repository" [ref=e708] [cursor=pointer]:
+          - /url: https://github.com/SylmarDev/syl-rnb-calc/tree/main
+      - listitem [ref=e709]:
+        - link "Report an issue" [ref=e710] [cursor=pointer]:
+          - /url: https://github.com/SylmarDev/syl-rnb-calc/issues/new
+      - listitem [ref=e711]:
+        - button "Show Changelog" [ref=e712]
+      - listitem [ref=e713]:
+        - text: Enable Debug Logging
+        - checkbox "Enable Debug Logging" [ref=e714]
+      - listitem [ref=e715]:
+        - text: Disable AI Move %
+        - checkbox "Disable AI Move %" [ref=e716]
+      - listitem [ref=e717]:
+        - text: Show Search
+        - checkbox "Show Search" [checked] [ref=e718]
+      - listitem [ref=e719]:
+        - text: Enable Range Compare
+        - checkbox "Enable Range Compare" [checked] [ref=e720]
+      - listitem [ref=e721]:
+        - text: Box On Top
+        - checkbox "Box On Top" [ref=e722]
+      - listitem [ref=e723]:
+        - link "My twitch :3" [ref=e724] [cursor=pointer]:
+          - /url: https://twitch.tv/princesssylmar
+      - listitem [ref=e725]:
+        - paragraph [ref=e726]:
+          - text: Shoutouts to the original
+          - link "Smogon Contributors" [ref=e727] [cursor=pointer]:
+            - /url: https://github.com/smogon/damage-calc/contributors
+    - button "Click for Dark Theme" [ref=e728]

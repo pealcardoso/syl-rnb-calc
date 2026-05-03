@@ -1,0 +1,8 @@
+[      75ms] [ERROR] Error: <path> attribute d: Expected number, "…v1h1a1 1 0 0 1 1V14a1 1 0 0 1-1 …". @ http://localhost:8080/roundsim.html:66
+[  170247ms] [ERROR] Error: <path> attribute d: Expected number, "…v1h1a1 1 0 0 1 1V14a1 1 0 0 1-1 …". @ http://localhost:8080/roundsim.html:66
+[  453068ms] [LOG] damage[damage.length - 1] === 0. @ http://localhost:8080/calc/util.js?8fa0c7ff:12
+[  747707ms] [ERROR] Error: <path> attribute d: Expected number, "…v1h1a1 1 0 0 1 1V14a1 1 0 0 1-1 …". @ http://localhost:8080/roundsim.html:66
+[  801554ms] [LOG] damage[damage.length - 1] === 0. @ http://localhost:8080/calc/util.js?8fa0c7ff:12
+[  873368ms] [LOG] damage[damage.length - 1] === 0. @ http://localhost:8080/calc/util.js?8fa0c7ff:12
+[ 1329639ms] [ERROR] Error: <path> attribute d: Expected number, "…v1h1a1 1 0 0 1 1V14a1 1 0 0 1-1 …". @ http://localhost:8080/roundsim.html:66
+[ 1680575ms] [ERROR] Error: <path> attribute d: Expected number, "…v1h1a1 1 0 0 1 1V14a1 1 0 0 1-1 …". @ http://localhost:8080/roundsim.html:66
