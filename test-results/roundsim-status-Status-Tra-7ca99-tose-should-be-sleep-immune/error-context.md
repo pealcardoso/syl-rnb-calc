@@ -79,13 +79,13 @@ Received: false
       - generic [ref=e56]:
         - generic [ref=e57] [cursor=pointer]: "👋 Filter: Fake Out — Forces flinch on first turn"
         - generic [ref=e58] [cursor=pointer]: "😤 Filter: Intimidate — Drops opponent Attack on switch-in"
-        - generic [ref=e59] [cursor=pointer]: "⏱️ Filter: Speed Control — Has speed-lowering moves, Tailwind, or Trick Room — controls turn order"
+        - generic [ref=e59] [cursor=pointer]: "⏱️ Filter: Speed Control — Controls turn order — Gold: Cotton Down ability | Silver: speed-lowering or order-setting moves"
         - generic [ref=e60] [cursor=pointer]: "🛡️ Filter: Crit Immunity — Battle Armor or Shell Armor — immune to critical hits"
         - generic [ref=e61] [cursor=pointer]: "🔨 Filter: Mold Breaker — Ignores abilities (Mold Breaker / Turboblaze / Teravolt / Mycelium Might / Neutralizing Gas)"
         - generic [ref=e62] [cursor=pointer]: "🔒 Filter: Protect — Has a Protect-variant move (Protect, Detect, Wide Guard, Quick Guard, etc.)"
         - generic [ref=e63] [cursor=pointer]: "⚡ Filter: Priority Move — Has a move with increased priority (Extremespeed, Bullet Punch, etc.)"
         - generic [ref=e64] [cursor=pointer]: "💫 Filter: Spread Move — Has a move that hits multiple targets (Earthquake, Surf, Dazzling Gleam, etc.)"
-        - generic [ref=e65] [cursor=pointer]: "🎯 Filter: Never Misses — Has a move that always hits (Swift, Aerial Ace, Magical Leaf, etc.)"
+        - generic [ref=e65] [cursor=pointer]: "🎯 Filter: Never Misses — Has a damaging move that always hits (Swift, Aerial Ace, Magical Leaf, etc.)"
         - generic [ref=e66] [cursor=pointer]: "💊 Filter: Status Immune — Ability grants immunity to one or more status conditions"
         - generic [ref=e67] [cursor=pointer]: "🕊️ Filter: Ground Immune — Flying type or Levitate — immune to Ground-type moves"
         - generic [ref=e68] [cursor=pointer]: "💧 Filter: Soaker — Has Soak — changes the target's type to Water"
@@ -100,144 +100,143 @@ Received: false
         - generic [ref=e77] [cursor=pointer]: "⚠️ Filter: Hazard Setter — Can set entry hazards: Stealth Rock, Spikes, Toxic Spikes, or Sticky Web"
         - generic [ref=e78] [cursor=pointer]: "🪞 Filter: Screen Setter — Can set Reflect, Light Screen, or Aurora Veil"
         - generic [ref=e79] [cursor=pointer]: "🌦️ Filter: Weather Setter — Sets weather via ability (Drizzle/Drought/Sand Stream/Snow Warning) or moves"
-        - generic [ref=e80] [cursor=pointer]: "🚀 Filter: Weather Boosted — Ability is directly boosted by weather (Swift Swim, Chlorophyll, Sand Rush, Slush Rush, Sand Force, Solar Power)"
-        - generic [ref=e81] [cursor=pointer]: "🌫️ Filter: Accuracy Reducer — Can lower opponent accuracy: Bright Powder/Lax Incense item, Sand Veil/Snow Cloak ability, or Flash/Smokescreen/etc."
-        - generic [ref=e82] [cursor=pointer]: "🐾 Filter: Quick Claw — Holds Quick Claw — may randomly move first regardless of speed"
-        - generic [ref=e83] [cursor=pointer]: "🎲 Filter: Crit Machine — Elevated crit rate: Sniper ability, Scope Lens/Razor Claw, or Focus Energy/Frost Breath/Storm Throw"
-        - generic [ref=e84] [cursor=pointer]: "🏎️ Filter: Speed Booster — Can sharply raise own Speed: Speed Boost ability, or Agility/Dragon Dance/Rock Polish/etc."
-        - generic [ref=e85] [cursor=pointer]: "↩️ Filter: Retaliator — Hits harder after taking damage (Revenge, Avalanche, Payback, Assurance, Counter, Mirror Coat)"
-        - generic [ref=e86] [cursor=pointer]: "❗ Filter: Priority Proc — Quick Draw ability or Quick Claw item — may randomly act first"
-        - generic [ref=e87] [cursor=pointer]: "🕸️ Filter: Trapper — Arena Trap / Shadow Tag / Magnet Pull — prevents opponent from switching out"
-        - generic [ref=e88] [cursor=pointer]: "☠️ Filter: Status Inducer — Has a move that inflicts status: Toxic, Thunder Wave, Spore, Will-O-Wisp, Glare, Yawn, etc."
-        - generic [ref=e89] [cursor=pointer]: "📉 Filter: Debuffer — Has moves that lower opponent stats (Charm, Growl, Screech, Fake Tears, Parting Shot, etc.)"
-        - generic [ref=e90] [cursor=pointer]: "📈 Filter: Self Booster — Has moves that sharply raise own stats (Swords Dance, Nasty Plot, Dragon Dance, Shell Smash, etc.)"
-        - generic [ref=e91] [cursor=pointer]: "🔄 Filter: Trick Room — Has Trick Room — reverses speed order for 5 turns"
-        - button "✕" [ref=e92] [cursor=pointer]
-    - generic [ref=e93]:
-      - generic [ref=e95]:
-        - generic [ref=e96]: Your Team (drag from box)
-        - generic [ref=e97]: "0"
-      - generic [ref=e98]:
-        - generic [ref=e99]:
-          - generic [ref=e100]: Opponent Team
-          - generic [ref=e101]: "0"
-          - generic [ref=e102]:
-            - button "◀" [ref=e103] [cursor=pointer]
-            - button "▶" [ref=e104] [cursor=pointer]
-            - button "🚚" [ref=e105] [cursor=pointer]
-        - textbox "Search trainer…" [ref=e107]
-    - generic [ref=e108]:
-      - generic [ref=e109]: Log Round
-      - region "Move selection" [ref=e111]:
-        - radiogroup "Abomasnow's Moves (select one to show detailed results)" [ref=e112]:
-          - generic [ref=e113]: Abomasnow's Moves (select one to show detailed results)
-          - generic [ref=e114]:
-            - radio "Grass Physical Wood Hammer" [ref=e115]
-            - generic [ref=e116] [cursor=pointer]:
-              - generic [ref=e117]:
-                - img "Grass" [ref=e118]
-                - img "Physical" [ref=e119]
-              - generic [ref=e120]: Wood Hammer
-            - generic [ref=e121] [cursor=pointer]: 39-46 (27-32%)
-            - checkbox "Crit" [ref=e122]
-            - generic "Force this attack to be a critical hit?" [ref=e123] [cursor=pointer]: Crit
-          - generic [ref=e124]:
-            - radio "Ice Special Ice Beam" [ref=e125]
-            - generic [ref=e126] [cursor=pointer]:
-              - generic [ref=e127]:
-                - img "Ice" [ref=e128]
-                - img "Special" [ref=e129]
-              - generic [ref=e130]: Ice Beam
-            - generic [ref=e131] [cursor=pointer]: 48-57 (34-40%)
-            - checkbox "Crit" [ref=e132]
-            - generic "Force this attack to be a critical hit?" [ref=e133] [cursor=pointer]: Crit
-          - generic [ref=e134]:
-            - radio "Ice Physical Ice Shard" [ref=e135]
-            - generic [ref=e136] [cursor=pointer]:
-              - generic [ref=e137]:
-                - img "Ice" [ref=e138]
-                - img "Physical" [ref=e139]
-              - generic [ref=e140]: Ice Shard
-            - generic [ref=e141] [cursor=pointer]: 27-33 (19-23%)
-            - checkbox "Crit" [ref=e142]
-            - generic "Force this attack to be a critical hit?" [ref=e143] [cursor=pointer]: Crit
-          - generic [ref=e144]:
-            - radio "Ground Physical Earthquake" [ref=e145]
-            - generic [ref=e146] [cursor=pointer]:
-              - generic [ref=e147]:
-                - img "Ground" [ref=e148]
-                - img "Physical" [ref=e149]
-              - generic [ref=e150]: Earthquake
-            - generic [ref=e151] [cursor=pointer]: 22-26 (15-18%)
-            - checkbox "Crit" [ref=e152]
-            - generic "Force this attack to be a critical hit?" [ref=e153] [cursor=pointer]: Crit
-        - radiogroup "Abomasnow's Moves (select one to show detailed results)" [ref=e154]:
-          - generic [ref=e155]: Abomasnow's Moves (select one to show detailed results)
-          - generic [ref=e156]:
-            - checkbox "Crit" [ref=e157]
-            - generic "Force this attack to be a critical hit?" [ref=e158] [cursor=pointer]: Crit
-            - radio "Grass Physical Wood Hammer" [ref=e159]
-            - generic [ref=e160] [cursor=pointer]:
-              - generic [ref=e161]:
-                - img "Grass" [ref=e162]
-                - img "Physical" [ref=e163]
-              - generic [ref=e164]: Wood Hammer
-            - generic [ref=e165] [cursor=pointer]: 39-46 (27-32%)
-            - generic [ref=e166]: 0.00%
-          - generic [ref=e167]:
-            - checkbox "Crit" [ref=e168]
-            - generic "Force this attack to be a critical hit?" [ref=e169] [cursor=pointer]: Crit
-            - radio "Ice Special Ice Beam" [checked] [ref=e170]
-            - generic [ref=e171]:
-              - generic [ref=e172]:
-                - img "Ice" [ref=e173]
-                - img "Special" [ref=e174]
-              - generic [ref=e175]: Ice Beam
-            - generic [ref=e176] [cursor=pointer]: 48-57 (34-40%)
-            - generic [ref=e177]: 100.00%
-          - generic [ref=e178]:
-            - checkbox "Crit" [ref=e179]
-            - generic "Force this attack to be a critical hit?" [ref=e180] [cursor=pointer]: Crit
-            - radio "Ice Physical Ice Shard" [ref=e181]
-            - generic [ref=e182] [cursor=pointer]:
-              - generic [ref=e183]:
-                - img "Ice" [ref=e184]
-                - img "Physical" [ref=e185]
-              - generic [ref=e186]: Ice Shard
-            - generic [ref=e187] [cursor=pointer]: 27-33 (19-23%)
-            - generic [ref=e188]: 0.00%
-          - generic [ref=e189]:
-            - checkbox "Crit" [ref=e190]
-            - generic "Force this attack to be a critical hit?" [ref=e191] [cursor=pointer]: Crit
-            - radio "Ground Physical Earthquake" [ref=e192]
-            - generic [ref=e193] [cursor=pointer]:
-              - generic [ref=e194]:
-                - img "Ground" [ref=e195]
-                - img "Physical" [ref=e196]
-              - generic [ref=e197]: Earthquake
-            - generic [ref=e198] [cursor=pointer]: 22-26 (15-18%)
-            - generic [ref=e199]: 0.00%
-      - generic [ref=e200]:
+        - generic [ref=e80] [cursor=pointer]: "🌫️ Filter: Accuracy Reducer — Can lower opponent accuracy: Bright Powder/Lax Incense item, Sand Veil/Snow Cloak ability, or Flash/Smokescreen/etc."
+        - generic [ref=e81] [cursor=pointer]: "🐾 Filter: Quick Claw — Holds Quick Claw — may randomly move first regardless of speed"
+        - generic [ref=e82] [cursor=pointer]: "🎲 Filter: Crit Machine — Elevated crit rate: Sniper ability, Scope Lens/Razor Claw, or Focus Energy/Frost Breath/Storm Throw"
+        - generic [ref=e83] [cursor=pointer]: "🏎️ Filter: Speed Booster — Can sharply raise own Speed: Speed Boost ability, or Agility/Dragon Dance/Rock Polish/etc."
+        - generic [ref=e84] [cursor=pointer]: "↩️ Filter: Retaliator — Move powered by ally's death: Retaliate (x2 if ally fainted), Last Respects (+50 BP per fainted)"
+        - generic [ref=e85] [cursor=pointer]: "❗ Filter: Priority Proc — Quick Draw ability or Quick Claw item — may randomly act first"
+        - generic [ref=e86] [cursor=pointer]: "🕸️ Filter: Trapper — Arena Trap / Shadow Tag / Magnet Pull — prevents opponent from switching out"
+        - generic [ref=e87] [cursor=pointer]: "☠️ Filter: Status Inducer — Gold: dedicated status move (Spore, T-Wave, etc.) | Silver: secondary status chance (Scald, etc.)"
+        - generic [ref=e88] [cursor=pointer]: "📉 Filter: Debuffer — Gold: dedicated stat-drop move (Charm, Screech, etc.) | Silver: secondary stat-drop chance"
+        - generic [ref=e89] [cursor=pointer]: "📈 Filter: Self Booster — Has moves that sharply raise own stats (Swords Dance, Nasty Plot, Dragon Dance, Shell Smash, etc.)"
+        - generic [ref=e90] [cursor=pointer]: "🔄 Filter: Trick Room — Has Trick Room — reverses speed order for 5 turns"
+        - button "✕" [ref=e91] [cursor=pointer]
+    - generic [ref=e92]:
+      - generic [ref=e94]:
+        - generic [ref=e95]: Your Team (drag from box)
+        - generic [ref=e96]: "0"
+      - generic [ref=e97]:
+        - generic [ref=e98]:
+          - generic [ref=e99]: Opponent Team
+          - generic [ref=e100]: "0"
+          - generic [ref=e101]:
+            - button "◀" [ref=e102] [cursor=pointer]
+            - button "▶" [ref=e103] [cursor=pointer]
+            - button "🚚" [ref=e104] [cursor=pointer]
+        - textbox "Search trainer…" [ref=e106]
+    - generic [ref=e107]:
+      - generic [ref=e108]: Log Round
+      - region "Move selection" [ref=e110]:
+        - radiogroup "Abomasnow's Moves (select one to show detailed results)" [ref=e111]:
+          - generic [ref=e112]: Abomasnow's Moves (select one to show detailed results)
+          - generic [ref=e113]:
+            - radio "Grass Physical Wood Hammer" [ref=e114]
+            - generic [ref=e115] [cursor=pointer]:
+              - generic [ref=e116]:
+                - img "Grass" [ref=e117]
+                - img "Physical" [ref=e118]
+              - generic [ref=e119]: Wood Hammer
+            - generic [ref=e120] [cursor=pointer]: 39-46 (27-32%)
+            - checkbox "Crit" [ref=e121]
+            - generic "Force this attack to be a critical hit?" [ref=e122] [cursor=pointer]: Crit
+          - generic [ref=e123]:
+            - radio "Ice Special Ice Beam" [ref=e124]
+            - generic [ref=e125] [cursor=pointer]:
+              - generic [ref=e126]:
+                - img "Ice" [ref=e127]
+                - img "Special" [ref=e128]
+              - generic [ref=e129]: Ice Beam
+            - generic [ref=e130] [cursor=pointer]: 48-57 (34-40%)
+            - checkbox "Crit" [ref=e131]
+            - generic "Force this attack to be a critical hit?" [ref=e132] [cursor=pointer]: Crit
+          - generic [ref=e133]:
+            - radio "Ice Physical Ice Shard" [ref=e134]
+            - generic [ref=e135] [cursor=pointer]:
+              - generic [ref=e136]:
+                - img "Ice" [ref=e137]
+                - img "Physical" [ref=e138]
+              - generic [ref=e139]: Ice Shard
+            - generic [ref=e140] [cursor=pointer]: 27-33 (19-23%)
+            - checkbox "Crit" [ref=e141]
+            - generic "Force this attack to be a critical hit?" [ref=e142] [cursor=pointer]: Crit
+          - generic [ref=e143]:
+            - radio "Ground Physical Earthquake" [ref=e144]
+            - generic [ref=e145] [cursor=pointer]:
+              - generic [ref=e146]:
+                - img "Ground" [ref=e147]
+                - img "Physical" [ref=e148]
+              - generic [ref=e149]: Earthquake
+            - generic [ref=e150] [cursor=pointer]: 22-26 (15-18%)
+            - checkbox "Crit" [ref=e151]
+            - generic "Force this attack to be a critical hit?" [ref=e152] [cursor=pointer]: Crit
+        - radiogroup "Abomasnow's Moves (select one to show detailed results)" [ref=e153]:
+          - generic [ref=e154]: Abomasnow's Moves (select one to show detailed results)
+          - generic [ref=e155]:
+            - checkbox "Crit" [ref=e156]
+            - generic "Force this attack to be a critical hit?" [ref=e157] [cursor=pointer]: Crit
+            - radio "Grass Physical Wood Hammer" [ref=e158]
+            - generic [ref=e159] [cursor=pointer]:
+              - generic [ref=e160]:
+                - img "Grass" [ref=e161]
+                - img "Physical" [ref=e162]
+              - generic [ref=e163]: Wood Hammer
+            - generic [ref=e164] [cursor=pointer]: 39-46 (27-32%)
+            - generic [ref=e165]: 0.00%
+          - generic [ref=e166]:
+            - checkbox "Crit" [ref=e167]
+            - generic "Force this attack to be a critical hit?" [ref=e168] [cursor=pointer]: Crit
+            - radio "Ice Special Ice Beam" [checked] [ref=e169]
+            - generic [ref=e170]:
+              - generic [ref=e171]:
+                - img "Ice" [ref=e172]
+                - img "Special" [ref=e173]
+              - generic [ref=e174]: Ice Beam
+            - generic [ref=e175] [cursor=pointer]: 48-57 (34-40%)
+            - generic [ref=e176]: 100.00%
+          - generic [ref=e177]:
+            - checkbox "Crit" [ref=e178]
+            - generic "Force this attack to be a critical hit?" [ref=e179] [cursor=pointer]: Crit
+            - radio "Ice Physical Ice Shard" [ref=e180]
+            - generic [ref=e181] [cursor=pointer]:
+              - generic [ref=e182]:
+                - img "Ice" [ref=e183]
+                - img "Physical" [ref=e184]
+              - generic [ref=e185]: Ice Shard
+            - generic [ref=e186] [cursor=pointer]: 27-33 (19-23%)
+            - generic [ref=e187]: 0.00%
+          - generic [ref=e188]:
+            - checkbox "Crit" [ref=e189]
+            - generic "Force this attack to be a critical hit?" [ref=e190] [cursor=pointer]: Crit
+            - radio "Ground Physical Earthquake" [ref=e191]
+            - generic [ref=e192] [cursor=pointer]:
+              - generic [ref=e193]:
+                - img "Ground" [ref=e194]
+                - img "Physical" [ref=e195]
+              - generic [ref=e196]: Earthquake
+            - generic [ref=e197] [cursor=pointer]: 22-26 (15-18%)
+            - generic [ref=e198]: 0.00%
+      - generic [ref=e199]:
+        - generic [ref=e200]: Select a move
         - generic [ref=e201]: Select a move
-        - generic [ref=e202]: Select a move
-      - generic [ref=e203]:
-        - generic [ref=e204]:
-          - checkbox "P2 Crits" [ref=e205]
-          - generic [ref=e206]: P2 Crits
-        - generic [ref=e207]:
-          - checkbox "Apply P1 Effect" [ref=e208]
-          - generic [ref=e209]: Apply P1 Effect
-        - generic [ref=e210]:
-          - checkbox "Apply P2 Effect" [checked] [ref=e211]
-          - generic [ref=e212]: Apply P2 Effect
-      - generic [ref=e214]:
-        - generic [ref=e215]: Comment
-        - textbox "Comment" [ref=e216]:
+      - generic [ref=e202]:
+        - generic [ref=e203]:
+          - checkbox "P2 Crits" [ref=e204]
+          - generic [ref=e205]: P2 Crits
+        - generic [ref=e206]:
+          - checkbox "Apply P1 Effect" [ref=e207]
+          - generic [ref=e208]: Apply P1 Effect
+        - generic [ref=e209]:
+          - checkbox "Apply P2 Effect" [checked] [ref=e210]
+          - generic [ref=e211]: Apply P2 Effect
+      - generic [ref=e213]:
+        - generic [ref=e214]: Comment
+        - textbox "Comment" [ref=e215]:
           - /placeholder: Note...
-      - generic [ref=e217]:
-        - generic [ref=e218]:
-          - generic [ref=e219]: ☀ Weather
-          - combobox "☀ Weather" [ref=e220] [cursor=pointer]:
+      - generic [ref=e216]:
+        - generic [ref=e217]:
+          - generic [ref=e218]: ☀ Weather
+          - combobox "☀ Weather" [ref=e219] [cursor=pointer]:
             - option "None" [selected]
             - option "Sun"
             - option "Rain"
@@ -247,39 +246,39 @@ Received: false
             - option "Harsh Sunshine"
             - option "Heavy Rain"
             - option "Strong Winds"
-          - generic "Weather does not expire after 5 turns" [ref=e221] [cursor=pointer]:
-            - checkbox "Permanent" [ref=e222]
+          - generic "Weather does not expire after 5 turns" [ref=e220] [cursor=pointer]:
+            - checkbox "Permanent" [ref=e221]
             - text: Permanent
-        - generic [ref=e223]:
-          - generic [ref=e224]: 🌿 Terrain
-          - combobox "🌿 Terrain" [ref=e225] [cursor=pointer]:
+        - generic [ref=e222]:
+          - generic [ref=e223]: 🌿 Terrain
+          - combobox "🌿 Terrain" [ref=e224] [cursor=pointer]:
             - option "None" [selected]
             - option "Electric"
             - option "Grassy"
             - option "Misty"
             - option "Psychic"
-        - 'generic "Trick Room: slower Pokémon move first" [ref=e227] [cursor=pointer]':
-          - checkbox "🔮 Trick Room" [ref=e228]
-          - generic [ref=e229]: 🔮 Trick Room
-      - generic [ref=e230]:
-        - button "▶ Log Round" [ref=e231] [cursor=pointer]
-        - generic [ref=e232]:
-          - combobox "Switch P1 active" [ref=e233]:
+        - 'generic "Trick Room: slower Pokémon move first" [ref=e226] [cursor=pointer]':
+          - checkbox "🔮 Trick Room" [ref=e227]
+          - generic [ref=e228]: 🔮 Trick Room
+      - generic [ref=e229]:
+        - button "▶ Log Round" [ref=e230] [cursor=pointer]
+        - generic [ref=e231]:
+          - combobox "Switch P1 active" [ref=e232]:
             - option "— Switch P1 —" [selected]
-          - button "⇄ Switch In" [ref=e234] [cursor=pointer]
-        - button "📋 Copy Log" [ref=e235] [cursor=pointer]
-        - button "Clear Line" [ref=e236] [cursor=pointer]
-    - generic [ref=e237]:
-      - generic [ref=e238]:
-        - generic [ref=e239]: Round Log
-        - generic [ref=e240]: "0"
-        - button "⊖ Collapse All" [ref=e241] [cursor=pointer]
-        - button "🗑 Delete All" [ref=e242] [cursor=pointer]
-      - generic [ref=e244]: No rounds yet. Set your teams, load the calc, and log rounds.
-      - generic [ref=e246] [cursor=pointer]:
-        - generic [ref=e247]: 📋 Field State
-        - generic [ref=e248]: ▾
-  - button "Click for Light Theme" [ref=e250]
+          - button "⇄ Switch In" [ref=e233] [cursor=pointer]
+        - button "📋 Copy Log" [ref=e234] [cursor=pointer]
+        - button "Clear Line" [ref=e235] [cursor=pointer]
+    - generic [ref=e236]:
+      - generic [ref=e237]:
+        - generic [ref=e238]: Round Log
+        - generic [ref=e239]: "0"
+        - button "⊖ Collapse All" [ref=e240] [cursor=pointer]
+        - button "🗑 Delete All" [ref=e241] [cursor=pointer]
+      - generic [ref=e243]: No rounds yet. Set your teams, load the calc, and log rounds.
+      - generic [ref=e245] [cursor=pointer]:
+        - generic [ref=e246]: 📋 Field State
+        - generic [ref=e247]: ▾
+  - button "Click for Light Theme" [ref=e249]
 ```
 
 # Test source

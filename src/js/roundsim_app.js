@@ -82,14 +82,15 @@
           check: function(e) { return e.ability==='Intimidate'; } },
 
         { id:'SPD',  cat:'util',   emoji:'⏱️', name:'Speed Control',
-          desc:'Has speed-lowering moves, Tailwind, or Trick Room — controls turn order',
+          desc:'Controls turn order — Gold: Cotton Down ability | Silver: speed-lowering or order-setting moves',
           check: function(e,mv) {
             if (e.ability==='Cotton Down') return true;
             var m=['icywind','glaciate','electroweb','stringshot','scaryface',
                    'tailwind','trickroom','stickyweb','quash','afteryou',
-                   'speedswap','baton pass'];
+                   'speedswap','batonpass'];
             for (var i=0;i<m.length;i++) if (mv.indexOf(m[i])>=0) return true;
-            return false; } },
+            return false; },
+          tier: function(e) { return e.ability==='Cotton Down' ? 'gold' : 'silver'; } },
 
         { id:'CI',   cat:'util',   emoji:'🛡️', name:'Crit Immunity',
           desc:'Battle Armor or Shell Armor — immune to critical hits',
@@ -117,7 +118,7 @@
           check: function(e,mv,mdata) { return mdata.hasSpread; } },
 
         { id:'ACC',  cat:'util',   emoji:'🎯', name:'Never Misses',
-          desc:'Has a move that always hits (Swift, Aerial Ace, Magical Leaf, etc.)',
+          desc:'Has a damaging move that always hits (Swift, Aerial Ace, Magical Leaf, etc.)',
           check: function(e,mv,mdata) { return mdata.hasNoMiss; } },
 
         { id:'IMM',  cat:'util',   emoji:'💊', name:'Status Immune',
@@ -196,11 +197,6 @@
                    mv.indexOf('sunnyday')>=0||mv.indexOf('raindance')>=0||
                    mv.indexOf('sandstorm')>=0||mv.indexOf('snowscape')>=0||mv.indexOf('hail')>=0; } },
 
-        { id:'WTH+', cat:'threat', emoji:'🚀', name:'Weather Boosted',
-          desc:'Ability is directly boosted by weather (Swift Swim, Chlorophyll, Sand Rush, Slush Rush, Sand Force, Solar Power)',
-          check: function(e) {
-            return ['Swift Swim','Chlorophyll','Sand Rush','Slush Rush','Sand Force','Solar Power'].indexOf(e.ability)>=0; } },
-
         { id:'ACC-', cat:'threat', emoji:'🌫️', name:'Accuracy Reducer',
           desc:'Can lower opponent accuracy: Bright Powder/Lax Incense item, Sand Veil/Snow Cloak ability, or Flash/Smokescreen/etc.',
           check: function(e,mv) {
@@ -232,11 +228,9 @@
             return false; } },
 
         { id:'RET',  cat:'threat', emoji:'↩️', name:'Retaliator',
-          desc:'Hits harder after taking damage (Revenge, Avalanche, Payback, Assurance, Counter, Mirror Coat)',
+          desc:'Move powered by ally\'s death: Retaliate (x2 if ally fainted), Last Respects (+50 BP per fainted)',
           check: function(e,mv) {
-            var m=['retaliate','revenge','avalanche','payback','assurance','counter','mirrorcoat','comeuppance'];
-            for (var i=0;i<m.length;i++) if (mv.indexOf(m[i])>=0) return true;
-            return false; } },
+            return mv.indexOf('retaliate')>=0||mv.indexOf('lastrespects')>=0; } },
 
         { id:'PRI!', cat:'threat', emoji:'❗', name:'Priority Proc',
           desc:'Quick Draw ability or Quick Claw item — may randomly act first',
@@ -248,20 +242,30 @@
             return ['Arena Trap','Shadow Tag','Magnet Pull'].indexOf(e.ability)>=0; } },
 
         { id:'STS',  cat:'threat', emoji:'☠️', name:'Status Inducer',
-          desc:'Has a move that inflicts status: Toxic, Thunder Wave, Spore, Will-O-Wisp, Glare, Yawn, etc.',
-          check: function(e,mv) {
-            var m=['toxic','thunderwave','spore','sleeppowder','willowisp','glare',
-                   'stunspore','hypnosis','yawn','sing','nuzzle','toxicthread','darkvoid'];
-            for (var i=0;i<m.length;i++) if (mv.indexOf(m[i])>=0) return true;
-            return false; } },
+          desc:'Gold: dedicated status move (Spore, T-Wave, etc.) | Silver: secondary status chance (Scald, etc.)',
+          check: function(e,mv,mdata) {
+            var primary=['toxic','thunderwave','spore','sleeppowder','willowisp','glare',
+                         'stunspore','hypnosis','yawn','sing','nuzzle','toxicthread','darkvoid'];
+            for (var i=0;i<primary.length;i++) if (mv.indexOf(primary[i])>=0) return true;
+            return mdata.hasSecondaryStatus||false; },
+          tier: function(e,mv,mdata) {
+            var primary=['toxic','thunderwave','spore','sleeppowder','willowisp','glare',
+                         'stunspore','hypnosis','yawn','sing','nuzzle','toxicthread','darkvoid'];
+            for (var i=0;i<primary.length;i++) if (mv.indexOf(primary[i])>=0) return 'gold';
+            return 'silver'; } },
 
         { id:'DEB',  cat:'threat', emoji:'📉', name:'Debuffer',
-          desc:'Has moves that lower opponent stats (Charm, Growl, Screech, Fake Tears, Parting Shot, etc.)',
+          desc:'Gold: dedicated stat-drop move (Charm, Screech, etc.) | Silver: secondary stat-drop chance',
           check: function(e,mv) {
-            var m=['charm','growl','screech','faketears','partingshot','eerieimpulse',
-                   'tickle','featherdance','memento','moonblast'];
-            for (var i=0;i<m.length;i++) if (mv.indexOf(m[i])>=0) return true;
-            return e._hasDebuffMove||false; } },
+            var primary=['charm','growl','screech','faketears','partingshot','eerieimpulse',
+                         'tickle','featherdance','memento'];
+            for (var i=0;i<primary.length;i++) if (mv.indexOf(primary[i])>=0) return true;
+            return e._hasDebuffMove||false; },
+          tier: function(e,mv) {
+            var primary=['charm','growl','screech','faketears','partingshot','eerieimpulse',
+                         'tickle','featherdance','memento'];
+            for (var i=0;i<primary.length;i++) if (mv.indexOf(primary[i])>=0) return 'gold';
+            return 'silver'; } },
 
         { id:'BOOST',cat:'threat', emoji:'📈', name:'Self Booster',
           desc:'Has moves that sharply raise own stats (Swords Dance, Nasty Plot, Dragon Dance, Shell Smash, etc.)',
@@ -290,7 +294,7 @@
                 mvKeys.push(moves[i].toLowerCase().replace(/[\s\-\']+/g,''));
         }
         // Pre-scan move data for common binary properties
-        var mdata = { hasPriority:false, hasSpread:false, hasNoMiss:false };
+        var mdata = { hasPriority:false, hasSpread:false, hasNoMiss:false, hasSecondaryStatus:false };
         var hasDebuffMove = false;
         for (var mi=0;mi<moves.length;mi++) {
             if (!moves[mi]||moves[mi]==='(No Move)') continue;
@@ -298,7 +302,10 @@
             if (!md) continue;
             if (md.priority&&md.priority>0) mdata.hasPriority = true;
             if (md.target&&(md.target==='allAdjacentFoes'||md.target==='allAdjacent'||md.target==='all')) mdata.hasSpread = true;
-            if (md.accuracy===true) mdata.hasNoMiss = true;
+            // Only flag always-hitting damaging moves (not Status moves like Toxic, Protect)
+            if (md.accuracy===true&&md.category!=='Status') mdata.hasNoMiss = true;
+            // Secondary status (Scald burn, Body Slam paralysis, etc.)
+            if (md.secondary&&md.secondary.status) mdata.hasSecondaryStatus = true;
             if (md.boosts) {
                 for (var stat in md.boosts) {
                     if (md.boosts[stat]<0&&md.target!=='self'&&md.target!=='allySide') hasDebuffMove = true;
@@ -314,19 +321,26 @@
 
         var result = [];
         for (var t=0;t<TAG_DEFS.length;t++) {
-            try { if (TAG_DEFS[t].check(entry,mvKeys,mdata)) result.push(TAG_DEFS[t]); } catch(ex) {}
+            try {
+                if (!TAG_DEFS[t].check(entry,mvKeys,mdata)) continue;
+                var tier = TAG_DEFS[t].tier ? TAG_DEFS[t].tier(entry,mvKeys,mdata) : null;
+                result.push({ def: TAG_DEFS[t], tier: tier });
+            } catch(ex) {}
         }
         return result;
     }
 
-    /** Render emoji badge HTML for a list of computed tags. Uses data-tooltip for styled tooltip. */
-    function renderTagBadges(tags) {
-        if (!tags||!tags.length) return '';
+    /** Render emoji badge HTML for a list of { def, tier } tag results. */
+    function renderTagBadges(tagResults) {
+        if (!tagResults||!tagResults.length) return '';
         var html = '<div class="rsa-tag-badges">';
-        for (var i=0;i<tags.length;i++) {
-            var t = tags[i];
-            var tip = esc(t.name + ': ' + t.desc);
-            html += '<span class="rsa-tag-badge rsa-tag-' + t.cat + '" data-tooltip="' + tip + '">' + t.emoji + '</span>';
+        for (var i=0;i<tagResults.length;i++) {
+            var t = tagResults[i].def;
+            var tier = tagResults[i].tier;
+            var tierCls = tier ? ' rsa-tag-tier-' + tier : '';
+            var tierLabel = tier ? ' (' + (tier==='gold' ? 'Primary' : 'Secondary') + ')' : '';
+            var tip = esc(t.name + tierLabel + ': ' + t.desc);
+            html += '<span class="rsa-tag-badge rsa-tag-' + t.cat + tierCls + '" data-tooltip="' + tip + '">' + t.emoji + '</span>';
         }
         html += '</div>';
         return html;
@@ -373,7 +387,7 @@
                 try {
                     var tags = computeEntryTags(entries[mi]);
                     for (var k=0;k<tags.length;k++) {
-                        if (tags[k].id===td.id) { matching.push(entries[mi].name); break; }
+                        if (tags[k].def.id===td.id) { matching.push(entries[mi].name); break; }
                     }
                 } catch(ex) {}
             }
@@ -7423,7 +7437,7 @@
                 var _boxItem = '';
                 try { var _bs = lookupSet(m.setId); if (_bs) _boxItem = _bs.item||''; } catch(ex2) {}
                 var _boxEntry = { name:m.name, setId:m.setId, ability:_boxTypeInfo.ability, item:_boxItem, types:_boxTypeInfo.types };
-                var _boxEntryTags = computeEntryTags(_boxEntry).map(function(t){return t.id;});
+                var _boxEntryTags = computeEntryTags(_boxEntry).map(function(tr){return tr.def.id;});
                 if (!_activeBoxTags.some(function(id){return _boxEntryTags.indexOf(id)>=0;})) continue;
             }
 
@@ -7475,8 +7489,11 @@
                     if (_btTags.length) {
                         boxTagBadgesHtml = '<div class="rsa-box-tag-badges">';
                         for (var bti=0;bti<_btTags.length;bti++) {
-                            var _bt = _btTags[bti];
-                            boxTagBadgesHtml += '<span class="rsa-box-tag-badge rsa-tag-' + _bt.cat + '" data-tooltip="' + esc(_bt.name+': '+_bt.desc) + '">' + _bt.emoji + '</span>';
+                            var _bt = _btTags[bti].def;
+                            var _btTier = _btTags[bti].tier;
+                            var _btTierCls = _btTier ? ' rsa-tag-tier-' + _btTier : '';
+                            var _btTip = esc(_bt.name + (_btTier ? ' ('+ (_btTier==='gold'?'Primary':'Secondary') +')' : '') + ': ' + _bt.desc);
+                            boxTagBadgesHtml += '<span class="rsa-box-tag-badge rsa-tag-' + _bt.cat + _btTierCls + '" data-tooltip="' + _btTip + '">' + _bt.emoji + '</span>';
                         }
                         boxTagBadgesHtml += '</div>';
                     }
