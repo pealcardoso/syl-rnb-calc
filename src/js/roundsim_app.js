@@ -1030,8 +1030,30 @@
         if (moveData.hasCrashDamage) primaryParts.push('Crash damage on miss');
         if (moveData.willCrit) primaryParts.push('Always crits');
         if (moveData.forceSwitch) primaryParts.push('Forces switch');
+        if (moveData.selfSwitch) primaryParts.push('User switches out');
         if (moveData.selfdestruct) primaryParts.push('User faints');
         if (moveData.breaksProtect) primaryParts.push('Breaks Protect');
+        if (moveData.weather) {
+            var wInfo = WEATHER_MAP[moveData.weather];
+            primaryParts.push('Sets ' + (wInfo ? wInfo.label : moveData.weather));
+        }
+        if (moveData.terrain) {
+            var tInfo = TERRAIN_MAP[moveData.terrain];
+            primaryParts.push('Sets ' + (tInfo ? tInfo.label + ' Terrain' : moveData.terrain));
+        }
+        if (moveData.sideCondition) {
+            var scKey = moveData.sideCondition.toLowerCase().replace(/[\s\-\']+/g, '');
+            var scInfo = SIDE_CONDITION_MAP[scKey];
+            if (scInfo) primaryParts.push('Sets ' + moveData.name);
+        }
+        if (moveData.clearsHazards) {
+            var clrLabels = { self: 'Clears own hazards', both: 'Clears all hazards', swap: 'Swaps hazards' };
+            primaryParts.push(clrLabels[moveData.clearsHazards] || 'Clears hazards');
+        }
+        if (moveData.onHit) {
+            var hitLabels = { stripItem: 'Removes item', stealItem: 'Steals item', swapItems: 'Swaps items', removeItemBerry: 'Destroys Berry' };
+            primaryParts.push(hitLabels[moveData.onHit] || moveData.onHit);
+        }
         if (moveData.status) primaryParts.push('Inflicts ' + formatStatus(moveData.status));
         if (moveData.boosts) {
             var parts = formatBoosts(moveData.boosts);
@@ -1326,85 +1348,290 @@
         try { performCalculations(); } catch (e) {}
     }
 
-    // Map of hazard-setting move names to sideCondition key
+    // ── Weather / Terrain / Screen / Tailwind  data-driven mappings ──
+    // Maps moveData.weather value → { radio: DOM radio id, label: display label }
+    var WEATHER_MAP = {
+        'sunnyday':   { radio: 'sun',   label: 'Sun' },
+        'RainDance':  { radio: 'rain',  label: 'Rain' },
+        'Sandstorm':  { radio: 'sand',  label: 'Sand' },
+        'hail':       { radio: 'snow',  label: 'Snow' }
+    };
+    // Maps moveData.terrain value → { cbId: DOM checkbox id, label: display label }
+    var TERRAIN_MAP = {
+        'electricterrain': { cbId: 'electric', label: 'Electric' },
+        'grassyterrain':   { cbId: 'grassy',   label: 'Grassy' },
+        'psychicterrain':  { cbId: 'psychic',  label: 'Psychic' },
+        'mistyterrain':    { cbId: 'misty',    label: 'Misty' }
+    };
+    // Maps moveData.sideCondition value → { cbPrefix: checkbox base id, type, defaultDuration }
+    var SIDE_CONDITION_MAP = {
+        'reflect':     { cbPrefix: 'reflect',     type: 'screen', defaultDuration: 5 },
+        'lightscreen': { cbPrefix: 'lightScreen', type: 'screen', defaultDuration: 5 },
+        'auroraveil':  { cbPrefix: 'auroraVeil',  type: 'screen', defaultDuration: 5 },
+        'tailwind':    { cbPrefix: 'tailwind',     type: 'tailwind', defaultDuration: 4 }
+    };
+    // Hazard sideConditions (not screens/tailwind)
+    var HAZARD_SIDE_CONDITIONS = {
+        'stealthrock': 'sr',
+        'spikes':      'spikes',
+        'toxicspikes': 'tspikes',
+        'stickyweb':   'stickyWeb'
+    };
+    // Weather-extending items and their weather targets
+    var WEATHER_EXTEND_ITEMS = {
+        'Heat Rock':   'Sun',
+        'Damp Rock':   'Rain',
+        'Smooth Rock': 'Sand',
+        'Icy Rock':    'Snow'
+    };
+
+    /**
+     * After a move is used, check if it sets weather and auto-apply it.
+     * @param {object} moveData - RBDex move data
+     * @param {object} userEntry - the roster entry of the move user (for item check)
+     */
+    function applyMoveWeather(moveData, userEntry) {
+        if (!moveData || !moveData.weather) return;
+        var info = WEATHER_MAP[moveData.weather];
+        if (!info) return;
+        var fld = curLine().fieldState;
+        // Set the hidden radio button
+        $('#' + info.radio).prop('checked', true);
+        // Sync the dropdown
+        $('#rsa-weather-select').val(info.label);
+        // Duration: 5 normally, 8 with the matching weather rock
+        var dur = 5;
+        if (userEntry && userEntry.item && WEATHER_EXTEND_ITEMS[userEntry.item] === info.label) dur = 8;
+        fld.weatherTurns = dur;
+        fld.permanentWeather = false;
+        try { performCalculations(); } catch (e) {}
+    }
+
+    /**
+     * After a move is used, check if it sets terrain and auto-apply it.
+     */
+    function applyMoveTerrain(moveData, userEntry) {
+        if (!moveData || !moveData.terrain) return;
+        var info = TERRAIN_MAP[moveData.terrain];
+        if (!info) return;
+        var fld = curLine().fieldState;
+        // Uncheck all terrains, then check the right one
+        $('input:checkbox[name="terrain"]').prop('checked', false);
+        $('#' + info.cbId).prop('checked', true);
+        $('#rsa-terrain-select').val(info.label);
+        // Duration: 5 normally, 8 with Terrain Extender
+        var dur = 5;
+        if (userEntry && userEntry.item === 'Terrain Extender') dur = 8;
+        fld.terrainTurns = dur;
+        try { performCalculations(); } catch (e) {}
+    }
+
+    /**
+     * After a move is used, check if it sets a screen or tailwind and auto-apply it.
+     * @param {string} userSide - 'p1' or 'p2'
+     */
+    function applyMoveSideCondition(moveData, userSide, userEntry) {
+        if (!moveData || !moveData.sideCondition) return;
+        var sc = moveData.sideCondition.toLowerCase().replace(/[\s\-\']+/g, '');
+        var info = SIDE_CONDITION_MAP[sc];
+        if (!info) return; // hazard sideConditions are handled separately
+        var suffix = userSide === 'p1' ? 'L' : 'R';
+        var cbId = info.cbPrefix + suffix;
+        $('#' + cbId).prop('checked', true);
+        var fld = curLine().fieldState;
+        if (info.type === 'screen') {
+            if (!fld.screenTurns) fld.screenTurns = {};
+            var dur = info.defaultDuration;
+            if (userEntry && userEntry.item === 'Light Clay') dur = 8;
+            fld.screenTurns[cbId] = dur;
+        } else if (info.type === 'tailwind') {
+            if (!fld.tailwindTurns) fld.tailwindTurns = {};
+            fld.tailwindTurns[userSide] = info.defaultDuration;
+        }
+        try { performCalculations(); } catch (e) {}
+    }
+
+    /**
+     * Decrement all field turn counters at the start of a round.
+     * Mirrors the existing Trick Room decrement pattern.
+     */
+    function decrementFieldCounters() {
+        var fld = curLine().fieldState;
+
+        // Weather turns
+        if (fld.weatherTurns > 0 && !fld.permanentWeather) {
+            fld.weatherTurns--;
+            if (fld.weatherTurns <= 0) {
+                fld.weatherTurns = 0;
+                // Clear weather: check the "none" radio
+                $('input:radio[name="weather"][value=""]').prop('checked', true);
+                $('#rsa-weather-select').val('');
+                try { performCalculations(); } catch (e) {}
+            }
+        }
+
+        // Terrain turns
+        if (fld.terrainTurns > 0) {
+            fld.terrainTurns--;
+            if (fld.terrainTurns <= 0) {
+                fld.terrainTurns = 0;
+                $('input:checkbox[name="terrain"]').prop('checked', false);
+                $('#rsa-terrain-select').val('');
+                try { performCalculations(); } catch (e) {}
+            }
+        }
+
+        // Screen turns (per checkbox id)
+        if (fld.screenTurns) {
+            for (var cbId in fld.screenTurns) {
+                if (fld.screenTurns[cbId] > 0) {
+                    fld.screenTurns[cbId]--;
+                    if (fld.screenTurns[cbId] <= 0) {
+                        fld.screenTurns[cbId] = 0;
+                        $('#' + cbId).prop('checked', false);
+                    }
+                }
+            }
+            try { performCalculations(); } catch (e) {}
+        }
+
+        // Tailwind turns (per side)
+        if (fld.tailwindTurns) {
+            var twChanged = false;
+            if (fld.tailwindTurns.p1 > 0) {
+                fld.tailwindTurns.p1--;
+                if (fld.tailwindTurns.p1 <= 0) { fld.tailwindTurns.p1 = 0; $('#tailwindL').prop('checked', false); twChanged = true; }
+            }
+            if (fld.tailwindTurns.p2 > 0) {
+                fld.tailwindTurns.p2--;
+                if (fld.tailwindTurns.p2 <= 0) { fld.tailwindTurns.p2 = 0; $('#tailwindR').prop('checked', false); twChanged = true; }
+            }
+            if (twChanged) { try { performCalculations(); } catch (e) {} }
+        }
+    }
+
+    /**
+     * Apply item manipulation effects from moves like Knock Off, Thief, Trick.
+     * @param {string} effectType - 'stripItem', 'stealItem', 'swapItems', 'removeItemBerry'
+     * @param {object} userEntry - the attacking pokemon's roster entry
+     * @param {object} targetEntry - the defending pokemon's roster entry
+     * @param {string} userSide - 'p1' or 'p2'
+     * @param {string} targetSide - 'p1' or 'p2'
+     */
+    function applyMoveItemEffect(effectType, userEntry, targetEntry, userSide, targetSide) {
+        if (!targetEntry || !targetEntry.item) return;
+        if (effectType === 'stripItem') {
+            targetEntry.item = '';
+            $('#' + targetSide + ' .item').val('');
+        } else if (effectType === 'stealItem') {
+            if (!userEntry.item) {
+                userEntry.item = targetEntry.item;
+                $('#' + userSide + ' .item').val(userEntry.item);
+            }
+            targetEntry.item = '';
+            $('#' + targetSide + ' .item').val('');
+        } else if (effectType === 'swapItems') {
+            var tmp = userEntry.item || '';
+            userEntry.item = targetEntry.item;
+            targetEntry.item = tmp;
+            $('#' + userSide + ' .item').val(userEntry.item);
+            $('#' + targetSide + ' .item').val(targetEntry.item);
+        } else if (effectType === 'removeItemBerry') {
+            var itemKey = targetEntry.item.toLowerCase().replace(/[\s\-\']+/g, '');
+            if (itemKey.indexOf('berry') >= 0) {
+                targetEntry.item = '';
+                $('#' + targetSide + ' .item').val('');
+            }
+        }
+        try { performCalculations(); } catch (e) {}
+    }
+
+    // Map of hazard-setting move names to sideCondition key (legacy fallback)
     var HAZARD_SET_MOVES = {
         'Stealth Rock': 'sr',
         'Spikes': 'spikes',
         'Toxic Spikes': 'tspikes',
         'Sticky Web': 'stickyWeb'
     };
-    // Moves that clear hazards
+    // Moves that clear hazards (legacy fallback)
     var HAZARD_CLEAR_MOVES = ['Rapid Spin', 'Defog', 'Mortal Spin', 'Tidy Up', 'Court Change'];
+
+    /**
+     * Apply a hazard to the target side.
+     */
+    function applyHazardToSide(hazKey, targetSide) {
+        var h = getFieldHazards(targetSide);
+        if (hazKey === 'sr' || hazKey === 'stickyWeb') {
+            h[hazKey] = true;
+        } else if (hazKey === 'spikes') {
+            h.spikes = Math.min(3, (h.spikes || 0) + 1);
+        } else if (hazKey === 'tspikes') {
+            h.tspikes = Math.min(2, (h.tspikes || 0) + 1);
+        }
+    }
 
     /**
      * After a round is captured, check both sides' moves for hazard effects and
      * update the field state accordingly.
-     *   - Hazard-setting moves place hazards on the OPPONENT's side.
-     *   - Rapid Spin / Mortal Spin / Tidy Up clear hazards on the USER's side.
-     *   - Defog clears hazards on BOTH sides.
-     *   - Court Change swaps hazards between sides.
+     * Now reads moveData.sideCondition and moveData.clearsHazards generically,
+     * falling back to legacy name-based lookup.
      */
     function applyHazardMoves(p1MoveName, p2MoveName) {
         if (!p1MoveName && !p2MoveName) return;
 
-        // P1 uses a hazard-setting move → opponent (P2) side gets the hazard
-        if (p1MoveName && HAZARD_SET_MOVES[p1MoveName]) {
-            var key = HAZARD_SET_MOVES[p1MoveName];
-            var h = getFieldHazards('p2');
-            if (key === 'sr' || key === 'stickyWeb') {
-                h[key] = true;
-            } else if (key === 'spikes') {
-                h.spikes = Math.min(3, (h.spikes || 0) + 1);
-            } else if (key === 'tspikes') {
-                h.tspikes = Math.min(2, (h.tspikes || 0) + 1);
-            }
-        }
-        // P2 uses a hazard-setting move → opponent (P1) side gets the hazard
-        if (p2MoveName && HAZARD_SET_MOVES[p2MoveName]) {
-            var key2 = HAZARD_SET_MOVES[p2MoveName];
-            var h2 = getFieldHazards('p1');
-            if (key2 === 'sr' || key2 === 'stickyWeb') {
-                h2[key2] = true;
-            } else if (key2 === 'spikes') {
-                h2.spikes = Math.min(3, (h2.spikes || 0) + 1);
-            } else if (key2 === 'tspikes') {
-                h2.tspikes = Math.min(2, (h2.tspikes || 0) + 1);
-            }
-        }
-
-        // Hazard-clearing moves
         function clearSide(side) {
             var h = getFieldHazards(side);
             h.sr = false; h.spikes = 0; h.tspikes = 0; h.stickyWeb = false;
         }
-        // P1's clearing move clears P1's side (Rapid Spin/Mortal Spin/Tidy Up) or both (Defog)
-        if (p1MoveName) {
-            if (p1MoveName === 'Rapid Spin' || p1MoveName === 'Mortal Spin' || p1MoveName === 'Tidy Up') {
-                clearSide('p1');
-            } else if (p1MoveName === 'Defog') {
-                clearSide('p1'); clearSide('p2');
-            } else if (p1MoveName === 'Court Change') {
-                var tmp = $.extend({}, getFieldHazards('p1'));
-                var p2h = getFieldHazards('p2');
-                var p1h = getFieldHazards('p1');
-                p1h.sr = p2h.sr; p1h.spikes = p2h.spikes; p1h.tspikes = p2h.tspikes; p1h.stickyWeb = p2h.stickyWeb;
-                p2h.sr = tmp.sr; p2h.spikes = tmp.spikes; p2h.tspikes = tmp.tspikes; p2h.stickyWeb = tmp.stickyWeb;
+
+        function swapHazards() {
+            var tmp = $.extend({}, getFieldHazards('p1'));
+            var p2h = getFieldHazards('p2');
+            var p1h = getFieldHazards('p1');
+            p1h.sr = p2h.sr; p1h.spikes = p2h.spikes; p1h.tspikes = p2h.tspikes; p1h.stickyWeb = p2h.stickyWeb;
+            p2h.sr = tmp.sr; p2h.spikes = tmp.spikes; p2h.tspikes = tmp.tspikes; p2h.stickyWeb = tmp.stickyWeb;
+        }
+
+        function processSide(moveName, userSide) {
+            if (!moveName) return;
+            var oppSide = userSide === 'p1' ? 'p2' : 'p1';
+            var moveData = lookupMoveData(moveName);
+
+            // Hazard setting: prefer data-driven sideCondition, fall back to legacy dict
+            if (moveData && moveData.sideCondition) {
+                var sc = moveData.sideCondition.toLowerCase().replace(/[\s\-\']+/g, '');
+                var hazKey = HAZARD_SIDE_CONDITIONS[sc];
+                if (hazKey) {
+                    applyHazardToSide(hazKey, oppSide);
+                }
+            } else if (HAZARD_SET_MOVES[moveName]) {
+                applyHazardToSide(HAZARD_SET_MOVES[moveName], oppSide);
+            }
+
+            // Hazard clearing: prefer data-driven clearsHazards field
+            var clearMode = moveData && moveData.clearsHazards;
+            if (clearMode) {
+                if (clearMode === 'self') {
+                    clearSide(userSide);
+                } else if (clearMode === 'both') {
+                    clearSide('p1'); clearSide('p2');
+                } else if (clearMode === 'swap') {
+                    swapHazards();
+                }
+            } else {
+                // Legacy fallback: name-based clearing
+                if (moveName === 'Rapid Spin' || moveName === 'Mortal Spin' || moveName === 'Tidy Up') {
+                    clearSide(userSide);
+                } else if (moveName === 'Defog') {
+                    clearSide('p1'); clearSide('p2');
+                } else if (moveName === 'Court Change') {
+                    swapHazards();
+                }
             }
         }
-        // P2's clearing move
-        if (p2MoveName) {
-            if (p2MoveName === 'Rapid Spin' || p2MoveName === 'Mortal Spin' || p2MoveName === 'Tidy Up') {
-                clearSide('p2');
-            } else if (p2MoveName === 'Defog') {
-                clearSide('p1'); clearSide('p2');
-            } else if (p2MoveName === 'Court Change') {
-                var tmp2 = $.extend({}, getFieldHazards('p1'));
-                var p2h2 = getFieldHazards('p2');
-                var p1h2 = getFieldHazards('p1');
-                p1h2.sr = p2h2.sr; p1h2.spikes = p2h2.spikes; p1h2.tspikes = p2h2.tspikes; p1h2.stickyWeb = p2h2.stickyWeb;
-                p2h2.sr = tmp2.sr; p2h2.spikes = tmp2.spikes; p2h2.tspikes = tmp2.tspikes; p2h2.stickyWeb = tmp2.stickyWeb;
-            }
-        }
+
+        processSide(p1MoveName, 'p1');
+        processSide(p2MoveName, 'p2');
 
         syncHazardsToCalc();
     }
@@ -3297,6 +3524,9 @@
             }
         }
 
+        // Decrement weather / terrain / screen / tailwind counters
+        decrementFieldCounters();
+
         // Save current form state to roster
         saveFormToRoster('p1');
         saveFormToRoster('p2');
@@ -3335,8 +3565,9 @@
         var p2MoveKey = p2MoveName ? p2MoveName.toLowerCase().replace(/[\s\-\']+/g, '') : '';
 
         // Is this a semi-invulnerable charge move?
-        var p1HasSemiInvuln = CHARGE_SEMI_INVULN.hasOwnProperty(p1MoveKey);
-        var p2HasSemiInvuln = CHARGE_SEMI_INVULN.hasOwnProperty(p2MoveKey);
+        // Prefer data-driven moveData.semiInvuln, fall back to legacy CHARGE_SEMI_INVULN dict
+        var p1HasSemiInvuln = (p1MoveData && p1MoveData.semiInvuln) || CHARGE_SEMI_INVULN.hasOwnProperty(p1MoveKey);
+        var p2HasSemiInvuln = (p2MoveData && p2MoveData.semiInvuln) || CHARGE_SEMI_INVULN.hasOwnProperty(p2MoveKey);
         // Is this ANY charge move (including Solar Beam etc.)?
         var p1IsAnyChargeMove = (p1MoveData && p1MoveData.flags && p1MoveData.flags.charge) || CHARGE_ONLY_MOVES[p1MoveKey];
         var p2IsAnyChargeMove = (p2MoveData && p2MoveData.flags && p2MoveData.flags.charge) || CHARGE_ONLY_MOVES[p2MoveKey];
@@ -3963,6 +4194,32 @@
         // P2 bestCase (from P1's perspective): best for P1 = P2 has LESS HP, so bestCase <= worst
         p2BestAfter = Math.min(p2BestAfter, p2HPAfter);
 
+        // ── Item manipulation from move data (Knock Off, Thief, Trick, etc.) ──
+        // P1 attacks P2: check p1MoveData.onHit
+        if (p1MoveData && p1MoveData.onHit && !p1Flinched && p2HPAfter > 0) {
+            applyMoveItemEffect(p1MoveData.onHit, p1Entry, p2Entry, 'p1', 'p2');
+        }
+        // P2 attacks P1: check p2MoveData.onHit
+        if (p2MoveData && p2MoveData.onHit && !p2Flinched && p1HPAfter > 0) {
+            applyMoveItemEffect(p2MoveData.onHit, p2Entry, p1Entry, 'p2', 'p1');
+        }
+
+        // ── HP cost moves (Belly Drum) ──
+        if (p1MoveData && p1MoveData.hpCost && !p1Flinched) {
+            var hpLoss = Math.floor(p1Entry.maxHP * p1MoveData.hpCost);
+            if (p1HPAfter > hpLoss) {
+                p1HPAfter -= hpLoss;
+                p1BestAfter = Math.max(0, p1BestAfter - hpLoss);
+            }
+        }
+        if (p2MoveData && p2MoveData.hpCost && !p2Flinched) {
+            var hpLoss2 = Math.floor(p2Entry.maxHP * p2MoveData.hpCost);
+            if (p2HPAfter > hpLoss2) {
+                p2HPAfter -= hpLoss2;
+                p2BestAfter = Math.max(0, p2BestAfter - hpLoss2);
+            }
+        }
+
         // Selfdestruct moves KO the user if they dealt damage
         if (p1MoveData && p1MoveData.selfdestruct && !p1Flinched && p1DmgToP2Max > 0) {
             p1HPAfter = 0; p1BestAfter = 0;
@@ -4128,14 +4385,14 @@
         // Charge turn: mark the pokemon as charging + set semi-invuln for next round
         if (p2ChargeTurn) {
             p2Entry.chargingMove   = p2MoveKey;
-            p2Entry.semiInvulnType = CHARGE_SEMI_INVULN[p2MoveKey] || null;
+            p2Entry.semiInvulnType = (p2MoveData && p2MoveData.semiInvuln) || CHARGE_SEMI_INVULN[p2MoveKey] || null;
         } else if (p2StrikeTurn || (p2MoveIdx !== 'none' && !p2IsAnyChargeMove)) {
             p2Entry.chargingMove   = null;
             p2Entry.semiInvulnType = null;
         }
         if (p1ChargeTurn) {
             p1Entry.chargingMove   = p1MoveKey;
-            p1Entry.semiInvulnType = CHARGE_SEMI_INVULN[p1MoveKey] || null;
+            p1Entry.semiInvulnType = (p1MoveData && p1MoveData.semiInvuln) || CHARGE_SEMI_INVULN[p1MoveKey] || null;
         } else if (p1StrikeTurn || (p1MoveIdx !== 'none' && !p1IsAnyChargeMove)) {
             p1Entry.chargingMove   = null;
             p1Entry.semiInvulnType = null;
@@ -4245,6 +4502,9 @@
                 tr = false;
             }
         }
+        // Decrement weather / terrain / screen / tailwind counters
+        decrementFieldCounters();
+
         var order = [];
         for (var si = 0; si < slotIds.length; si++) {
             var sid = slotIds[si];
@@ -5411,9 +5671,13 @@
 
             var dragAttr = isDoubles() ? ' draggable="true"' : '';
             html += '<div class="rsa-team-slot rsa-team-slot-' + side + active + fainted + statusCls + ccClass + '"' + dragAttr + ' data-side="' + side + '" data-idx="' + i + '">' +
-                '<img class="rsa-team-sprite" src="' + esc(e.sprite) + '" alt="' + esc(e.name) + '">' +
+                '<button class="rsa-info-btn" data-side="' + side + '" data-idx="' + i + '" title="Show details">ⓘ</button>' +
+                '<div class="rsa-sprite-col">' +
+                    '<img class="rsa-team-sprite" src="' + esc(e.sprite) + '" alt="' + esc(e.name) + '">' +
+                    speedText +
+                '</div>' +
                 '<div class="rsa-team-info">' +
-                    '<div class="rsa-team-name">' + esc(e.name) + ' ' + speedText + ' <button class="rsa-info-btn" data-side="' + side + '" data-idx="' + i + '" title="Show details">ⓘ</button></div>' +
+                    '<div class="rsa-team-name">' + esc(e.name) + '</div>' +
                     '<div class="rsa-team-hp-bar"><div class="rsa-team-hp-fill" style="width:' + solidFillPct.toFixed(0) + '%;background:' + solidFillCol + '"></div>' + teamUncertainBar + '</div>' +
                     (side === 'p1'
                         ? '<div class="rsa-team-hp-text"><input type="number" class="rsa-hp-edit" data-side="p1" data-idx="' + i + '" value="' + e.currentHP + '" min="0" max="' + e.maxHP + '" title="Edit HP before round" /><span class="rsa-hp-max"> HP (' + pct.toFixed(0) + '%)' + (bestHP !== e.currentHP ? ' <span class="rsa-team-hp-range">(' + (side === 'p1' ? e.currentHP + '\u2013' + bestHP : bestHP + '\u2013' + e.currentHP) + ')</span>' : '') + '</span></div>' +
@@ -7412,7 +7676,39 @@
                     p2: $.extend({}, getFieldHazards('p2'))
                 };
                 rd.hazardChanges = diffHazards(hazBefore, hazAfter);
+
+                // Auto-apply weather / terrain / screens / tailwind from move data
+                if (rd.isDoubles && rd.actions) {
+                    for (var fi = 0; fi < rd.actions.length; fi++) {
+                        var fAct = rd.actions[fi];
+                        if (!fAct || !fAct.moveData || fAct.move === '—') continue;
+                        var fMd = lookupMoveData(fAct.move);
+                        var fSide = fAct.slot ? fAct.slot.substring(0, 2) : '';
+                        var fEntry = fAct.entry || (rd.fighters && rd.fighters[fAct.slot]);
+                        applyMoveWeather(fMd, fEntry);
+                        applyMoveTerrain(fMd, fEntry);
+                        applyMoveSideCondition(fMd, fSide, fEntry);
+                    }
+                } else {
+                    var _p1Md = (rd.p1 && rd.p1.move !== '—') ? lookupMoveData(rd.p1.move) : null;
+                    var _p2Md = (rd.p2 && rd.p2.move !== '—') ? lookupMoveData(rd.p2.move) : null;
+                    var _line = curLine();
+                    var _p1Entry = _line.teams.p1 ? getActiveEntry(_line.teams.p1) : null;
+                    var _p2Entry = _line.teams.p2 ? getActiveEntry(_line.teams.p2) : null;
+                    if (_p1Md) {
+                        applyMoveWeather(_p1Md, _p1Entry);
+                        applyMoveTerrain(_p1Md, _p1Entry);
+                        applyMoveSideCondition(_p1Md, 'p1', _p1Entry);
+                    }
+                    if (_p2Md) {
+                        applyMoveWeather(_p2Md, _p2Entry);
+                        applyMoveTerrain(_p2Md, _p2Entry);
+                        applyMoveSideCondition(_p2Md, 'p2', _p2Entry);
+                    }
+                }
+
                 syncActiveStateToForm();
+                updateFieldPanel();
                 renderAll();
                 autoSave();
                 if (isDoubles()) refreshDoublesUI();
@@ -8724,19 +9020,24 @@
         function updateFieldPanel() {
             var w = getWeather(), t = getTerrain();
             var tr = $('#rsa-trickroom').is(':checked');
-            var perma = curLine().fieldState.permanentWeather;
+            var fld = curLine().fieldState;
+            var perma = fld.permanentWeather;
 
             // Weather
             var wText = (w && w !== 'None') ? w : 'None';
             if (wText !== 'None' && perma) wText += ' <span class="rsa-fp-permanent">(Permanent)</span>';
+            else if (wText !== 'None' && fld.weatherTurns > 0) wText += ' <span class="rsa-fp-turns">(' + fld.weatherTurns + ' turns)</span>';
             $('#rsa-fp-weather-val').html(wText).toggleClass('rsa-fp-active', wText !== 'None');
 
             // Terrain
             var tText = (t && t !== 'None') ? t + ' Terrain' : 'None';
+            if (tText !== 'None' && fld.terrainTurns > 0) tText += ' (' + fld.terrainTurns + ' turns)';
             $('#rsa-fp-terrain-val').text(tText).toggleClass('rsa-fp-active', tText !== 'None');
 
             // Trick Room
-            $('#rsa-fp-trickroom-val').text(tr ? 'Active' : 'Off').toggleClass('rsa-fp-active', tr);
+            var trText = tr ? 'Active' : 'Off';
+            if (tr && fld.trickRoomTurns > 0) trText += ' (' + fld.trickRoomTurns + ' turns)';
+            $('#rsa-fp-trickroom-val').text(trText).toggleClass('rsa-fp-active', tr);
 
             // Gravity
             var grav = $('#gravity').is(':checked');
@@ -8746,9 +9047,18 @@
             ['L', 'R'].forEach(function (suffix, i) {
                 var side = i === 0 ? 'p1' : 'p2';
                 var screens = [];
-                if ($('#reflect' + suffix).is(':checked')) screens.push('Reflect');
-                if ($('#lightScreen' + suffix).is(':checked')) screens.push('Light Screen');
-                if ($('#auroraVeil' + suffix).is(':checked')) screens.push('Aurora Veil');
+                if ($('#reflect' + suffix).is(':checked')) {
+                    var rTurns = fld.screenTurns && fld.screenTurns['reflect' + suffix];
+                    screens.push('Reflect' + (rTurns > 0 ? ' (' + rTurns + ')' : ''));
+                }
+                if ($('#lightScreen' + suffix).is(':checked')) {
+                    var lTurns = fld.screenTurns && fld.screenTurns['lightScreen' + suffix];
+                    screens.push('Light Screen' + (lTurns > 0 ? ' (' + lTurns + ')' : ''));
+                }
+                if ($('#auroraVeil' + suffix).is(':checked')) {
+                    var aTurns = fld.screenTurns && fld.screenTurns['auroraVeil' + suffix];
+                    screens.push('Aurora Veil' + (aTurns > 0 ? ' (' + aTurns + ')' : ''));
+                }
                 $('#rsa-fp-screens-' + side + '-val').text(screens.length ? screens.join(', ') : 'None').toggleClass('rsa-fp-active', screens.length > 0);
             });
 
@@ -8756,7 +9066,9 @@
             ['L', 'R'].forEach(function (suffix, i) {
                 var side = i === 0 ? 'p1' : 'p2';
                 var tw = $('#tailwind' + suffix).is(':checked');
-                $('#rsa-fp-tailwind-' + side + '-val').text(tw ? 'Active' : 'Off').toggleClass('rsa-fp-active', tw);
+                var twTurns = fld.tailwindTurns && fld.tailwindTurns[side];
+                var twText = tw ? ('Active' + (twTurns > 0 ? ' (' + twTurns + ' turns)' : '')) : 'Off';
+                $('#rsa-fp-tailwind-' + side + '-val').text(twText).toggleClass('rsa-fp-active', tw);
             });
 
             // Hazards
