@@ -66,6 +66,331 @@
         'phantom':     'Shadow realm'
     };
 
+    // ════════════════════════════════════════════════════════════
+    // POKÉMON TAG / BADGE SYSTEM
+    // cat:'util' = blue tier  |  cat:'threat' = red/orange tier
+    // Each tag: { id, cat, emoji, name, desc, check(entry, mvKeys, mdata) }
+    // ════════════════════════════════════════════════════════════
+    var TAG_DEFS = [
+        // ── Utility tags ────────────────────────────────────────
+        { id:'FO',   cat:'util',   emoji:'👋', name:'Fake Out',
+          desc:'Forces flinch on first turn',
+          check: function(e,mv) { return mv.indexOf('fakeout')>=0; } },
+
+        { id:'INT',  cat:'util',   emoji:'😤', name:'Intimidate',
+          desc:'Drops opponent Attack on switch-in',
+          check: function(e) { return e.ability==='Intimidate'; } },
+
+        { id:'SPD',  cat:'util',   emoji:'⏱️', name:'Speed Control',
+          desc:'Has speed-lowering moves, Tailwind, or Trick Room — controls turn order',
+          check: function(e,mv) {
+            if (e.ability==='Cotton Down') return true;
+            var m=['icywind','glaciate','electroweb','stringshot','scaryface',
+                   'tailwind','trickroom','stickyweb','quash','afteryou',
+                   'speedswap','baton pass'];
+            for (var i=0;i<m.length;i++) if (mv.indexOf(m[i])>=0) return true;
+            return false; } },
+
+        { id:'CI',   cat:'util',   emoji:'🛡️', name:'Crit Immunity',
+          desc:'Battle Armor or Shell Armor — immune to critical hits',
+          check: function(e) { return e.ability==='Battle Armor'||e.ability==='Shell Armor'; } },
+
+        { id:'MB',   cat:'util',   emoji:'🔨', name:'Mold Breaker',
+          desc:'Ignores abilities (Mold Breaker / Turboblaze / Teravolt / Mycelium Might / Neutralizing Gas)',
+          check: function(e) {
+            return ['Mold Breaker','Turboblaze','Teravolt','Mycelium Might','Neutralizing Gas'].indexOf(e.ability)>=0; } },
+
+        { id:'PRO',  cat:'util',   emoji:'🔒', name:'Protect',
+          desc:'Has a Protect-variant move (Protect, Detect, Wide Guard, Quick Guard, etc.)',
+          check: function(e,mv) {
+            var p=['protect','detect','kingsshield','banefulbunker','silktrap','spikyshield',
+                   'wideguard','quickguard','matblock','craftyshield','obstruct'];
+            for (var i=0;i<p.length;i++) if (mv.indexOf(p[i])>=0) return true;
+            return false; } },
+
+        { id:'PRI',  cat:'util',   emoji:'⚡', name:'Priority Move',
+          desc:'Has a move with increased priority (Extremespeed, Bullet Punch, etc.)',
+          check: function(e,mv,mdata) { return mdata.hasPriority; } },
+
+        { id:'SPR',  cat:'util',   emoji:'💫', name:'Spread Move',
+          desc:'Has a move that hits multiple targets (Earthquake, Surf, Dazzling Gleam, etc.)',
+          check: function(e,mv,mdata) { return mdata.hasSpread; } },
+
+        { id:'ACC',  cat:'util',   emoji:'🎯', name:'Never Misses',
+          desc:'Has a move that always hits (Swift, Aerial Ace, Magical Leaf, etc.)',
+          check: function(e,mv,mdata) { return mdata.hasNoMiss; } },
+
+        { id:'IMM',  cat:'util',   emoji:'💊', name:'Status Immune',
+          desc:'Ability grants immunity to one or more status conditions',
+          check: function(e) {
+            return ['Limber','Water Veil','Immunity','Insomnia','Vital Spirit','Own Tempo',
+                    'Inner Focus','Oblivious','Sweet Veil','Comatose','Purifying Salt',
+                    'Flower Veil','Leaf Guard','Magic Guard','Natural Cure','Shed Skin'].indexOf(e.ability)>=0; } },
+
+        { id:'FLY',  cat:'util',   emoji:'🕊️', name:'Ground Immune',
+          desc:'Flying type or Levitate — immune to Ground-type moves',
+          check: function(e) {
+            return (e.types&&e.types.indexOf('Flying')>=0)||e.ability==='Levitate'; } },
+
+        { id:'SOAK', cat:'util',   emoji:'💧', name:'Soaker',
+          desc:'Has Soak — changes the target\'s type to Water',
+          check: function(e,mv) { return mv.indexOf('soak')>=0; } },
+
+        { id:'FM',   cat:'util',   emoji:'📣', name:'Follow Me',
+          desc:'Has Follow Me or Rage Powder — redirects single-target attacks to itself',
+          check: function(e,mv) { return mv.indexOf('followme')>=0||mv.indexOf('ragepowder')>=0; } },
+
+        { id:'KO',   cat:'util',   emoji:'🎒', name:'Knock Off',
+          desc:'Has Knock Off — removes the target\'s held item',
+          check: function(e,mv) { return mv.indexOf('knockoff')>=0; } },
+
+        { id:'RN',   cat:'util',   emoji:'🌧️', name:'Rain Synergy',
+          desc:'Water type or ability benefiting from rain (Swift Swim, Drizzle, Rain Dish, Hydration, Dry Skin)',
+          check: function(e) {
+            return (e.types&&e.types.indexOf('Water')>=0)||
+                   ['Swift Swim','Drizzle','Rain Dish','Hydration','Dry Skin'].indexOf(e.ability)>=0; } },
+
+        { id:'SND',  cat:'util',   emoji:'🏜️', name:'Sand Synergy',
+          desc:'Rock/Steel/Ground type (sand immunity) or sand ability (Sand Rush, Sand Force, Sand Stream, Sand Spit)',
+          check: function(e) {
+            return (e.types&&e.types.some(function(t){return ['Rock','Steel','Ground'].indexOf(t)>=0;}))||
+                   ['Sand Rush','Sand Force','Sand Stream','Sand Spit'].indexOf(e.ability)>=0; } },
+
+        { id:'SUN',  cat:'util',   emoji:'☀️', name:'Sun Synergy',
+          desc:'Fire type or ability boosted by sun (Chlorophyll, Drought, Solar Power, Flower Gift)',
+          check: function(e) {
+            return (e.types&&e.types.indexOf('Fire')>=0)||
+                   ['Chlorophyll','Drought','Solar Power','Flower Gift'].indexOf(e.ability)>=0; } },
+
+        { id:'SNW',  cat:'util',   emoji:'❄️', name:'Snow Synergy',
+          desc:'Ice type or ability boosted by snow (Snow Warning, Slush Rush, Ice Body, Snow Cloak)',
+          check: function(e) {
+            return (e.types&&e.types.indexOf('Ice')>=0)||
+                   ['Snow Warning','Slush Rush','Ice Body','Snow Cloak'].indexOf(e.ability)>=0; } },
+
+        // ── Threat tags ─────────────────────────────────────────
+        { id:'BOOM', cat:'threat', emoji:'💣', name:'Exploder',
+          desc:'Has Explosion, Self-Destruct, or Misty Explosion — sacrifices itself for massive damage',
+          check: function(e,mv) {
+            return mv.indexOf('explosion')>=0||mv.indexOf('selfdestruct')>=0||mv.indexOf('mistyexplosion')>=0; } },
+
+        { id:'STU',  cat:'threat', emoji:'🧱', name:'Sturdy / Sash',
+          desc:'Sturdy ability or Focus Sash — survives any OHKO from full HP',
+          check: function(e) { return e.ability==='Sturdy'||e.item==='Focus Sash'; } },
+
+        { id:'HAZ',  cat:'threat', emoji:'⚠️', name:'Hazard Setter',
+          desc:'Can set entry hazards: Stealth Rock, Spikes, Toxic Spikes, or Sticky Web',
+          check: function(e,mv) {
+            return mv.indexOf('stealthrock')>=0||mv.indexOf('spikes')>=0||
+                   mv.indexOf('toxicspikes')>=0||mv.indexOf('stickyweb')>=0; } },
+
+        { id:'SCR',  cat:'threat', emoji:'🪞', name:'Screen Setter',
+          desc:'Can set Reflect, Light Screen, or Aurora Veil',
+          check: function(e,mv) {
+            return mv.indexOf('reflect')>=0||mv.indexOf('lightscreen')>=0||mv.indexOf('auroraveil')>=0; } },
+
+        { id:'WTH',  cat:'threat', emoji:'🌦️', name:'Weather Setter',
+          desc:'Sets weather via ability (Drizzle/Drought/Sand Stream/Snow Warning) or moves',
+          check: function(e,mv) {
+            return ['Drizzle','Drought','Sand Stream','Snow Warning'].indexOf(e.ability)>=0||
+                   mv.indexOf('sunnyday')>=0||mv.indexOf('raindance')>=0||
+                   mv.indexOf('sandstorm')>=0||mv.indexOf('snowscape')>=0||mv.indexOf('hail')>=0; } },
+
+        { id:'WTH+', cat:'threat', emoji:'🚀', name:'Weather Boosted',
+          desc:'Ability is directly boosted by weather (Swift Swim, Chlorophyll, Sand Rush, Slush Rush, Sand Force, Solar Power)',
+          check: function(e) {
+            return ['Swift Swim','Chlorophyll','Sand Rush','Slush Rush','Sand Force','Solar Power'].indexOf(e.ability)>=0; } },
+
+        { id:'ACC-', cat:'threat', emoji:'🌫️', name:'Accuracy Reducer',
+          desc:'Can lower opponent accuracy: Bright Powder/Lax Incense item, Sand Veil/Snow Cloak ability, or Flash/Smokescreen/etc.',
+          check: function(e,mv) {
+            if (e.item==='Bright Powder'||e.item==='Lax Incense') return true;
+            if (['Sand Veil','Snow Cloak','Tangling Hair'].indexOf(e.ability)>=0) return true;
+            var m=['flash','mudslap','smokescreen','sweetkiss','mudbomb','octazooka','nightdaze'];
+            for (var i=0;i<m.length;i++) if (mv.indexOf(m[i])>=0) return true;
+            return false; } },
+
+        { id:'QCL',  cat:'threat', emoji:'🐾', name:'Quick Claw',
+          desc:'Holds Quick Claw — may randomly move first regardless of speed',
+          check: function(e) { return e.item==='Quick Claw'; } },
+
+        { id:'CRIT', cat:'threat', emoji:'🎲', name:'Crit Machine',
+          desc:'Elevated crit rate: Sniper ability, Scope Lens/Razor Claw, or Focus Energy/Frost Breath/Storm Throw',
+          check: function(e,mv) {
+            if (e.ability==='Sniper') return true;
+            if (e.item==='Scope Lens'||e.item==='Razor Claw') return true;
+            var m=['focusenergy','frostbreath','stormthrow','surgingstrikes','wickedblow'];
+            for (var i=0;i<m.length;i++) if (mv.indexOf(m[i])>=0) return true;
+            return false; } },
+
+        { id:'SPB',  cat:'threat', emoji:'🏎️', name:'Speed Booster',
+          desc:'Can sharply raise own Speed: Speed Boost ability, or Agility/Dragon Dance/Rock Polish/etc.',
+          check: function(e,mv) {
+            if (e.ability==='Speed Boost') return true;
+            var m=['agility','rockpolish','dragondance','quiverdance','shiftgear','autotomize','flamecharge'];
+            for (var i=0;i<m.length;i++) if (mv.indexOf(m[i])>=0) return true;
+            return false; } },
+
+        { id:'RET',  cat:'threat', emoji:'↩️', name:'Retaliator',
+          desc:'Hits harder after taking damage (Revenge, Avalanche, Payback, Assurance, Counter, Mirror Coat)',
+          check: function(e,mv) {
+            var m=['retaliate','revenge','avalanche','payback','assurance','counter','mirrorcoat','comeuppance'];
+            for (var i=0;i<m.length;i++) if (mv.indexOf(m[i])>=0) return true;
+            return false; } },
+
+        { id:'PRI!', cat:'threat', emoji:'❗', name:'Priority Proc',
+          desc:'Quick Draw ability or Quick Claw item — may randomly act first',
+          check: function(e) { return e.ability==='Quick Draw'||e.item==='Quick Claw'; } },
+
+        { id:'TRAP', cat:'threat', emoji:'🕸️', name:'Trapper',
+          desc:'Arena Trap / Shadow Tag / Magnet Pull — prevents opponent from switching out',
+          check: function(e) {
+            return ['Arena Trap','Shadow Tag','Magnet Pull'].indexOf(e.ability)>=0; } },
+
+        { id:'STS',  cat:'threat', emoji:'☠️', name:'Status Inducer',
+          desc:'Has a move that inflicts status: Toxic, Thunder Wave, Spore, Will-O-Wisp, Glare, Yawn, etc.',
+          check: function(e,mv) {
+            var m=['toxic','thunderwave','spore','sleeppowder','willowisp','glare',
+                   'stunspore','hypnosis','yawn','sing','nuzzle','toxicthread','darkvoid'];
+            for (var i=0;i<m.length;i++) if (mv.indexOf(m[i])>=0) return true;
+            return false; } },
+
+        { id:'DEB',  cat:'threat', emoji:'📉', name:'Debuffer',
+          desc:'Has moves that lower opponent stats (Charm, Growl, Screech, Fake Tears, Parting Shot, etc.)',
+          check: function(e,mv) {
+            var m=['charm','growl','screech','faketears','partingshot','eerieimpulse',
+                   'tickle','featherdance','memento','moonblast'];
+            for (var i=0;i<m.length;i++) if (mv.indexOf(m[i])>=0) return true;
+            return e._hasDebuffMove||false; } },
+
+        { id:'BOOST',cat:'threat', emoji:'📈', name:'Self Booster',
+          desc:'Has moves that sharply raise own stats (Swords Dance, Nasty Plot, Dragon Dance, Shell Smash, etc.)',
+          check: function(e,mv) {
+            var m=['swordsdance','nastyplot','calmmind','dragondance','quiverdance',
+                   'tailglow','geomancy','shiftgear','rockpolish','shellsmash',
+                   'growth','workup','noretreat','victorydance'];
+            for (var i=0;i<m.length;i++) if (mv.indexOf(m[i])>=0) return true;
+            return false; } },
+
+        { id:'TR',   cat:'threat', emoji:'🔄', name:'Trick Room',
+          desc:'Has Trick Room — reverses speed order for 5 turns',
+          check: function(e,mv) { return mv.indexOf('trickroom')>=0; } }
+    ];
+
+    /**
+     * Compute tags for a roster entry.
+     * Returns an array of matching TAG_DEFS objects.
+     */
+    function computeEntryTags(entry) {
+        if (!entry) return [];
+        var moves = getEntryMoves(entry);
+        var mvKeys = [];
+        for (var i=0;i<moves.length;i++) {
+            if (moves[i]&&moves[i]!=='(No Move)')
+                mvKeys.push(moves[i].toLowerCase().replace(/[\s\-\']+/g,''));
+        }
+        // Pre-scan move data for common binary properties
+        var mdata = { hasPriority:false, hasSpread:false, hasNoMiss:false };
+        var hasDebuffMove = false;
+        for (var mi=0;mi<moves.length;mi++) {
+            if (!moves[mi]||moves[mi]==='(No Move)') continue;
+            var md = lookupMoveData(moves[mi]);
+            if (!md) continue;
+            if (md.priority&&md.priority>0) mdata.hasPriority = true;
+            if (md.target&&(md.target==='allAdjacentFoes'||md.target==='allAdjacent'||md.target==='all')) mdata.hasSpread = true;
+            if (md.accuracy===true) mdata.hasNoMiss = true;
+            if (md.boosts) {
+                for (var stat in md.boosts) {
+                    if (md.boosts[stat]<0&&md.target!=='self'&&md.target!=='allySide') hasDebuffMove = true;
+                }
+            }
+            if (md.secondary&&md.secondary.boosts) {
+                for (var stat2 in md.secondary.boosts) {
+                    if (md.secondary.boosts[stat2]<0) hasDebuffMove = true;
+                }
+            }
+        }
+        entry._hasDebuffMove = hasDebuffMove;
+
+        var result = [];
+        for (var t=0;t<TAG_DEFS.length;t++) {
+            try { if (TAG_DEFS[t].check(entry,mvKeys,mdata)) result.push(TAG_DEFS[t]); } catch(ex) {}
+        }
+        return result;
+    }
+
+    /** Render emoji badge HTML for a list of computed tags. Uses data-tooltip for styled tooltip. */
+    function renderTagBadges(tags) {
+        if (!tags||!tags.length) return '';
+        var html = '<div class="rsa-tag-badges">';
+        for (var i=0;i<tags.length;i++) {
+            var t = tags[i];
+            var tip = esc(t.name + ': ' + t.desc);
+            html += '<span class="rsa-tag-badge rsa-tag-' + t.cat + '" data-tooltip="' + tip + '">' + t.emoji + '</span>';
+        }
+        html += '</div>';
+        return html;
+    }
+
+    // Active tag filters per side: { p1: { 'FO': true, ... }, p2: { ... } }
+    var tagFilters = { p1:{}, p2:{} };
+
+    /** Render the tag filter bar HTML for one side's team panel */
+    function renderTagFilterBar(side) {
+        var html = '<div class="rsa-tag-filter-bar" id="rsa-tag-filter-' + side + '">';
+        for (var i=0;i<TAG_DEFS.length;i++) {
+            var t = TAG_DEFS[i];
+            var active = tagFilters[side][t.id] ? ' rsa-tag-filter-active' : '';
+            var tip = esc('Filter: ' + t.name + ' — ' + t.desc);
+            html += '<span class="rsa-tag-filter-btn rsa-tag-' + t.cat + active + '"' +
+                ' data-side="' + side + '" data-tagid="' + esc(t.id) + '"' +
+                ' data-tooltip="' + tip + '">' + t.emoji + '</span>';
+        }
+        html += '<button class="rsa-tag-filter-clear" data-side="' + side + '" title="Clear all tag filters">\u2715</button>';
+        html += '</div>';
+        return html;
+    }
+
+    /** Render the utility/tag analysis modal body */
+    function renderUtilityModal() {
+        var line = curLine();
+        if (!line) return '<p style="color:#a0aec0">No battle data loaded.</p>';
+        var sides = ['p1','p2'];
+        var sideLabels = { p1:'Your Team', p2:'Opponent' };
+        var html = '';
+        for (var s=0;s<sides.length;s++) {
+            var side = sides[s];
+            var roster = line.teams[side]&&line.teams[side].roster;
+            if (!roster||!roster.length) continue;
+            html += '<div class="rsa-util-section">';
+            html += '<div class="rsa-util-section-title">' + esc(sideLabels[side]) + '</div>';
+            html += '<div class="rsa-util-grid">';
+            for (var ti=0;ti<TAG_DEFS.length;ti++) {
+                var td = TAG_DEFS[ti];
+                var matching = [];
+                for (var mi=0;mi<roster.length;mi++) {
+                    try {
+                        var entry = roster[mi];
+                        var tags = computeEntryTags(entry);
+                        for (var k=0;k<tags.length;k++) {
+                            if (tags[k].id===td.id) { matching.push(entry.name); break; }
+                        }
+                    } catch(ex) {}
+                }
+                if (!matching.length) continue;
+                var nameList = esc(matching.join(', '));
+                html += '<div class="rsa-util-row">' +
+                    '<span class="rsa-tag-badge rsa-tag-' + td.cat + '" data-tooltip="' + esc(td.name+': '+td.desc) + '">' + td.emoji + '</span>' +
+                    '<span class="rsa-util-tag-name">' + esc(td.name) + '</span>' +
+                    '<span class="rsa-util-count" title="' + nameList + '">' + matching.length + '</span>' +
+                    '<span class="rsa-util-names" title="' + nameList + '">' + nameList + '</span>' +
+                '</div>';
+            }
+            html += '</div></div>';
+        }
+        return html||'<p style="color:#a0aec0">No Pok\u00E9mon in roster.</p>';
+    }
+
     // ── RBDex move data lookup ──────────────────────────────────
     function lookupMoveData(moveName) {
         if (!moveName || !window.BattleMovedex) return null;
@@ -5614,6 +5939,12 @@
         for (var i = 0; i < team.roster.length; i++) {
             try {
             var e = team.roster[i];
+            // Tag filter: skip slot if it doesn't match any active filter
+            var _activeTagIds = Object.keys(tagFilters[side]).filter(function(k){return tagFilters[side][k];});
+            if (_activeTagIds.length) {
+                var _eTags = computeEntryTags(e).map(function(t){return t.id;});
+                if (!_activeTagIds.some(function(id){return _eTags.indexOf(id)>=0;})) continue;
+            }
             var isActiveA = (i === team.activeIdx);
             var isActiveB = (isDoubles() && i === team.activeIdxB);
             var active = isActiveA ? ' rsa-active' : (isActiveB ? ' rsa-active rsa-active-b' : '');
@@ -5689,6 +6020,7 @@
                            (e.status ? '<span class="rsa-status-badge rsa-status-' + e.status.toLowerCase().replace(/\s+/g, '-') + '">' + esc(e.status) + '</span>' : '')) +
                     (e.ability ? '<span class="rsa-ability-badge" title="' + esc(getAbilityDesc(e.ability)) + '">' + esc(e.ability) + '</span>' : '') +
                     itemHtml +
+                    renderTagBadges(computeEntryTags(e)) +
                 '</div>' +
                 (side === 'p1' ? '<button class="rsa-team-remove" data-side="' + side + '" data-idx="' + i + '" title="Remove">×</button>' : '') +
             '</div>';
@@ -5696,6 +6028,9 @@
         }
 
         $panel.html(html);
+
+        // Populate tag filter bar for this side
+        $('#rsa-tag-filter-bar-' + side).html(renderTagFilterBar(side));
 
         // Set item select values for P1 (options are cached without 'selected', set via JS)
         if (side === 'p1') {
@@ -8568,7 +8903,29 @@
             $('#rsa-coverage-modal').hide();
         });
 
-        // ── Remove all items ──
+        // ── Tag / Utility analysis button ──
+        $(document).on('click', '#rsa-utility-btn', function () {
+            var $modal = $('#rsa-utility-modal');
+            $modal.find('.rsa-util-body').html(renderUtilityModal());
+            $modal.show();
+        });
+        $(document).on('click', '#rsa-utility-close', function () {
+            $('#rsa-utility-modal').hide();
+        });
+
+        // ── Tag filter bar (event delegation) ──
+        $(document).on('click', '.rsa-tag-filter-btn', function () {
+            var side = $(this).data('side');
+            var tagId = $(this).data('tagid');
+            tagFilters[side][tagId] = !tagFilters[side][tagId];
+            if (!tagFilters[side][tagId]) delete tagFilters[side][tagId];
+            renderTeamPanel(side);
+        });
+        $(document).on('click', '.rsa-tag-filter-clear', function () {
+            var side = $(this).data('side');
+            tagFilters[side] = {};
+            renderTeamPanel(side);
+        });
         $(document).on('click', '#rsa-remove-items-btn', function () {
             removeAllBoxItems();
         });

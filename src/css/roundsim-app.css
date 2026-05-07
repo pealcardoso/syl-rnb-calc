@@ -414,6 +414,104 @@
 .rsa-preview-bypass-note  { color: #68d391; font-size: 0.8em; margin-top: 3px; font-style: italic; }
 .rsa-boost-tag { background: #2b6cb0; color: #bee3f8; font-size: 0.65em; }
 
+/* ── Pokemon Tag Badges ───────────────────────────────────── */
+.rsa-tag-badges {
+    display: flex; flex-wrap: wrap; gap: 2px; margin-top: 4px;
+}
+/* Base badge style — emoji only, tooltip via CSS */
+.rsa-tag-badge {
+    font-size: 1em; line-height: 1; padding: 2px 3px;
+    border-radius: 4px; cursor: default; position: relative;
+    display: inline-flex; align-items: center; justify-content: center;
+    user-select: none;
+}
+/* Utility tier — blue tint */
+.rsa-tag-util {
+    background: rgba(66, 153, 225, 0.15);
+    border: 1px solid rgba(66, 153, 225, 0.45);
+}
+/* Threat tier — red tint */
+.rsa-tag-threat {
+    background: rgba(252, 129, 129, 0.18);
+    border: 1px solid rgba(252, 129, 129, 0.55);
+}
+/* CSS tooltip shown on hover */
+.rsa-tag-badge[data-tooltip]::after,
+.rsa-tag-filter-btn[data-tooltip]::after {
+    content: attr(data-tooltip);
+    position: absolute; bottom: calc(100% + 6px); left: 50%;
+    transform: translateX(-50%);
+    background: #1a202c; color: #e2e8f0;
+    border: 1px solid #4a5568;
+    font-size: 0.7rem; line-height: 1.4;
+    padding: 4px 8px; border-radius: 4px;
+    white-space: pre-wrap; max-width: 220px; width: max-content;
+    pointer-events: none; opacity: 0; transition: opacity 0.15s;
+    z-index: 9999;
+}
+.rsa-tag-badge[data-tooltip]:hover::after,
+.rsa-tag-filter-btn[data-tooltip]:hover::after {
+    opacity: 1;
+}
+
+/* ── Tag Filter Bar ───────────────────────────────────────── */
+.rsa-tag-filter-bar {
+    display: flex; flex-wrap: wrap; align-items: center;
+    gap: 3px; padding: 4px 6px;
+    background: #171f2e; border-bottom: 1px solid #2d3748;
+}
+.rsa-tag-filter-btn {
+    font-size: 1em; line-height: 1; padding: 2px 3px;
+    border-radius: 4px; cursor: pointer;
+    border: 1px solid transparent;
+    opacity: 0.45; transition: opacity 0.12s, box-shadow 0.12s;
+    position: relative;
+}
+.rsa-tag-filter-btn:hover { opacity: 0.8; }
+.rsa-tag-filter-btn.rsa-tag-filter-active {
+    opacity: 1;
+    box-shadow: 0 0 0 2px currentColor;
+}
+/* Colour the filter buttons same as badges */
+.rsa-tag-filter-btn.rsa-tag-util {
+    background: rgba(66, 153, 225, 0.15);
+    border-color: rgba(66, 153, 225, 0.45);
+    color: #90cdf4;
+}
+.rsa-tag-filter-btn.rsa-tag-threat {
+    background: rgba(252, 129, 129, 0.18);
+    border-color: rgba(252, 129, 129, 0.55);
+    color: #fc8181;
+}
+.rsa-tag-filter-clear {
+    margin-left: auto; background: #2d3748; border: none;
+    color: #a0aec0; border-radius: 3px; cursor: pointer;
+    font-size: 0.8rem; padding: 1px 6px; line-height: 1.6;
+}
+.rsa-tag-filter-clear:hover { color: #e2e8f0; }
+
+/* ── Utility / Tag Analysis Modal ────────────────────────── */
+.rsa-util-body { display: flex; flex-direction: column; gap: 16px; }
+.rsa-util-section-title {
+    font-weight: 700; color: #e2e8f0; font-size: 0.9rem; margin-bottom: 6px;
+}
+.rsa-util-grid { display: flex; flex-direction: column; gap: 4px; }
+.rsa-util-row {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 0.8rem; padding: 2px 0;
+    border-bottom: 1px solid #2d374850;
+}
+.rsa-util-tag-name { color: #a0aec0; min-width: 110px; flex-shrink: 0; }
+.rsa-util-count {
+    font-weight: 700; color: #e2e8f0; min-width: 20px;
+    flex-shrink: 0;
+}
+.rsa-util-names {
+    color: #718096;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    flex: 1;
+}
+
 /* ── Round Controls ───────────────────────────────────────── */
 .rsa-controls {
     background: #1a202c;

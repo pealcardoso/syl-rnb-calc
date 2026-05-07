@@ -1039,6 +1039,12 @@ window.BattleMovedex = {
         flags: {
             snatch: 1
         },
+        self: {
+            boosts: {
+                atk: 12
+            }
+        },
+        hpCost: 0.5,
         secondary: null,
         target: "self",
         type: "Normal",
@@ -1469,6 +1475,7 @@ window.BattleMovedex = {
             noassist: 1,
             failinstruct: 1
         },
+        semiInvuln: "air",
         condition: {
             duration: 2
         },
@@ -2527,6 +2534,7 @@ window.BattleMovedex = {
             mirror: 1,
             allyanim: 1
         },
+        onHit: "stripItem",
         secondary: null,
         target: "allAdjacent",
         type: "Poison",
@@ -2652,6 +2660,7 @@ window.BattleMovedex = {
         flags: {
             mirror: 1
         },
+        clearsHazards: "swap",
         secondary: null,
         target: "all",
         type: "Normal",
@@ -2674,6 +2683,7 @@ window.BattleMovedex = {
             noassist: 1,
             failcopycat: 1
         },
+        onHit: "stealItem",
         secondary: null,
         target: "normal",
         type: "Fairy",
@@ -3083,6 +3093,7 @@ window.BattleMovedex = {
             mirror: 1,
             bypasssub: 1
         },
+        clearsHazards: "both",
         secondary: null,
         target: "normal",
         type: "Flying",
@@ -3191,6 +3202,7 @@ window.BattleMovedex = {
             noassist: 1,
             failinstruct: 1
         },
+        semiInvuln: "underground",
         condition: {
             duration: 2
         },
@@ -3294,6 +3306,7 @@ window.BattleMovedex = {
             noassist: 1,
             failinstruct: 1
         },
+        semiInvuln: "underwater",
         condition: {
             duration: 2
         },
@@ -5409,6 +5422,7 @@ window.BattleMovedex = {
             noassist: 1,
             failinstruct: 1
         },
+        semiInvuln: "air",
         condition: {
             duration: 2
         },
@@ -8096,6 +8110,7 @@ window.BattleMovedex = {
             protect: 1,
             mirror: 1
         },
+        onHit: "removeItemBerry",
         secondary: null,
         target: "allAdjacentFoes",
         type: "Fire",
@@ -8474,6 +8489,7 @@ window.BattleMovedex = {
             protect: 1,
             mirror: 1
         },
+        onHit: "stripItem",
         secondary: null,
         target: "normal",
         type: "Dark",
@@ -10982,6 +10998,10 @@ window.BattleMovedex = {
             sound: 1,
             bypasssub: 1
         },
+        boosts: {
+            atk: -1,
+            spa: -1
+        },
         selfSwitch: true,
         secondary: null,
         target: "normal",
@@ -11141,6 +11161,7 @@ window.BattleMovedex = {
             noassist: 1,
             failinstruct: 1
         },
+        semiInvuln: "phantom",
         breaksProtect: true,
         condition: {
             duration: 2,
@@ -12381,6 +12402,7 @@ window.BattleMovedex = {
             protect: 1,
             mirror: 1
         },
+        clearsHazards: "self",
         secondary: {
             chance: 100,
             self: {
@@ -13712,6 +13734,7 @@ window.BattleMovedex = {
             noassist: 1,
             failinstruct: 1
         },
+        semiInvuln: "phantom",
         breaksProtect: true,
         condition: {
             duration: 2,
@@ -14226,6 +14249,7 @@ window.BattleMovedex = {
             noassist: 1,
             failinstruct: 1
         },
+        semiInvuln: "air",
         condition: {
             duration: 2,
             onFoeTrapPokemonPriority: -15,
@@ -16061,6 +16085,7 @@ window.BattleMovedex = {
             noassist: 1,
             failcopycat: 1
         },
+        onHit: "swapItems",
         secondary: null,
         target: "normal",
         type: "Dark",
@@ -16533,6 +16558,7 @@ window.BattleMovedex = {
             noassist: 1,
             failcopycat: 1
         },
+        onHit: "stealItem",
         secondary: null,
         target: "normal",
         type: "Dark",
@@ -17059,6 +17085,7 @@ window.BattleMovedex = {
             noassist: 1,
             failcopycat: 1
         },
+        onHit: "swapItems",
         secondary: null,
         target: "normal",
         type: "Psychic",
