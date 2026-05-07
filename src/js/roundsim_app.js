@@ -332,10 +332,10 @@
         return html;
     }
 
-    // Active tag filters per side: { p1: { 'FO': true, ... }, p2: { ... } }
-    var tagFilters = { p1:{}, p2:{} };
+    // Active tag filters for the box: { 'FO': true, ... }
+    var tagFilters = { box:{} };
 
-    /** Render the tag filter bar HTML for one side's team panel */
+    /** Render the tag filter bar HTML for the box */
     function renderTagFilterBar(side) {
         var html = '<div class="rsa-tag-filter-bar" id="rsa-tag-filter-' + side + '">';
         for (var i=0;i<TAG_DEFS.length;i++) {
@@ -351,44 +351,43 @@
         return html;
     }
 
-    /** Render the utility/tag analysis modal body */
+    /** Render the box tag coverage modal body — analyses all box Pokémon */
     function renderUtilityModal() {
-        var line = curLine();
-        if (!line) return '<p style="color:#a0aec0">No battle data loaded.</p>';
-        var sides = ['p1','p2'];
-        var sideLabels = { p1:'Your Team', p2:'Opponent' };
-        var html = '';
-        for (var s=0;s<sides.length;s++) {
-            var side = sides[s];
-            var roster = line.teams[side]&&line.teams[side].roster;
-            if (!roster||!roster.length) continue;
-            html += '<div class="rsa-util-section">';
-            html += '<div class="rsa-util-section-title">' + esc(sideLabels[side]) + '</div>';
-            html += '<div class="rsa-util-grid">';
-            for (var ti=0;ti<TAG_DEFS.length;ti++) {
-                var td = TAG_DEFS[ti];
-                var matching = [];
-                for (var mi=0;mi<roster.length;mi++) {
-                    try {
-                        var entry = roster[mi];
-                        var tags = computeEntryTags(entry);
-                        for (var k=0;k<tags.length;k++) {
-                            if (tags[k].id===td.id) { matching.push(entry.name); break; }
-                        }
-                    } catch(ex) {}
-                }
-                if (!matching.length) continue;
-                var nameList = esc(matching.join(', '));
-                html += '<div class="rsa-util-row">' +
-                    '<span class="rsa-tag-badge rsa-tag-' + td.cat + '" data-tooltip="' + esc(td.name+': '+td.desc) + '">' + td.emoji + '</span>' +
-                    '<span class="rsa-util-tag-name">' + esc(td.name) + '</span>' +
-                    '<span class="rsa-util-count" title="' + nameList + '">' + matching.length + '</span>' +
-                    '<span class="rsa-util-names" title="' + nameList + '">' + nameList + '</span>' +
-                '</div>';
-            }
-            html += '</div></div>';
+        var mons = getBoxPokemon('p1');
+        if (!mons||!mons.length) return '<p style="color:#a0aec0">No Pok\u00E9mon in box.</p>';
+        // Build full entry stubs from setId for each box mon
+        var entries = [];
+        for (var bi=0;bi<mons.length;bi++) {
+            var m = mons[bi];
+            var info = { types:[], ability:'' };
+            try { info = getMonTypeInfo(m.name, m.setId); } catch(ex) {}
+            var item = '';
+            try { var _set = lookupSet(m.setId); if (_set) item = _set.item||''; } catch(ex) {}
+            entries.push({ name:m.name, setId:m.setId, ability:info.ability, item:item, types:info.types });
         }
-        return html||'<p style="color:#a0aec0">No Pok\u00E9mon in roster.</p>';
+        var html = '<div class="rsa-util-grid">';
+        for (var ti=0;ti<TAG_DEFS.length;ti++) {
+            var td = TAG_DEFS[ti];
+            var matching = [];
+            for (var mi=0;mi<entries.length;mi++) {
+                try {
+                    var tags = computeEntryTags(entries[mi]);
+                    for (var k=0;k<tags.length;k++) {
+                        if (tags[k].id===td.id) { matching.push(entries[mi].name); break; }
+                    }
+                } catch(ex) {}
+            }
+            if (!matching.length) continue;
+            var nameList = esc(matching.join(', '));
+            html += '<div class="rsa-util-row">' +
+                '<span class="rsa-tag-badge rsa-tag-' + td.cat + '" data-tooltip="' + esc(td.name+': '+td.desc) + '">' + td.emoji + '</span>' +
+                '<span class="rsa-util-tag-name">' + esc(td.name) + '</span>' +
+                '<span class="rsa-util-count" title="' + nameList + '">' + matching.length + '</span>' +
+                '<span class="rsa-util-names" title="' + nameList + '">' + nameList + '</span>' +
+            '</div>';
+        }
+        html += '</div>';
+        return html||'<p style="color:#a0aec0">No tags found.</p>';
     }
 
     // ── RBDex move data lookup ──────────────────────────────────
@@ -5939,12 +5938,6 @@
         for (var i = 0; i < team.roster.length; i++) {
             try {
             var e = team.roster[i];
-            // Tag filter: skip slot if it doesn't match any active filter
-            var _activeTagIds = Object.keys(tagFilters[side]).filter(function(k){return tagFilters[side][k];});
-            if (_activeTagIds.length) {
-                var _eTags = computeEntryTags(e).map(function(t){return t.id;});
-                if (!_activeTagIds.some(function(id){return _eTags.indexOf(id)>=0;})) continue;
-            }
             var isActiveA = (i === team.activeIdx);
             var isActiveB = (isDoubles() && i === team.activeIdxB);
             var active = isActiveA ? ' rsa-active' : (isActiveB ? ' rsa-active rsa-active-b' : '');
@@ -6028,9 +6021,6 @@
         }
 
         $panel.html(html);
-
-        // Populate tag filter bar for this side
-        $('#rsa-tag-filter-bar-' + side).html(renderTagFilterBar(side));
 
         // Set item select values for P1 (options are cached without 'selected', set via JS)
         if (side === 'p1') {
@@ -7421,10 +7411,21 @@
 
             // Defensive type tooltip
             var tooltip = m.name;
+            var _boxTypeInfo = { types:[], ability:'' };
             try {
-                var info = getMonTypeInfo(m.name, m.setId);
-                tooltip = buildDefTooltip(m.name, info.types, info.ability);
+                _boxTypeInfo = getMonTypeInfo(m.name, m.setId);
+                tooltip = buildDefTooltip(m.name, _boxTypeInfo.types, _boxTypeInfo.ability);
             } catch(e) {}
+
+            // Tag filter: skip this box mon if it doesn't match any active tag
+            var _activeBoxTags = Object.keys(tagFilters.box).filter(function(k){return tagFilters.box[k];});
+            if (_activeBoxTags.length && side === 'p1') {
+                var _boxItem = '';
+                try { var _bs = lookupSet(m.setId); if (_bs) _boxItem = _bs.item||''; } catch(ex2) {}
+                var _boxEntry = { name:m.name, setId:m.setId, ability:_boxTypeInfo.ability, item:_boxItem, types:_boxTypeInfo.types };
+                var _boxEntryTags = computeEntryTags(_boxEntry).map(function(t){return t.id;});
+                if (!_activeBoxTags.some(function(id){return _boxEntryTags.indexOf(id)>=0;})) continue;
+            }
 
             // Rank badges (P1 only)
             var rankHtml = '';
@@ -7462,6 +7463,25 @@
             var deleteX = (side === 'p1' && boxDeleteMode)
                 ? '<button class="rsa-box-delete-x" data-set-id="' + esc(m.setId) + '" title="Remove from box">×</button>'
                 : '';
+
+            // Tag badges for this box card
+            var boxTagBadgesHtml = '';
+            if (side === 'p1') {
+                try {
+                    var _btItem = '';
+                    try { var _bts = lookupSet(m.setId); if (_bts) _btItem = _bts.item||''; } catch(ex3) {}
+                    var _btEntry = { name:m.name, setId:m.setId, ability:_boxTypeInfo.ability, item:_btItem, types:_boxTypeInfo.types };
+                    var _btTags = computeEntryTags(_btEntry);
+                    if (_btTags.length) {
+                        boxTagBadgesHtml = '<div class="rsa-box-tag-badges">';
+                        for (var bti=0;bti<_btTags.length;bti++) {
+                            var _bt = _btTags[bti];
+                            boxTagBadgesHtml += '<span class="rsa-box-tag-badge rsa-tag-' + _bt.cat + '" data-tooltip="' + esc(_bt.name+': '+_bt.desc) + '">' + _bt.emoji + '</span>';
+                        }
+                        boxTagBadgesHtml += '</div>';
+                    }
+                } catch(ex4) {}
+            }
             html += '<div class="rsa-box-slot' + inTeam + ccClass + '" draggable="true" data-side="' + side + '" data-set-id="' + esc(m.setId) + '" data-name="' + esc(m.name) + '">' +
                 deleteX +
                 speedHtml +
@@ -7469,9 +7489,12 @@
                 rankHtml +
                 baitHtml +
                 '<span class="rsa-box-name">' + esc(m.name) + '</span>' +
+                boxTagBadgesHtml +
             '</div>';
         }
         $box.html(html);
+        // Repopulate tag filter bar (P1 box only)
+        if (side === 'p1') $('#rsa-tag-filter-bar-box').html(renderTagFilterBar('box'));
         $('#rsa-box-count-' + side).text(mons.length);
     }
 
@@ -8913,18 +8936,16 @@
             $('#rsa-utility-modal').hide();
         });
 
-        // ── Tag filter bar (event delegation) ──
+        // ── Tag filter bar (event delegation) ── filters box, not team panels
         $(document).on('click', '.rsa-tag-filter-btn', function () {
-            var side = $(this).data('side');
             var tagId = $(this).data('tagid');
-            tagFilters[side][tagId] = !tagFilters[side][tagId];
-            if (!tagFilters[side][tagId]) delete tagFilters[side][tagId];
-            renderTeamPanel(side);
+            tagFilters.box[tagId] = !tagFilters.box[tagId];
+            if (!tagFilters.box[tagId]) delete tagFilters.box[tagId];
+            renderBox('p1');
         });
         $(document).on('click', '.rsa-tag-filter-clear', function () {
-            var side = $(this).data('side');
-            tagFilters[side] = {};
-            renderTeamPanel(side);
+            tagFilters.box = {};
+            renderBox('p1');
         });
         $(document).on('click', '#rsa-remove-items-btn', function () {
             removeAllBoxItems();

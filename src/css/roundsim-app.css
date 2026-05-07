@@ -512,6 +512,39 @@
     flex: 1;
 }
 
+/* Tag badges on box cards — sit below the name, full card width */
+.rsa-box-tag-badges {
+    display: flex; flex-wrap: wrap; justify-content: center;
+    gap: 1px; margin-top: 2px; padding: 0 2px;
+    width: 100%;
+}
+.rsa-box-tag-badge {
+    font-size: 0.85em; line-height: 1; padding: 1px 2px;
+    border-radius: 3px; cursor: default; position: relative;
+    display: inline-flex; align-items: center; justify-content: center;
+}
+/* Reuse util/threat colours */
+.rsa-box-tag-badge.rsa-tag-util {
+    background: rgba(66,153,225,0.15); border: 1px solid rgba(66,153,225,0.45);
+}
+.rsa-box-tag-badge.rsa-tag-threat {
+    background: rgba(252,129,129,0.18); border: 1px solid rgba(252,129,129,0.55);
+}
+/* CSS tooltip on box badges */
+.rsa-box-tag-badge[data-tooltip]::after {
+    content: attr(data-tooltip);
+    position: absolute; bottom: calc(100% + 6px); left: 50%;
+    transform: translateX(-50%);
+    background: #1a202c; color: #e2e8f0;
+    border: 1px solid #4a5568;
+    font-size: 0.7rem; line-height: 1.4;
+    padding: 4px 8px; border-radius: 4px;
+    white-space: pre-wrap; max-width: 220px; width: max-content;
+    pointer-events: none; opacity: 0; transition: opacity 0.15s;
+    z-index: 9999;
+}
+.rsa-box-tag-badge[data-tooltip]:hover::after { opacity: 1; }
+
 /* ── Round Controls ───────────────────────────────────────── */
 .rsa-controls {
     background: #1a202c;

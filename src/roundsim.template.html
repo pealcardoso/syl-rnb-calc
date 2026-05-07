@@ -136,7 +136,7 @@
                     <button class="rsa-box-import-btn" id="rsa-import-toggle" title="Import Pokémon sets">📥 Import</button>
                     <button class="rsa-box-import-btn" id="rsa-delete-toggle" title="Toggle delete mode — click × on a Pokémon to remove it from the box">🗑 Delete</button>
                     <button class="rsa-box-import-btn" id="rsa-coverage-btn" title="Type Coverage Analysis">📊 Coverage</button>
-                    <button class="rsa-box-import-btn" id="rsa-utility-btn" title="Tag Analysis — see which Pokémon have which roles">🏷️ Tags</button>
+                    <button class="rsa-box-import-btn" id="rsa-utility-btn" title="Box Tag Coverage — see which Pokémon have which roles">🏷️ Tag Cov.</button>
                     <button class="rsa-box-import-btn" id="rsa-remove-items-btn" title="Remove all items from box mons (persistent)">🚫 Items</button>
                 </div>
             </div>
@@ -167,6 +167,7 @@
                     </label>
                 </div>
             </div>
+            <div id="rsa-tag-filter-bar-box"></div>
             <div class="rsa-box-grid" id="rsa-box-p1"></div>
             <div class="rsa-import-panel" id="rsa-import-panel" style="display:none;">
                 <input type="text" class="rsa-import-name" id="rsa-import-name" placeholder="Set name (e.g. Custom Set)" value="Custom Set" />
@@ -194,7 +195,7 @@
     <div class="rsa-modal-overlay" id="rsa-utility-modal" style="display:none;">
         <div class="rsa-modal">
             <div class="rsa-modal-header">
-                <span class="rsa-modal-title">🏷️ Tag Analysis</span>
+                <span class="rsa-modal-title">🏷️ Box Tag Coverage</span>
                 <button class="rsa-modal-close" id="rsa-utility-close">×</button>
             </div>
             <div class="rsa-modal-body rsa-util-body"></div>
@@ -209,7 +210,6 @@
                 <span class="rsa-team-title rsa-team-title-p1">Your Team (drag from box)</span>
                 <span class="rsa-team-count" id="rsa-team-count-p1">0</span>
             </div>
-            <div id="rsa-tag-filter-bar-p1"></div>
             <div class="rsa-active-field" id="rsa-active-p1"></div>
             <div id="rsa-team-p1" class="rsa-team-drop rsa-bench-area"></div>
             <div id="rsa-switch-pred" class="rsa-switch-pred"></div>
@@ -230,7 +230,6 @@
                 <input type="text" id="rsa-trainer-search" placeholder="Search trainer…" autocomplete="off">
                 <div id="rsa-trainer-suggestions" class="rsa-trainer-suggestions"></div>
             </div>
-            <div id="rsa-tag-filter-bar-p2"></div>
             <div class="rsa-active-field" id="rsa-active-p2"></div>
             <div id="rsa-team-p2"></div>
         </div>
