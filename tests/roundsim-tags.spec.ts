@@ -403,6 +403,16 @@ test.describe('TAG_DEFS regression', () => {
     ]);
   });
 
+  test('SHL silver — Poison Heal ability', async ({ rsaPage }) => {
+    const tags = await getTags(rsaPage, {
+      ability: 'Poison Heal', item: '', types: ['Fighting'],
+      moves: ['Drain Punch']
+    });
+    expectTags(tags, [
+      { id: 'SHL', tier: 'silver' },
+    ]);
+  });
+
   // ── BOOM: Exploder ─────────────────────────────────────────
   test('BOOM — Explosion', async ({ rsaPage }) => {
     const tags = await getTags(rsaPage, {

@@ -202,7 +202,7 @@
                            'softboiled','healpulse','lifedew','lunarblessing','milkdrink',
                            'wish','aquaring','rest','shoreup','floralhealing'];
             var healItems=['Leftovers','Black Sludge','Shell Bell','Sitrus Berry'];
-            var healAbils=['Regenerator','Rain Dish','Ice Body','Healer'];
+            var healAbils=['Regenerator','Rain Dish','Ice Body','Healer','Poison Heal'];
             var hasMove=healMoves.some(function(m){return mv.indexOf(m)>=0;});
             var hasItem=healItems.indexOf(e.item)>=0;
             var hasAbil=healAbils.indexOf(e.ability)>=0;
@@ -212,7 +212,7 @@
                            'softboiled','healpulse','lifedew','lunarblessing','milkdrink',
                            'wish','aquaring','rest','shoreup','floralhealing'];
             var healItems=['Leftovers','Black Sludge','Shell Bell','Sitrus Berry'];
-            var healAbils=['Regenerator','Rain Dish','Ice Body','Healer'];
+            var healAbils=['Regenerator','Rain Dish','Ice Body','Healer','Poison Heal'];
             var score=(healMoves.some(function(m){return mv.indexOf(m)>=0;})?1:0)+
                       (healItems.indexOf(e.item)>=0?1:0)+
                       (healAbils.indexOf(e.ability)>=0?1:0);
