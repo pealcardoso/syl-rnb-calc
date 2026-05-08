@@ -295,7 +295,15 @@
 
         { id:'DB',   cat:'threat', emoji:'💀', name:'Destiny Bond',
           desc:'Has Destiny Bond — if the user faints this turn, the attacker also faints',
-          check: function(e,mv) { return mv.indexOf('destinybond')>=0; } }
+          check: function(e,mv) { return mv.indexOf('destinybond')>=0; } },
+
+        { id:'HRC',  cat:'util',   emoji:'🧹', name:'Hazard Remover',
+          desc:'Has Rapid Spin or Defog — clears entry hazards from the field',
+          check: function(e,mv) { return mv.indexOf('rapidspin')>=0||mv.indexOf('defog')>=0; } },
+
+        { id:'BBR',  cat:'util',   emoji:'🧱', name:'Barrier Breaker',
+          desc:'Has Brick Break or Psychic Fangs — destroys Reflect, Light Screen, and Aurora Veil',
+          check: function(e,mv) { return mv.indexOf('brickbreak')>=0||mv.indexOf('psychicfangs')>=0; } }
     ];
 
     /**
