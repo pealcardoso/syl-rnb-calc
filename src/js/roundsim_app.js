@@ -257,7 +257,7 @@
           tier: function(e,mv,mdata) {
             var primary=['toxic','thunderwave','spore','sleeppowder','willowisp','glare',
                          'stunspore','hypnosis','yawn','sing','nuzzle','toxicthread','darkvoid'];
-            for (var i=0;i<primary.length;i++) if (mv.indexOf(primary[i])>=0) return 'gold';
+            for (var i=0;i<primary.length;i++) if (mv.indexOf(primary[i])>=0) return null;
             return 'silver'; } },
 
         { id:'DEB',  cat:'threat', emoji:'📉', name:'Debuffer',
