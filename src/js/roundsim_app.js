@@ -226,12 +226,13 @@
             return false; } },
 
         { id:'SPB',  cat:'threat', emoji:'🏎️', name:'Speed Booster',
-          desc:'Can sharply raise own Speed: Speed Boost ability, or Agility/Dragon Dance/Rock Polish/etc.',
+          desc:'Primary: Speed Boost ability — threat red | Secondary: speed-raising moves (Agility, Dragon Dance, etc.) — utility blue',
           check: function(e,mv) {
             if (e.ability==='Speed Boost') return true;
             var m=['agility','rockpolish','dragondance','quiverdance','shiftgear','autotomize','flamecharge'];
             for (var i=0;i<m.length;i++) if (mv.indexOf(m[i])>=0) return true;
-            return false; } },
+            return false; },
+          tier: function(e) { return e.ability==='Speed Boost' ? null : 'silver'; } },
 
         { id:'RET',  cat:'threat', emoji:'↩️', name:'Retaliator',
           desc:'Move powered by ally\'s death: Retaliate (x2 if ally fainted), Last Respects (+50 BP per fainted)',
