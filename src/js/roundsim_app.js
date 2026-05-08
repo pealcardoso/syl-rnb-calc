@@ -262,15 +262,17 @@
             return 'silver'; } },
 
         { id:'DEB',  cat:'threat', emoji:'📉', name:'Debuffer',
-          desc:'Gold: dedicated stat-drop move (Charm, Screech, etc.) | Silver: secondary stat-drop chance',
+          desc:'Gold: guaranteed stat-drop (Charm, Lunge, Breaking Swipe, etc.) | Silver: secondary chance',
           check: function(e,mv) {
             var primary=['charm','growl','screech','faketears','partingshot','eerieimpulse',
-                         'tickle','featherdance','memento'];
+                         'tickle','featherdance','memento',
+                         'lunge','breakingswipe','snarl','acidspray','mysticalfire'];
             for (var i=0;i<primary.length;i++) if (mv.indexOf(primary[i])>=0) return true;
             return e._hasDebuffMove||false; },
           tier: function(e,mv) {
             var primary=['charm','growl','screech','faketears','partingshot','eerieimpulse',
-                         'tickle','featherdance','memento'];
+                         'tickle','featherdance','memento',
+                         'lunge','breakingswipe','snarl','acidspray','mysticalfire'];
             for (var i=0;i<primary.length;i++) if (mv.indexOf(primary[i])>=0) return 'gold';
             return 'silver'; } },
 
@@ -289,7 +291,11 @@
 
         { id:'PUR',  cat:'threat', emoji:'🏃', name:'Pursuit',
           desc:'Has Pursuit — doubles in power when the target switches out',
-          check: function(e,mv) { return mv.indexOf('pursuit')>=0; } }
+          check: function(e,mv) { return mv.indexOf('pursuit')>=0; } },
+
+        { id:'DB',   cat:'threat', emoji:'💀', name:'Destiny Bond',
+          desc:'Has Destiny Bond — if the user faints this turn, the attacker also faints',
+          check: function(e,mv) { return mv.indexOf('destinybond')>=0; } }
     ];
 
     /**
