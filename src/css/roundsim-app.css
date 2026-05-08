@@ -314,6 +314,9 @@
     display: flex; align-items: center; justify-content: space-between;
     margin-bottom: 8px; padding-bottom: 6px; border-bottom: 1px solid #2d3748;
 }
+.rsa-team-header-left {
+    display: flex; align-items: center; gap: 6px;
+}
 .rsa-team-title { font-weight: 700; color: #e2e8f0; font-size: 1em; }
 .rsa-team-title-p1 { color: #63b3ed; }
 .rsa-team-title-p2 { color: #fc8181; }
@@ -439,13 +442,13 @@
     background: rgba(252, 129, 129, 0.18);
     border: 1px solid rgba(252, 129, 129, 0.55);
 }
-/* Tiers: gold = primary/ability, silver = secondary/move-based */
+/* Tiers: gold = primary/ability — amber border+glow only; silver = secondary */
 .rsa-tag-tier-gold {
     border-color: #d4a843 !important;
     box-shadow: 0 0 4px rgba(212,168,67,0.55);
 }
 .rsa-tag-tier-gold.rsa-tag-util  { background: rgba(212,168,67,0.18); }
-.rsa-tag-tier-gold.rsa-tag-threat { background: rgba(212,168,67,0.18); }
+/* threat gold keeps its red background — gold border/glow signals primary */
 /* Silver: dimmed; silver on threat tags gets utility-blue colour instead */
 .rsa-tag-tier-silver { opacity: 0.72; }
 .rsa-tag-tier-silver.rsa-tag-threat,

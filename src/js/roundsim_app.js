@@ -83,15 +83,20 @@
           check: function(e) { return e.ability==='Intimidate'; } },
 
         { id:'SPD',  cat:'util',   emoji:'⏱️', name:'Speed Control',
-          desc:'Controls turn order — Gold: Cotton Down ability | Silver: speed-lowering or order-setting moves',
+          desc:'Controls turn order — Gold: Tailwind, Trick Room, Cotton Down | Silver: speed-lowering/setting moves',
           check: function(e,mv) {
             if (e.ability==='Cotton Down') return true;
             var m=['icywind','glaciate','electroweb','stringshot','scaryface',
                    'tailwind','trickroom','stickyweb','quash','afteryou',
-                   'speedswap','batonpass'];
+                   'speedswap','batonpass','bulldoze','mudshot','rocktomb',
+                   'cottonspore','lowsweep','skittersmack','gunkshot'];
             for (var i=0;i<m.length;i++) if (mv.indexOf(m[i])>=0) return true;
             return false; },
-          tier: function(e) { return e.ability==='Cotton Down' ? 'gold' : 'silver'; } },
+          tier: function(e,mv) {
+            if (e.ability==='Cotton Down') return 'gold';
+            var gold=['tailwind','trickroom'];
+            for (var i=0;i<gold.length;i++) if (mv.indexOf(gold[i])>=0) return 'gold';
+            return 'silver'; } },
 
         { id:'CI',   cat:'util',   emoji:'🛡️', name:'Crit Immunity',
           desc:'Battle Armor or Shell Armor — immune to critical hits',
@@ -243,7 +248,7 @@
             return ['Arena Trap','Shadow Tag','Magnet Pull'].indexOf(e.ability)>=0; } },
 
         { id:'STS',  cat:'threat', emoji:'☠️', name:'Status Inducer',
-          desc:'Gold: dedicated status move (Spore, T-Wave, etc.) | Silver: secondary status chance (Scald, etc.)',
+          desc:'Primary: dedicated status move (Spore, T-Wave, etc.) — threat red | Secondary: status proc chance (Scald, etc.) — utility blue',
           check: function(e,mv,mdata) {
             var primary=['toxic','thunderwave','spore','sleeppowder','willowisp','glare',
                          'stunspore','hypnosis','yawn','sing','nuzzle','toxicthread','darkvoid'];
@@ -7577,9 +7582,9 @@
                 '<div class="rsa-box-sprite-wrap' + (dmgCls ? ' ' + dmgCls : '') + '">' +
                     '<img class="rsa-box-sprite" src="' + esc(m.sprite) + '" alt="' + esc(m.name) + '" title="' + esc(tooltip) + '">' +
                 '</div>' +
+                '<span class="rsa-box-name">' + esc(m.name) + '</span>' +
                 rankHtml +
                 baitHtml +
-                '<span class="rsa-box-name">' + esc(m.name) + '</span>' +
                 boxTagBadgesHtml +
             '</div>';
         }
