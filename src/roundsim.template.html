@@ -195,10 +195,21 @@
     <div class="rsa-modal-overlay" id="rsa-utility-modal" style="display:none;">
         <div class="rsa-modal">
             <div class="rsa-modal-header">
-                <span class="rsa-modal-title">🏷️ Tag Coverage &amp; Battle Analysis</span>
+                <span class="rsa-modal-title">🏷️ Box Tag Coverage</span>
                 <button class="rsa-modal-close" id="rsa-utility-close">×</button>
             </div>
             <div class="rsa-modal-body rsa-util-body"></div>
+        </div>
+    </div>
+
+    <!-- ═══ RSA: Battle Tag Analysis Modal ═══ -->
+    <div class="rsa-modal-overlay" id="rsa-battletag-modal" style="display:none;">
+        <div class="rsa-modal">
+            <div class="rsa-modal-header">
+                <span class="rsa-modal-title">⚔️ Battle Tag Analysis</span>
+                <button class="rsa-modal-close" id="rsa-battletag-close">×</button>
+            </div>
+            <div class="rsa-modal-body rsa-bta-body"></div>
         </div>
     </div>
 
@@ -209,6 +220,7 @@
             <div class="rsa-team-header">
                 <span class="rsa-team-title rsa-team-title-p1">Your Team (drag from box)</span>
                 <span class="rsa-team-count" id="rsa-team-count-p1">0</span>
+                <button class="rsa-trainer-btn" id="rsa-battletag-btn" title="Battle Tag Analysis — compare your team vs opponent badges">⚔️</button>
             </div>
             <div class="rsa-active-field" id="rsa-active-p1"></div>
             <div id="rsa-team-p1" class="rsa-team-drop rsa-bench-area"></div>

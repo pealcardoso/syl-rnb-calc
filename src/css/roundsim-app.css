@@ -73,7 +73,11 @@
 }
 .rsa-box-slot:hover { background: #2d3748; border-color: #4a5568; z-index: 10; }
 .rsa-box-slot.rsa-in-team { opacity: 0.35; cursor: default; }
-.rsa-box-sprite { width: 40px; height: 40px; image-rendering: pixelated; }
+.rsa-box-sprite-wrap {
+    width: 40px; height: 40px; border-radius: 4px; overflow: visible;
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.rsa-box-sprite { width: 40px; height: 40px; image-rendering: pixelated; display: block; }
 .rsa-box-name { font-size: 0.6em; color: #a0aec0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 56px; }
 .rsa-box-slot.dragging { opacity: 0.4; }
 
@@ -93,17 +97,17 @@
 .rsa-box-slot.rsa-speed-T { border-color: #894197; }
 .rsa-box-slot.rsa-speed-S { border-color: #1c1414; }
 
-/* Box color coding — damage backgrounds */
-.rsa-box-slot.rsa-dmg-W { background: linear-gradient(to bottom, #0f0bf3 50%, #1a202c 50%); }
-.rsa-box-slot.rsa-dmg-WMO { background: linear-gradient(to bottom, #1295ec 50%, #1a202c 50%); }
-.rsa-box-slot.rsa-dmg-4 { background: linear-gradient(to bottom, #1a202c 50%, #dd0b0b 50%); }
-.rsa-box-slot.rsa-dmg-3 { background: linear-gradient(to bottom, #1a202c 50%, #ff7f16 50%); }
-.rsa-box-slot.rsa-dmg-1 { background: linear-gradient(to bottom, #20d408 50%, #1a202c 50%); }
-.rsa-box-slot.rsa-dmg-2 { background: linear-gradient(to bottom, #daff08 50%, #1a202c 50%); }
-.rsa-box-slot.rsa-dmg-14 { background: linear-gradient(to bottom, #20d408 50%, #dd0b0b 50%); }
-.rsa-box-slot.rsa-dmg-23 { background: linear-gradient(to bottom, #daff08 50%, #ff7f16 50%); }
-.rsa-box-slot.rsa-dmg-13 { background: linear-gradient(to bottom, #20d408 50%, #ff7f16 50%); }
-.rsa-box-slot.rsa-dmg-24 { background: linear-gradient(to bottom, #daff08 50%, #dd0b0b 50%); }
+/* Box color coding — damage backgrounds on SPRITE WRAPPER ONLY */
+.rsa-box-sprite-wrap.rsa-dmg-W { background: linear-gradient(to bottom, #0f0bf3 50%, #1a202c 50%); }
+.rsa-box-sprite-wrap.rsa-dmg-WMO { background: linear-gradient(to bottom, #1295ec 50%, #1a202c 50%); }
+.rsa-box-sprite-wrap.rsa-dmg-4 { background: linear-gradient(to bottom, #1a202c 50%, #dd0b0b 50%); }
+.rsa-box-sprite-wrap.rsa-dmg-3 { background: linear-gradient(to bottom, #1a202c 50%, #ff7f16 50%); }
+.rsa-box-sprite-wrap.rsa-dmg-1 { background: linear-gradient(to bottom, #20d408 50%, #1a202c 50%); }
+.rsa-box-sprite-wrap.rsa-dmg-2 { background: linear-gradient(to bottom, #daff08 50%, #1a202c 50%); }
+.rsa-box-sprite-wrap.rsa-dmg-14 { background: linear-gradient(to bottom, #20d408 50%, #dd0b0b 50%); }
+.rsa-box-sprite-wrap.rsa-dmg-23 { background: linear-gradient(to bottom, #daff08 50%, #ff7f16 50%); }
+.rsa-box-sprite-wrap.rsa-dmg-13 { background: linear-gradient(to bottom, #20d408 50%, #ff7f16 50%); }
+.rsa-box-sprite-wrap.rsa-dmg-24 { background: linear-gradient(to bottom, #daff08 50%, #dd0b0b 50%); }
 
 /* Box toolbar — sort buttons */
 .rsa-box-toolbar {
@@ -519,7 +523,27 @@
 /* Missing tag rows (no box coverage) */
 .rsa-util-row.rsa-util-missing { opacity: 0.42; }
 .rsa-util-missing .rsa-util-count { color: #4a5568; }
-/* Battle tag analysis */
+/* Battle tag analysis modal */
+.rsa-bta-grid { display: flex; flex-direction: column; gap: 0; }
+.rsa-bta-row {
+    display: grid; grid-template-columns: 28px 100px 1fr 1fr;
+    gap: 6px; align-items: center; padding: 3px 4px;
+    font-size: 0.78em; border-bottom: 1px solid #1e253350;
+}
+.rsa-bta-row:hover { background: #2d3748; }
+.rsa-bta-header { font-weight: 700; color: #718096; font-size: 0.72em; padding-bottom: 5px; border-bottom: 1px solid #4a5568; }
+.rsa-bta-badge { display: flex; align-items: center; }
+.rsa-bta-tagname { color: #a0aec0; }
+.rsa-bta-p1 { color: #63b3ed; }
+.rsa-bta-p2 { color: #fc8181; }
+.rsa-bta-names { font-size: 0.9em; }
+.rsa-bta-names-p1 { color: #63b3ed; }
+.rsa-bta-names-p2 { color: #fc8181; }
+.rsa-bta-miss { color: #2d3748; }
+/* Advantage highlights */
+.rsa-bta-adv-p1 { background: rgba(66,153,225,0.06); }
+.rsa-bta-adv-p2 { background: rgba(252,129,129,0.06); }
+/* Reuse battle-rows styles */
 .rsa-util-battle-rows { display: flex; flex-direction: column; gap: 3px; margin-top: 2px; }
 .rsa-util-battle-row { display: flex; align-items: center; gap: 6px; font-size: 0.8em; padding: 2px 0; border-bottom: 1px solid #1e253350; }
 .rsa-util-battle-name { color: #cbd5e0; min-width: 110px; flex-shrink: 0; font-weight: 600; }

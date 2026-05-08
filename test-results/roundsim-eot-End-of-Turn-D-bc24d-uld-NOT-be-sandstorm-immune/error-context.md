@@ -75,167 +75,169 @@ Received: undefined
         - button "🛡 Move Def" [ref=e52] [cursor=pointer]
         - button "🛡 All Def" [ref=e53] [cursor=pointer]
         - button "⚙ Settings" [ref=e54] [cursor=pointer]
-      - generic [ref=e242]:
-        - generic [ref=e243] [cursor=pointer]: 👋
-        - generic [ref=e244] [cursor=pointer]: 😤
-        - generic [ref=e245] [cursor=pointer]: ⏱️
-        - generic [ref=e246] [cursor=pointer]: 🛡️
-        - generic [ref=e247] [cursor=pointer]: 🔨
-        - generic [ref=e248] [cursor=pointer]: 🔒
-        - generic [ref=e249] [cursor=pointer]: ⚡
-        - generic [ref=e250] [cursor=pointer]: 💫
-        - generic [ref=e251] [cursor=pointer]: 🎯
-        - generic [ref=e252] [cursor=pointer]: 💊
-        - generic [ref=e253] [cursor=pointer]: 🕊️
-        - generic [ref=e254] [cursor=pointer]: 💧
-        - generic [ref=e255] [cursor=pointer]: 📣
-        - generic [ref=e256] [cursor=pointer]: 🎒
-        - generic [ref=e257] [cursor=pointer]: 🌧️
-        - generic [ref=e258] [cursor=pointer]: 🏜️
-        - generic [ref=e259] [cursor=pointer]: ☀️
-        - generic [ref=e260] [cursor=pointer]: ❄️
-        - generic [ref=e261] [cursor=pointer]: 💣
-        - generic [ref=e262] [cursor=pointer]: 🧱
-        - generic [ref=e263] [cursor=pointer]: ⚠️
-        - generic [ref=e264] [cursor=pointer]: 🪞
-        - generic [ref=e265] [cursor=pointer]: 🌦️
-        - generic [ref=e266] [cursor=pointer]: 🌫️
-        - generic [ref=e267] [cursor=pointer]: 🐾
-        - generic [ref=e268] [cursor=pointer]: 🎲
-        - generic [ref=e269] [cursor=pointer]: 🏎️
-        - generic [ref=e270] [cursor=pointer]: ↩️
-        - generic [ref=e271] [cursor=pointer]: ❗
-        - generic [ref=e272] [cursor=pointer]: 🕸️
-        - generic [ref=e273] [cursor=pointer]: ☠️
-        - generic [ref=e274] [cursor=pointer]: 📉
-        - generic [ref=e275] [cursor=pointer]: 📈
-        - generic [ref=e276] [cursor=pointer]: 🔄
-        - button "✕" [ref=e277] [cursor=pointer]
-    - generic [ref=e92]:
-      - generic [ref=e94]:
-        - generic [ref=e95]: Your Team (drag from box)
-        - generic [ref=e96]: "0"
-      - generic [ref=e97]:
-        - generic [ref=e98]:
-          - generic [ref=e99]: Opponent Team
-          - generic [ref=e100]: "0"
-          - generic [ref=e101]:
-            - button "◀" [ref=e102] [cursor=pointer]
-            - button "▶" [ref=e103] [cursor=pointer]
-            - button "🚚" [ref=e104] [cursor=pointer]
-        - textbox "Search trainer…" [ref=e106]
-    - generic [ref=e107]:
-      - generic [ref=e108]: Log Round
-      - region "Move selection" [ref=e110]:
-        - radiogroup "Abomasnow's Moves (select one to show detailed results)" [ref=e111]:
-          - generic [ref=e112]: Abomasnow's Moves (select one to show detailed results)
-          - generic [ref=e113]:
-            - radio "Grass Physical Wood Hammer" [ref=e114]
-            - generic [ref=e115] [cursor=pointer]:
-              - generic [ref=e116]:
-                - img "Grass" [ref=e117]
-                - img "Physical" [ref=e118]
-              - generic [ref=e119]: Wood Hammer
-            - generic [ref=e278] [cursor=pointer]: 39-46 (27-32%)
-            - checkbox "Crit" [ref=e120]
-            - generic "Force this attack to be a critical hit?" [ref=e121] [cursor=pointer]: Crit
-          - generic [ref=e122]:
-            - radio "Ice Special Ice Beam" [ref=e123]
-            - generic [ref=e124] [cursor=pointer]:
-              - generic [ref=e125]:
-                - img "Ice" [ref=e126]
-                - img "Special" [ref=e127]
-              - generic [ref=e128]: Ice Beam
-            - generic [ref=e279] [cursor=pointer]: 48-57 (34-40%)
-            - checkbox "Crit" [ref=e129]
-            - generic "Force this attack to be a critical hit?" [ref=e130] [cursor=pointer]: Crit
-          - generic [ref=e131]:
-            - radio "Ice Physical Ice Shard" [ref=e132]
-            - generic [ref=e133] [cursor=pointer]:
-              - generic [ref=e134]:
-                - img "Ice" [ref=e135]
-                - img "Physical" [ref=e136]
-              - generic [ref=e137]: Ice Shard
-            - generic [ref=e280] [cursor=pointer]: 27-33 (19-23%)
-            - checkbox "Crit" [ref=e138]
-            - generic "Force this attack to be a critical hit?" [ref=e139] [cursor=pointer]: Crit
-          - generic [ref=e140]:
-            - radio "Ground Physical Earthquake" [ref=e141]
-            - generic [ref=e142] [cursor=pointer]:
-              - generic [ref=e143]:
-                - img "Ground" [ref=e144]
-                - img "Physical" [ref=e145]
-              - generic [ref=e146]: Earthquake
-            - generic [ref=e281] [cursor=pointer]: 22-26 (15-18%)
-            - checkbox "Crit" [ref=e147]
-            - generic "Force this attack to be a critical hit?" [ref=e148] [cursor=pointer]: Crit
-        - radiogroup "Abomasnow's Moves (select one to show detailed results)" [ref=e149]:
-          - generic [ref=e150]: Abomasnow's Moves (select one to show detailed results)
-          - generic [ref=e151]:
-            - checkbox "Crit" [ref=e152]
-            - generic "Force this attack to be a critical hit?" [ref=e153] [cursor=pointer]: Crit
-            - radio "Grass Physical Wood Hammer" [ref=e154]
-            - generic [ref=e155] [cursor=pointer]:
-              - generic [ref=e156]:
-                - img "Grass" [ref=e157]
-                - img "Physical" [ref=e158]
-              - generic [ref=e159]: Wood Hammer
-            - generic [ref=e282] [cursor=pointer]: 39-46 (27-32%)
-            - generic [ref=e160]: 0.00%
-          - generic [ref=e161]:
-            - checkbox "Crit" [ref=e162]
-            - generic "Force this attack to be a critical hit?" [ref=e163] [cursor=pointer]: Crit
-            - radio "Ice Special Ice Beam" [checked] [ref=e164]
-            - generic [ref=e165]:
-              - generic [ref=e166]:
-                - img "Ice" [ref=e167]
-                - img "Special" [ref=e168]
-              - generic [ref=e169]: Ice Beam
-            - generic [ref=e283] [cursor=pointer]: 48-57 (34-40%)
-            - generic [ref=e170]: 100.00%
-          - generic [ref=e171]:
-            - checkbox "Crit" [ref=e172]
-            - generic "Force this attack to be a critical hit?" [ref=e173] [cursor=pointer]: Crit
-            - radio "Ice Physical Ice Shard" [ref=e174]
-            - generic [ref=e175] [cursor=pointer]:
-              - generic [ref=e176]:
-                - img "Ice" [ref=e177]
-                - img "Physical" [ref=e178]
-              - generic [ref=e179]: Ice Shard
-            - generic [ref=e284] [cursor=pointer]: 27-33 (19-23%)
-            - generic [ref=e180]: 0.00%
-          - generic [ref=e181]:
-            - checkbox "Crit" [ref=e182]
-            - generic "Force this attack to be a critical hit?" [ref=e183] [cursor=pointer]: Crit
-            - radio "Ground Physical Earthquake" [ref=e184]
-            - generic [ref=e185] [cursor=pointer]:
-              - generic [ref=e186]:
-                - img "Ground" [ref=e187]
-                - img "Physical" [ref=e188]
-              - generic [ref=e189]: Earthquake
-            - generic [ref=e285] [cursor=pointer]: 22-26 (15-18%)
-            - generic [ref=e190]: 0.00%
-      - generic [ref=e191]:
-        - generic [ref=e192]: Select a move
-        - generic [ref=e193]: Select a move
-      - generic [ref=e194]:
-        - generic [ref=e195]:
-          - checkbox "P2 Crits" [ref=e196]
-          - generic [ref=e197]: P2 Crits
-        - generic [ref=e198]:
-          - checkbox "Apply P1 Effect" [ref=e199]
-          - generic [ref=e200]: Apply P1 Effect
-        - generic [ref=e201]:
-          - checkbox "Apply P2 Effect" [checked] [ref=e202]
-          - generic [ref=e203]: Apply P2 Effect
-      - generic [ref=e205]:
-        - generic [ref=e206]: Comment
-        - textbox "Comment" [ref=e207]:
+      - generic [ref=e56]:
+        - generic [ref=e57] [cursor=pointer]: 👋
+        - generic [ref=e58] [cursor=pointer]: 😤
+        - generic [ref=e59] [cursor=pointer]: ⏱️
+        - generic [ref=e60] [cursor=pointer]: 🛡️
+        - generic [ref=e61] [cursor=pointer]: 🔨
+        - generic [ref=e62] [cursor=pointer]: 🔒
+        - generic [ref=e63] [cursor=pointer]: ⚡
+        - generic [ref=e64] [cursor=pointer]: 💫
+        - generic [ref=e65] [cursor=pointer]: 🎯
+        - generic [ref=e66] [cursor=pointer]: 💊
+        - generic [ref=e67] [cursor=pointer]: 🕊️
+        - generic [ref=e68] [cursor=pointer]: 💧
+        - generic [ref=e69] [cursor=pointer]: 📣
+        - generic [ref=e70] [cursor=pointer]: 🎒
+        - generic [ref=e71] [cursor=pointer]: 🌧️
+        - generic [ref=e72] [cursor=pointer]: 🏜️
+        - generic [ref=e73] [cursor=pointer]: ☀️
+        - generic [ref=e74] [cursor=pointer]: ❄️
+        - generic [ref=e75] [cursor=pointer]: 💣
+        - generic [ref=e76] [cursor=pointer]: 🧱
+        - generic [ref=e77] [cursor=pointer]: ⚠️
+        - generic [ref=e78] [cursor=pointer]: 🪞
+        - generic [ref=e79] [cursor=pointer]: 🌦️
+        - generic [ref=e80] [cursor=pointer]: 🌫️
+        - generic [ref=e81] [cursor=pointer]: 🐾
+        - generic [ref=e82] [cursor=pointer]: 🎲
+        - generic [ref=e83] [cursor=pointer]: 🏎️
+        - generic [ref=e84] [cursor=pointer]: ↩️
+        - generic [ref=e85] [cursor=pointer]: ❗
+        - generic [ref=e86] [cursor=pointer]: 🕸️
+        - generic [ref=e87] [cursor=pointer]: ☠️
+        - generic [ref=e88] [cursor=pointer]: 📉
+        - generic [ref=e89] [cursor=pointer]: 📈
+        - generic [ref=e90] [cursor=pointer]: 🔄
+        - generic [ref=e91] [cursor=pointer]: 🏃
+        - button "✕" [ref=e92] [cursor=pointer]
+    - generic [ref=e93]:
+      - generic [ref=e95]:
+        - generic [ref=e96]: Your Team (drag from box)
+        - generic [ref=e97]: "0"
+        - button "⚔️" [ref=e98] [cursor=pointer]
+      - generic [ref=e99]:
+        - generic [ref=e100]:
+          - generic [ref=e101]: Opponent Team
+          - generic [ref=e102]: "0"
+          - generic [ref=e103]:
+            - button "◀" [ref=e104] [cursor=pointer]
+            - button "▶" [ref=e105] [cursor=pointer]
+            - button "🚚" [ref=e106] [cursor=pointer]
+        - textbox "Search trainer…" [ref=e108]
+    - generic [ref=e109]:
+      - generic [ref=e110]: Log Round
+      - region "Move selection" [ref=e112]:
+        - radiogroup "Abomasnow's Moves (select one to show detailed results)" [ref=e113]:
+          - generic [ref=e114]: Abomasnow's Moves (select one to show detailed results)
+          - generic [ref=e115]:
+            - radio "Grass Physical Wood Hammer" [ref=e116]
+            - generic [ref=e117] [cursor=pointer]:
+              - generic [ref=e118]:
+                - img "Grass" [ref=e119]
+                - img "Physical" [ref=e120]
+              - generic [ref=e121]: Wood Hammer
+            - generic [ref=e122] [cursor=pointer]: 39-46 (27-32%)
+            - checkbox "Crit" [ref=e123]
+            - generic "Force this attack to be a critical hit?" [ref=e124] [cursor=pointer]: Crit
+          - generic [ref=e125]:
+            - radio "Ice Special Ice Beam" [ref=e126]
+            - generic [ref=e127] [cursor=pointer]:
+              - generic [ref=e128]:
+                - img "Ice" [ref=e129]
+                - img "Special" [ref=e130]
+              - generic [ref=e131]: Ice Beam
+            - generic [ref=e132] [cursor=pointer]: 48-57 (34-40%)
+            - checkbox "Crit" [ref=e133]
+            - generic "Force this attack to be a critical hit?" [ref=e134] [cursor=pointer]: Crit
+          - generic [ref=e135]:
+            - radio "Ice Physical Ice Shard" [ref=e136]
+            - generic [ref=e137] [cursor=pointer]:
+              - generic [ref=e138]:
+                - img "Ice" [ref=e139]
+                - img "Physical" [ref=e140]
+              - generic [ref=e141]: Ice Shard
+            - generic [ref=e142] [cursor=pointer]: 27-33 (19-23%)
+            - checkbox "Crit" [ref=e143]
+            - generic "Force this attack to be a critical hit?" [ref=e144] [cursor=pointer]: Crit
+          - generic [ref=e145]:
+            - radio "Ground Physical Earthquake" [ref=e146]
+            - generic [ref=e147] [cursor=pointer]:
+              - generic [ref=e148]:
+                - img "Ground" [ref=e149]
+                - img "Physical" [ref=e150]
+              - generic [ref=e151]: Earthquake
+            - generic [ref=e152] [cursor=pointer]: 22-26 (15-18%)
+            - checkbox "Crit" [ref=e153]
+            - generic "Force this attack to be a critical hit?" [ref=e154] [cursor=pointer]: Crit
+        - radiogroup "Abomasnow's Moves (select one to show detailed results)" [ref=e155]:
+          - generic [ref=e156]: Abomasnow's Moves (select one to show detailed results)
+          - generic [ref=e157]:
+            - checkbox "Crit" [ref=e158]
+            - generic "Force this attack to be a critical hit?" [ref=e159] [cursor=pointer]: Crit
+            - radio "Grass Physical Wood Hammer" [ref=e160]
+            - generic [ref=e161] [cursor=pointer]:
+              - generic [ref=e162]:
+                - img "Grass" [ref=e163]
+                - img "Physical" [ref=e164]
+              - generic [ref=e165]: Wood Hammer
+            - generic [ref=e166] [cursor=pointer]: 39-46 (27-32%)
+            - generic [ref=e167]: 0.00%
+          - generic [ref=e168]:
+            - checkbox "Crit" [ref=e169]
+            - generic "Force this attack to be a critical hit?" [ref=e170] [cursor=pointer]: Crit
+            - radio "Ice Special Ice Beam" [checked] [ref=e171]
+            - generic [ref=e172]:
+              - generic [ref=e173]:
+                - img "Ice" [ref=e174]
+                - img "Special" [ref=e175]
+              - generic [ref=e176]: Ice Beam
+            - generic [ref=e177] [cursor=pointer]: 48-57 (34-40%)
+            - generic [ref=e178]: 100.00%
+          - generic [ref=e179]:
+            - checkbox "Crit" [ref=e180]
+            - generic "Force this attack to be a critical hit?" [ref=e181] [cursor=pointer]: Crit
+            - radio "Ice Physical Ice Shard" [ref=e182]
+            - generic [ref=e183] [cursor=pointer]:
+              - generic [ref=e184]:
+                - img "Ice" [ref=e185]
+                - img "Physical" [ref=e186]
+              - generic [ref=e187]: Ice Shard
+            - generic [ref=e188] [cursor=pointer]: 27-33 (19-23%)
+            - generic [ref=e189]: 0.00%
+          - generic [ref=e190]:
+            - checkbox "Crit" [ref=e191]
+            - generic "Force this attack to be a critical hit?" [ref=e192] [cursor=pointer]: Crit
+            - radio "Ground Physical Earthquake" [ref=e193]
+            - generic [ref=e194] [cursor=pointer]:
+              - generic [ref=e195]:
+                - img "Ground" [ref=e196]
+                - img "Physical" [ref=e197]
+              - generic [ref=e198]: Earthquake
+            - generic [ref=e199] [cursor=pointer]: 22-26 (15-18%)
+            - generic [ref=e200]: 0.00%
+      - generic [ref=e201]:
+        - generic [ref=e202]: Select a move
+        - generic [ref=e203]: Select a move
+      - generic [ref=e204]:
+        - generic [ref=e205]:
+          - checkbox "P2 Crits" [ref=e206]
+          - generic [ref=e207]: P2 Crits
+        - generic [ref=e208]:
+          - checkbox "Apply P1 Effect" [ref=e209]
+          - generic [ref=e210]: Apply P1 Effect
+        - generic [ref=e211]:
+          - checkbox "Apply P2 Effect" [checked] [ref=e212]
+          - generic [ref=e213]: Apply P2 Effect
+      - generic [ref=e215]:
+        - generic [ref=e216]: Comment
+        - textbox "Comment" [ref=e217]:
           - /placeholder: Note...
-      - generic [ref=e208]:
-        - generic [ref=e209]:
-          - generic [ref=e210]: ☀ Weather
-          - combobox "☀ Weather" [ref=e211] [cursor=pointer]:
+      - generic [ref=e218]:
+        - generic [ref=e219]:
+          - generic [ref=e220]: ☀ Weather
+          - combobox "☀ Weather" [ref=e221] [cursor=pointer]:
             - option "None" [selected]
             - option "Sun"
             - option "Rain"
@@ -245,39 +247,39 @@ Received: undefined
             - option "Harsh Sunshine"
             - option "Heavy Rain"
             - option "Strong Winds"
-          - generic "Weather does not expire after 5 turns" [ref=e212] [cursor=pointer]:
-            - checkbox "Permanent" [ref=e213]
+          - generic "Weather does not expire after 5 turns" [ref=e222] [cursor=pointer]:
+            - checkbox "Permanent" [ref=e223]
             - text: Permanent
-        - generic [ref=e214]:
-          - generic [ref=e215]: 🌿 Terrain
-          - combobox "🌿 Terrain" [ref=e216] [cursor=pointer]:
+        - generic [ref=e224]:
+          - generic [ref=e225]: 🌿 Terrain
+          - combobox "🌿 Terrain" [ref=e226] [cursor=pointer]:
             - option "None" [selected]
             - option "Electric"
             - option "Grassy"
             - option "Misty"
             - option "Psychic"
-        - 'generic "Trick Room: slower Pokémon move first" [ref=e218] [cursor=pointer]':
-          - checkbox "🔮 Trick Room" [ref=e219]
-          - generic [ref=e220]: 🔮 Trick Room
-      - generic [ref=e221]:
-        - button "▶ Log Round" [ref=e222] [cursor=pointer]
-        - generic [ref=e223]:
-          - combobox "Switch P1 active" [ref=e224]:
+        - 'generic "Trick Room: slower Pokémon move first" [ref=e228] [cursor=pointer]':
+          - checkbox "🔮 Trick Room" [ref=e229]
+          - generic [ref=e230]: 🔮 Trick Room
+      - generic [ref=e231]:
+        - button "▶ Log Round" [ref=e232] [cursor=pointer]
+        - generic [ref=e233]:
+          - combobox "Switch P1 active" [ref=e234]:
             - option "— Switch P1 —" [selected]
-          - button "⇄ Switch In" [ref=e225] [cursor=pointer]
-        - button "📋 Copy Log" [ref=e226] [cursor=pointer]
-        - button "Clear Line" [ref=e227] [cursor=pointer]
-    - generic [ref=e228]:
-      - generic [ref=e229]:
-        - generic [ref=e230]: Round Log
-        - generic [ref=e231]: "0"
-        - button "⊖ Collapse All" [ref=e232] [cursor=pointer]
-        - button "🗑 Delete All" [ref=e233] [cursor=pointer]
-      - generic [ref=e235]: No rounds yet. Set your teams, load the calc, and log rounds.
-      - generic [ref=e237] [cursor=pointer]:
-        - generic [ref=e238]: 📋 Field State
-        - generic [ref=e239]: ▾
-  - button "Click for Light Theme" [ref=e241]
+          - button "⇄ Switch In" [ref=e235] [cursor=pointer]
+        - button "📋 Copy Log" [ref=e236] [cursor=pointer]
+        - button "Clear Line" [ref=e237] [cursor=pointer]
+    - generic [ref=e238]:
+      - generic [ref=e239]:
+        - generic [ref=e240]: Round Log
+        - generic [ref=e241]: "0"
+        - button "⊖ Collapse All" [ref=e242] [cursor=pointer]
+        - button "🗑 Delete All" [ref=e243] [cursor=pointer]
+      - generic [ref=e245]: No rounds yet. Set your teams, load the calc, and log rounds.
+      - generic [ref=e247] [cursor=pointer]:
+        - generic [ref=e248]: 📋 Field State
+        - generic [ref=e249]: ▾
+  - button "Click for Light Theme" [ref=e251]
 ```
 
 # Test source

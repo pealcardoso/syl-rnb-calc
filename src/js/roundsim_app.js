@@ -279,7 +279,11 @@
 
         { id:'TR',   cat:'threat', emoji:'🔄', name:'Trick Room',
           desc:'Has Trick Room — reverses speed order for 5 turns',
-          check: function(e,mv) { return mv.indexOf('trickroom')>=0; } }
+          check: function(e,mv) { return mv.indexOf('trickroom')>=0; } },
+
+        { id:'PUR',  cat:'threat', emoji:'🏃', name:'Pursuit',
+          desc:'Has Pursuit — doubles in power when the target switches out',
+          check: function(e,mv) { return mv.indexOf('pursuit')>=0; } }
     ];
 
     /**
@@ -378,79 +382,97 @@
     /** Render the box tag coverage modal body — analyses all box Pokémon */
     function renderUtilityModal() {
         var mons = getBoxPokemon('p1');
-
-        // ── Section 1: Box Tag Coverage ──────────────────────────
         var html = '<div class="rsa-util-section-title">\ud83d\udce6 Box Tag Coverage</div>';
         if (!mons||!mons.length) {
             html += '<p style="color:#a0aec0">No Pok\u00e9mon in box.</p>';
-        } else {
-            var entries = [];
-            for (var bi=0;bi<mons.length;bi++) {
-                var m = mons[bi];
-                var info = { types:[], ability:'' };
-                try { info = getMonTypeInfo(m.name, m.setId); } catch(ex) {}
-                var item = '';
-                try { var _set = lookupSet(m.setId); if (_set) item = _set.item||''; } catch(ex) {}
-                entries.push({ name:m.name, setId:m.setId, ability:info.ability, item:item, types:info.types });
+            return html;
+        }
+        var entries = [];
+        for (var bi=0;bi<mons.length;bi++) {
+            var m = mons[bi];
+            var info = { types:[], ability:'' };
+            try { info = getMonTypeInfo(m.name, m.setId); } catch(ex) {}
+            var item = '';
+            try { var _set = lookupSet(m.setId); if (_set) item = _set.item||''; } catch(ex) {}
+            entries.push({ name:m.name, setId:m.setId, ability:info.ability, item:item, types:info.types });
+        }
+        var coveredRows = '', missingRows = '';
+        for (var ti=0;ti<TAG_DEFS.length;ti++) {
+            var td = TAG_DEFS[ti];
+            var matching = [];
+            for (var mi=0;mi<entries.length;mi++) {
+                try {
+                    var tags = computeEntryTags(entries[mi]);
+                    for (var k=0;k<tags.length;k++) {
+                        if (tags[k].def.id===td.id) { matching.push(entries[mi].name); break; }
+                    }
+                } catch(ex) {}
             }
-            var coveredRows = '', missingRows = '';
-            for (var ti=0;ti<TAG_DEFS.length;ti++) {
-                var td = TAG_DEFS[ti];
-                var matching = [];
-                for (var mi=0;mi<entries.length;mi++) {
-                    try {
-                        var tags = computeEntryTags(entries[mi]);
-                        for (var k=0;k<tags.length;k++) {
-                            if (tags[k].def.id===td.id) { matching.push(entries[mi].name); break; }
-                        }
-                    } catch(ex) {}
-                }
-                var isMissing = !matching.length;
-                var nameList = esc(matching.join(', '));
-                var row = '<div class="rsa-util-row' + (isMissing ? ' rsa-util-missing' : '') + '">' +
-                    '<span class="rsa-tag-badge rsa-tag-' + td.cat + '" data-tooltip="' + esc(td.name+': '+td.desc) + '">' + td.emoji + '</span>' +
-                    '<span class="rsa-util-tag-name">' + esc(td.name) + '</span>' +
-                    '<span class="rsa-util-count">' + (isMissing ? '\u2014' : matching.length) + '</span>' +
-                    '<span class="rsa-util-names">' + (isMissing ? '<em style="color:#4a5568">not covered</em>' : nameList) + '</span>' +
-                '</div>';
-                if (isMissing) missingRows += row; else coveredRows += row;
-            }
-            html += '<div class="rsa-util-grid">' + coveredRows + missingRows + '</div>';
+            var isMissing = !matching.length;
+            var nameList = esc(matching.join(', '));
+            var row = '<div class="rsa-util-row' + (isMissing ? ' rsa-util-missing' : '') + '">' +
+                '<span class="rsa-tag-badge rsa-tag-' + td.cat + '" data-tooltip="' + esc(td.name+': '+td.desc) + '">' + td.emoji + '</span>' +
+                '<span class="rsa-util-tag-name">' + esc(td.name) + '</span>' +
+                '<span class="rsa-util-count">' + (isMissing ? '\u2014' : matching.length) + '</span>' +
+                '<span class="rsa-util-names">' + (isMissing ? '<em style="color:#4a5568">not covered</em>' : nameList) + '</span>' +
+            '</div>';
+            if (isMissing) missingRows += row; else coveredRows += row;
+        }
+        html += '<div class="rsa-util-grid">' + coveredRows + missingRows + '</div>';
+        return html;
+    }
+
+    /** Render the Battle Tag Analysis modal: compare P1 team vs P2 team tag-by-tag */
+    function renderBattleTagModal() {
+        var line = curLine();
+        var p1roster = line && line.teams && line.teams.p1 ? line.teams.p1.roster : [];
+        var p2roster = line && line.teams && line.teams.p2 ? line.teams.p2.roster : [];
+        if (!p1roster.length && !p2roster.length) {
+            return '<p style="color:#a0aec0">No teams in current battle.</p>';
         }
 
-        // ── Section 2: Battle Tag Analysis ───────────────────────
-        html += '<div class="rsa-util-section-title" style="margin-top:14px">\u2694\ufe0f Battle Tag Analysis</div>';
-        try {
-            var line = curLine();
-            var p2roster = line && line.teams && line.teams.p2 ? line.teams.p2.roster : [];
-            if (!p2roster||!p2roster.length) {
-                html += '<p style="color:#a0aec0;font-size:0.8em">No opponent team in current battle.</p>';
-            } else {
-                html += '<div style="font-size:0.73em;color:#a0aec0;margin-bottom:4px">Opponent team:</div>';
-                html += '<div class="rsa-util-battle-rows">';
-                for (var pi=0;pi<p2roster.length;pi++) {
-                    var pe = p2roster[pi];
-                    var ptags = sortTagResults(computeEntryTags(pe));
-                    html += '<div class="rsa-util-battle-row">' +
-                        '<span class="rsa-util-battle-name">' + esc(pe.name) + '</span>' +
-                        '<span class="rsa-util-battle-tags">';
-                    if (!ptags.length) {
-                        html += '<span style="color:#4a5568;font-size:0.75em">\u2014</span>';
-                    } else {
-                        for (var pti=0;pti<ptags.length;pti++) {
-                            var pbt = ptags[pti].def;
-                            var pbTier = ptags[pti].tier;
-                            var pbTierCls = pbTier ? ' rsa-tag-tier-'+pbTier : '';
-                            html += '<span class="rsa-tag-badge rsa-tag-'+pbt.cat+pbTierCls+'" data-tooltip="'+esc(pbt.name+': '+pbt.desc)+'">'+pbt.emoji+'</span>';
-                        }
-                    }
-                    html += '</span></div>';
+        // Index tags per roster
+        function tagIndex(roster) {
+            var idx = {}; // tagId -> [name, ...]
+            for (var ri=0;ri<roster.length;ri++) {
+                var tgs = computeEntryTags(roster[ri]);
+                for (var ti=0;ti<tgs.length;ti++) {
+                    var id = tgs[ti].def.id;
+                    if (!idx[id]) idx[id] = { names:[], tier: tgs[ti].tier };
+                    idx[id].names.push(roster[ri].name);
                 }
-                html += '</div>';
             }
-        } catch(exBta) {
-            html += '<p style="color:#a0aec0;font-size:0.8em">Could not load battle data.</p>';
+            return idx;
         }
+        var p1idx = tagIndex(p1roster);
+        var p2idx = tagIndex(p2roster);
+
+        var html = '<div class="rsa-bta-grid">';
+        // Header
+        html += '<div class="rsa-bta-row rsa-bta-header">' +
+            '<div class="rsa-bta-cell rsa-bta-badge"></div>' +
+            '<div class="rsa-bta-cell rsa-bta-tagname">Tag</div>' +
+            '<div class="rsa-bta-cell rsa-bta-side rsa-bta-p1">Your Team</div>' +
+            '<div class="rsa-bta-cell rsa-bta-side rsa-bta-p2">Opponent</div>' +
+        '</div>';
+        for (var ti=0;ti<TAG_DEFS.length;ti++) {
+            var td = TAG_DEFS[ti];
+            var p1has = p1idx[td.id];
+            var p2has = p2idx[td.id];
+            if (!p1has && !p2has) continue;
+            var onlyP1 = p1has && !p2has;
+            var onlyP2 = !p1has && p2has;
+            var rowCls = onlyP1 ? ' rsa-bta-adv-p1' : onlyP2 ? ' rsa-bta-adv-p2' : '';
+            var tierCls = (p1has && p1has.tier ? ' rsa-tag-tier-'+p1has.tier : '') ||
+                          (p2has && p2has.tier ? ' rsa-tag-tier-'+p2has.tier : '');
+            html += '<div class="rsa-bta-row' + rowCls + '">' +
+                '<div class="rsa-bta-cell rsa-bta-badge"><span class="rsa-tag-badge rsa-tag-' + td.cat + tierCls + '" data-tooltip="' + esc(td.name+': '+td.desc) + '">' + td.emoji + '</span></div>' +
+                '<div class="rsa-bta-cell rsa-bta-tagname">' + esc(td.name) + '</div>' +
+                '<div class="rsa-bta-cell rsa-bta-side rsa-bta-p1">' + (p1has ? '<span class="rsa-bta-names rsa-bta-names-p1">' + esc(p1has.names.join(', ')) + '</span>' : '<span class="rsa-bta-miss">\u2014</span>') + '</div>' +
+                '<div class="rsa-bta-cell rsa-bta-side rsa-bta-p2">' + (p2has ? '<span class="rsa-bta-names rsa-bta-names-p2">' + esc(p2has.names.join(', ')) + '</span>' : '<span class="rsa-bta-miss">\u2014</span>') + '</div>' +
+            '</div>';
+        }
+        html += '</div>';
         return html;
     }
 
@@ -7466,11 +7488,11 @@
             var inTeam = teamNames[m.name] ? ' rsa-in-team' : '';
 
             // Color coding — only for P1 box (their matchup vs current P2)
-            var ccClass = '';
+            var ccClass = '', dmgCls = '';
             if (side === 'p1' && m.setId) {
                 var cc = getColorCode(m.setId);
                 if (cc.speed) ccClass += ' rsa-speed-' + cc.speed;
-                if (cc.code) ccClass += ' rsa-dmg-' + cc.code;
+                if (cc.code) dmgCls = 'rsa-dmg-' + cc.code;
             }
 
             // Defensive type tooltip
@@ -7552,7 +7574,9 @@
             html += '<div class="rsa-box-slot' + inTeam + ccClass + '" draggable="true" data-side="' + side + '" data-set-id="' + esc(m.setId) + '" data-name="' + esc(m.name) + '">' +
                 deleteX +
                 speedHtml +
-                '<img class="rsa-box-sprite" src="' + esc(m.sprite) + '" alt="' + esc(m.name) + '" title="' + esc(tooltip) + '">' +
+                '<div class="rsa-box-sprite-wrap' + (dmgCls ? ' ' + dmgCls : '') + '">' +
+                    '<img class="rsa-box-sprite" src="' + esc(m.sprite) + '" alt="' + esc(m.name) + '" title="' + esc(tooltip) + '">' +
+                '</div>' +
                 rankHtml +
                 baitHtml +
                 '<span class="rsa-box-name">' + esc(m.name) + '</span>' +
@@ -9020,6 +9044,16 @@
         });
         $(document).on('click', '#rsa-utility-close', function () {
             $('#rsa-utility-modal').hide();
+        });
+
+        // ── Battle Tag Analysis button (P1 team header) ──
+        $(document).on('click', '#rsa-battletag-btn', function () {
+            var $modal = $('#rsa-battletag-modal');
+            $modal.find('.rsa-bta-body').html(renderBattleTagModal());
+            $modal.show();
+        });
+        $(document).on('click', '#rsa-battletag-close', function () {
+            $('#rsa-battletag-modal').hide();
         });
 
         // ── Tag filter bar (event delegation) ── filters box, not team panels
