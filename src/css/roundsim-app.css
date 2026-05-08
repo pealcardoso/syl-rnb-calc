@@ -473,11 +473,16 @@
     background: #171f2e; border-bottom: 1px solid #2d3748;
 }
 .rsa-tag-filter-btn {
-    font-size: 1em; line-height: 1; padding: 2px 3px;
+    font-size: 1em; line-height: 1; padding: 2px 5px;
     border-radius: 4px; cursor: pointer;
     border: 1px solid transparent;
     opacity: 0.45; transition: opacity 0.12s, box-shadow 0.12s;
     position: relative;
+    display: inline-flex; align-items: center; gap: 3px;
+}
+.rsa-tag-filter-name {
+    font-size: 0.72em; font-weight: 600; letter-spacing: 0.01em; line-height: 1;
+}
 }
 .rsa-tag-filter-btn:hover { opacity: 0.8; }
 .rsa-tag-filter-btn.rsa-tag-filter-active {
@@ -563,10 +568,6 @@
     border-radius: 4px; cursor: default; position: relative;
     display: inline-flex; align-items: center; justify-content: center;
     gap: 2px;
-}
-.rsa-box-tag-label {
-    font-size: 0.72em; font-weight: 700; letter-spacing: 0.02em;
-    line-height: 1;
 }
 /* Reuse util/threat colours */
 .rsa-box-tag-badge.rsa-tag-util {

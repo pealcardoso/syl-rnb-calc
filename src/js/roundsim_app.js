@@ -438,7 +438,7 @@
             var tip = esc('Filter: ' + t.name + ' — ' + t.desc);
             html += '<span class="rsa-tag-filter-btn rsa-tag-' + t.cat + active + '"' +
                 ' data-side="' + side + '" data-tagid="' + esc(t.id) + '"' +
-                ' data-tooltip="' + tip + '">' + t.emoji + '</span>';
+                ' data-tooltip="' + tip + '">' + t.emoji + ' <span class="rsa-tag-filter-name">' + esc(t.name) + '</span></span>';
         }
         html += '<button class="rsa-tag-filter-clear" data-side="' + side + '" title="Clear all tag filters">\u2715</button>';
         html += '</div>';
@@ -7650,7 +7650,7 @@
                             var _btTier = _btTags[bti].tier;
                             var _btTierCls = _btTier ? ' rsa-tag-tier-' + _btTier : '';
                             var _btTip = esc(_bt.name + (_btTier ? ' ('+ (_btTier==='gold'?'Primary':'Secondary') +')' : '') + ': ' + _bt.desc);
-                            boxTagBadgesHtml += '<span class="rsa-box-tag-badge rsa-tag-' + _bt.cat + _btTierCls + '" data-tooltip="' + _btTip + '">' + _bt.emoji + '<span class="rsa-box-tag-label">' + esc(_bt.id) + '</span></span>';
+                            boxTagBadgesHtml += '<span class="rsa-box-tag-badge rsa-tag-' + _bt.cat + _btTierCls + '" data-tooltip="' + _btTip + '">' + _bt.emoji + '</span>';
                         }
                         boxTagBadgesHtml += '</div>';
                     }
