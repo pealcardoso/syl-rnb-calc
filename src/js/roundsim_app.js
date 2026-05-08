@@ -193,6 +193,31 @@
           desc:'Has Brick Break or Psychic Fangs — destroys Reflect, Light Screen, and Aurora Veil',
           check: function(e,mv) { return mv.indexOf('brickbreak')>=0||mv.indexOf('psychicfangs')>=0; } },
 
+        { id:'SHL',  cat:'threat', emoji:'💚', name:'Self Healer',
+          desc:'Gold: healing move+item+ability | Red: two healing sources | Blue: one healing source (move or item)',
+          check: function(e,mv) {
+            var healMoves=['recover','roost','moonlight','synthesis','morningsun','slackoff',
+                           'softboiled','healpulse','lifedew','lunarblessing','milkdrink',
+                           'wish','aquaring','rest','shoreup','floralhealing'];
+            var healItems=['Leftovers','Black Sludge','Shell Bell','Sitrus Berry'];
+            var healAbils=['Regenerator','Rain Dish','Ice Body','Healer'];
+            var hasMove=healMoves.some(function(m){return mv.indexOf(m)>=0;});
+            var hasItem=healItems.indexOf(e.item)>=0;
+            var hasAbil=healAbils.indexOf(e.ability)>=0;
+            return hasMove||hasItem||hasAbil; },
+          tier: function(e,mv) {
+            var healMoves=['recover','roost','moonlight','synthesis','morningsun','slackoff',
+                           'softboiled','healpulse','lifedew','lunarblessing','milkdrink',
+                           'wish','aquaring','rest','shoreup','floralhealing'];
+            var healItems=['Leftovers','Black Sludge','Shell Bell','Sitrus Berry'];
+            var healAbils=['Regenerator','Rain Dish','Ice Body','Healer'];
+            var score=(healMoves.some(function(m){return mv.indexOf(m)>=0;})?1:0)+
+                      (healItems.indexOf(e.item)>=0?1:0)+
+                      (healAbils.indexOf(e.ability)>=0?1:0);
+            if (score>=3) return 'gold';
+            if (score===2) return null;
+            return 'silver'; } },
+
         // ── Threat tags ─────────────────────────────────────────
         { id:'BOOM', cat:'threat', emoji:'💣', name:'Exploder',
           desc:'Has Explosion, Self-Destruct, or Misty Explosion — sacrifices itself for massive damage',
@@ -3682,6 +3707,25 @@
                     maxHP, types
                 );
                 newRoster.push(entry);
+            }
+        }
+
+        // Normalize: P2 pokemon not yet in any logged round should have set-definition
+        // items, not stale items from a previous trainer that shared the same pokemon name.
+        for (var ni = 0; ni < newRoster.length; ni++) {
+            var ne = newRoster[ni];
+            var seenInRound = line.rounds.some(function(rd) {
+                if (rd.isDoubles && rd.fighters) {
+                    for (var _s2 in rd.fighters) {
+                        if (rd.fighters[_s2] && rd.fighters[_s2].name === ne.name) return true;
+                    }
+                    return false;
+                }
+                return rd.p2 && rd.p2.name === ne.name;
+            });
+            if (!seenInRound) {
+                var freshSet = lookupSet(ne.setId);
+                if (freshSet && freshSet.item !== undefined) ne.item = freshSet.item || '';
             }
         }
 
@@ -7606,7 +7650,7 @@
                             var _btTier = _btTags[bti].tier;
                             var _btTierCls = _btTier ? ' rsa-tag-tier-' + _btTier : '';
                             var _btTip = esc(_bt.name + (_btTier ? ' ('+ (_btTier==='gold'?'Primary':'Secondary') +')' : '') + ': ' + _bt.desc);
-                            boxTagBadgesHtml += '<span class="rsa-box-tag-badge rsa-tag-' + _bt.cat + _btTierCls + '" data-tooltip="' + _btTip + '">' + _bt.emoji + '</span>';
+                            boxTagBadgesHtml += '<span class="rsa-box-tag-badge rsa-tag-' + _bt.cat + _btTierCls + '" data-tooltip="' + _btTip + '">' + _bt.emoji + '<span class="rsa-box-tag-label">' + esc(_bt.id) + '</span></span>';
                         }
                         boxTagBadgesHtml += '</div>';
                     }

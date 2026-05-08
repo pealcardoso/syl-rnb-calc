@@ -555,13 +555,18 @@
 /* Tag badges on box cards — sit below the name, full card width */
 .rsa-box-tag-badges {
     display: flex; flex-wrap: wrap; justify-content: center;
-    gap: 1px; margin-top: 2px; padding: 0 2px;
+    gap: 2px; margin-top: 3px; padding: 0 2px;
     width: 100%;
 }
 .rsa-box-tag-badge {
-    font-size: 0.85em; line-height: 1; padding: 1px 2px;
-    border-radius: 3px; cursor: default; position: relative;
+    font-size: 0.82em; line-height: 1; padding: 2px 5px;
+    border-radius: 4px; cursor: default; position: relative;
     display: inline-flex; align-items: center; justify-content: center;
+    gap: 2px;
+}
+.rsa-box-tag-label {
+    font-size: 0.72em; font-weight: 700; letter-spacing: 0.02em;
+    line-height: 1;
 }
 /* Reuse util/threat colours */
 .rsa-box-tag-badge.rsa-tag-util {
@@ -569,6 +574,19 @@
 }
 .rsa-box-tag-badge.rsa-tag-threat {
     background: rgba(252,129,129,0.18); border: 1px solid rgba(252,129,129,0.55);
+}
+/* Explicit box-badge tier overrides */
+.rsa-box-tag-badge.rsa-tag-tier-gold {
+    border-color: #d4a843 !important;
+    box-shadow: 0 0 4px rgba(212,168,67,0.55);
+}
+.rsa-box-tag-badge.rsa-tag-tier-gold.rsa-tag-util {
+    background: rgba(212,168,67,0.18);
+}
+.rsa-box-tag-badge.rsa-tag-tier-silver { opacity: 0.72; }
+.rsa-box-tag-badge.rsa-tag-tier-silver.rsa-tag-threat {
+    background: rgba(66,153,225,0.1) !important;
+    border-color: rgba(66,153,225,0.35) !important;
 }
 
 /* ── Round Controls ───────────────────────────────────────── */
