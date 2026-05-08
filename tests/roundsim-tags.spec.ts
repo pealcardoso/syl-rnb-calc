@@ -102,10 +102,9 @@ test.describe('TAG_DEFS regression', () => {
       ability: 'Pressure', item: '', types: ['Ghost'],
       moves: ['Protect']
     });
-    // Protect has priority:4 → PRI
+    // Protect has priority:4 but is Status → no PRI
     expectTags(tags, [
       { id: 'PRO', tier: 'gold' },
-      { id: 'PRI', tier: null },
     ]);
   });
 
@@ -114,10 +113,9 @@ test.describe('TAG_DEFS regression', () => {
       ability: 'Telepathy', item: '', types: ['Psychic'],
       moves: ['Wide Guard', 'Quick Guard']
     });
-    // Both have priority:3 → PRI
+    // Both have priority:3 but are Status → no PRI
     expectTags(tags, [
       { id: 'PRO', tier: 'gold' },
-      { id: 'PRI', tier: null },
     ]);
   });
 
@@ -219,7 +217,6 @@ test.describe('TAG_DEFS regression', () => {
       { id: 'FM',   tier: null },
       { id: 'SOAK', tier: null },
       { id: 'IMM',  tier: null },  // Oblivious
-      { id: 'PRI',  tier: null },  // Follow Me priority:2
       { id: 'RN',   tier: 'silver' },
     ]);
   });
@@ -677,11 +674,10 @@ test.describe('TAG_DEFS regression', () => {
       ability: 'Speed Boost', item: '', types: ['Bug'],
       moves: ['Protect']
     });
-    // Protect: priority:4 → PRI; stallingMove → PRO gold
+    // Protect: stallingMove → PRO gold; priority:4 but Status → no PRI
     expectTags(tags, [
       { id: 'SPB', tier: null },
       { id: 'PRO', tier: 'gold' },
-      { id: 'PRI', tier: null },
     ]);
   });
 
@@ -831,12 +827,11 @@ test.describe('TAG_DEFS regression', () => {
       moves: ['Dragon Dance', 'Protect', 'Outrage']
     });
     // DD in both BOOST and SPB lists; Speed Boost ability → SPB red
-    // Protect: priority:4 → PRI
+    // Protect: priority:4 but Status → no PRI
     expectTags(tags, [
       { id: 'BOOST', tier: null },
       { id: 'SPB',   tier: null },
       { id: 'PRO',   tier: 'gold' },
-      { id: 'PRI',   tier: null },
     ]);
   });
 

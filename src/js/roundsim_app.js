@@ -382,7 +382,7 @@
             if (!moves[mi]||moves[mi]==='(No Move)') continue;
             var md = lookupMoveData(moves[mi]);
             if (!md) continue;
-            if (md.priority&&md.priority>0) mdata.hasPriority = true;
+            if (md.priority&&md.priority>0&&md.category!=='Status') mdata.hasPriority = true;
             if (md.target&&(md.target==='allAdjacentFoes'||md.target==='allAdjacent'||md.target==='all')) mdata.hasSpread = true;
             // Only flag always-hitting damaging moves (not Status moves like Toxic, Protect)
             if (md.accuracy===true&&md.category!=='Status') mdata.hasNoMiss = true;
