@@ -483,7 +483,6 @@
 .rsa-tag-filter-name {
     font-size: 0.72em; font-weight: 600; letter-spacing: 0.01em; line-height: 1;
 }
-}
 .rsa-tag-filter-btn:hover { opacity: 0.8; }
 .rsa-tag-filter-btn.rsa-tag-filter-active {
     opacity: 1;
@@ -500,12 +499,46 @@
     border-color: rgba(252, 129, 129, 0.55);
     color: #fc8181;
 }
+/* Always-gold filter buttons override to amber */
+.rsa-tag-filter-btn.rsa-tag-tier-gold {
+    background: rgba(212,168,67,0.18) !important;
+    border-color: #d4a843 !important;
+    color: #d4a843 !important;
+    box-shadow: 0 0 4px rgba(212,168,67,0.4);
+}
 .rsa-tag-filter-clear {
     margin-left: auto; background: #2d3748; border: none;
     color: #a0aec0; border-radius: 3px; cursor: pointer;
     font-size: 0.8rem; padding: 1px 6px; line-height: 1.6;
 }
 .rsa-tag-filter-clear:hover { color: #e2e8f0; }
+/* Tier filter pill group */
+.rsa-tier-filter-group {
+    display: inline-flex; align-items: center; gap: 2px;
+    background: #0d1117; border: 1px solid #2d3748;
+    border-radius: 4px; padding: 1px 3px; margin-right: 4px;
+    flex-shrink: 0;
+}
+.rsa-tier-filter-pill {
+    font-size: 0.75em; font-weight: 700; padding: 1px 5px;
+    border-radius: 3px; cursor: pointer; opacity: 0.5;
+    transition: opacity 0.12s, background 0.12s;
+}
+.rsa-tier-filter-pill:hover { opacity: 0.85; }
+.rsa-tier-filter-pill.rsa-tier-pill-active { opacity: 1; background: #2d3748; }
+.rsa-tier-filter-pill.rsa-tier-pill-gold { color: #d4a843; }
+.rsa-tier-filter-pill.rsa-tier-pill-primary { color: #a0aec0; }
+.rsa-tier-filter-pill.rsa-tier-pill-silver { color: #718096; }
+/* Tier dots on filter buttons — inherit font-size */
+.rsa-tier-dots {
+    display: inline-flex; align-items: center; gap: 1px;
+    margin-left: 2px; opacity: 0.65;
+}
+.rsa-tier-dot { font-size: 0.55em; line-height: 1; }
+.rsa-tier-dot-gold   { color: #d4a843; }
+.rsa-tier-dot-threat { color: #fc8181; }
+.rsa-tier-dot-util   { color: #90cdf4; }
+.rsa-tier-dot-silver { color: #718096; }
 
 /* ── Utility / Tag Analysis Modal ────────────────────────── */
 .rsa-util-body { display: flex; flex-direction: column; gap: 16px; }
@@ -560,14 +593,13 @@
 /* Tag badges on box cards — sit below the name, full card width */
 .rsa-box-tag-badges {
     display: flex; flex-wrap: wrap; justify-content: center;
-    gap: 2px; margin-top: 3px; padding: 0 2px;
+    gap: 1px; margin-top: 2px; padding: 0 2px;
     width: 100%;
 }
 .rsa-box-tag-badge {
-    font-size: 0.82em; line-height: 1; padding: 2px 5px;
-    border-radius: 4px; cursor: default; position: relative;
+    font-size: 0.85em; line-height: 1; padding: 1px 2px;
+    border-radius: 3px; cursor: default; position: relative;
     display: inline-flex; align-items: center; justify-content: center;
-    gap: 2px;
 }
 /* Reuse util/threat colours */
 .rsa-box-tag-badge.rsa-tag-util {

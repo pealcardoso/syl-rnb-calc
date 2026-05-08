@@ -7641,6 +7641,16 @@
                     try { var _bts = lookupSet(m.setId); if (_bts) _btItem = _bts.item||''; } catch(ex3) {}
                     var _btEntry = { name:m.name, setId:m.setId, ability:_boxTypeInfo.ability, item:_btItem, types:_boxTypeInfo.types };
                     var _btTags = sortTagResults(computeEntryTags(_btEntry));
+                    // Apply tier filter
+                    var _tTier = tagTierFilters.box || 'all';
+                    if (_tTier !== 'all') {
+                        _btTags = _btTags.filter(function(tr) {
+                            if (_tTier === 'gold')    return tr.tier === 'gold';
+                            if (_tTier === 'primary') return !tr.tier;
+                            if (_tTier === 'silver')  return tr.tier === 'silver';
+                            return true;
+                        });
+                    }
                     if (_btTags.length) {
                         boxTagBadgesHtml = '<div class="rsa-box-tag-badges">';
                         for (var bti=0;bti<_btTags.length;bti++) {
@@ -9144,6 +9154,11 @@
             var tagId = $(this).data('tagid');
             tagFilters.box[tagId] = !tagFilters.box[tagId];
             if (!tagFilters.box[tagId]) delete tagFilters.box[tagId];
+            renderBox('p1');
+        });
+        $(document).on('click', '.rsa-tier-filter-pill', function () {
+            var side = $(this).data('side');
+            tagTierFilters[side] = $(this).data('tier');
             renderBox('p1');
         });
         $(document).on('click', '.rsa-tag-filter-clear', function () {
