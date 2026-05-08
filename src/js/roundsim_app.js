@@ -412,6 +412,13 @@
         return result;
     }
 
+    // Expose for Playwright regression tests
+    if (typeof window !== 'undefined') {
+        if (!window.__rsaTest) window.__rsaTest = {};
+        window.__rsaTest.computeEntryTags = computeEntryTags;
+        window.__rsaTest.TAG_DEFS = TAG_DEFS;
+    }
+
     /** Sort tag results: gold first, then threat (red), then util (blue), then silver. */
     function sortTagResults(tagged) {
         return tagged.slice().sort(function(a,b){

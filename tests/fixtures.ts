@@ -40,7 +40,7 @@ async function waitForAppReady(page: Page) {
 async function exposeTestHelpers(page: Page) {
   await page.evaluate(() => {
     const w = window as any;
-    w.__rsaTest = {
+    Object.assign(w.__rsaTest || (w.__rsaTest = {}), {
       /**
        * Replicate getTypeMultiplier using the same TYPE_CHART and ABILITY_IMMUNITIES
        * that the round sim uses.
@@ -247,7 +247,7 @@ async function exposeTestHelpers(page: Page) {
         }
         return result;
       },
-    };
+    });
   });
 }
 
