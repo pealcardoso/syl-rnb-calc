@@ -153,10 +153,12 @@
           check: function(e,mv) { return mv.indexOf('knockoff')>=0; } },
 
         { id:'RN',   cat:'threat', emoji:'🌧️', name:'Rain Synergy',
-          desc:'Red: speed/power-boosting rain ability (Swift Swim, Drizzle) | Blue: Water type or minor rain ability',
-          check: function(e) {
-            return (e.types&&e.types.indexOf('Water')>=0)||
-                   ['Swift Swim','Drizzle','Rain Dish','Hydration','Dry Skin'].indexOf(e.ability)>=0; },
+          desc:'Red: speed/power-boosting rain ability (Swift Swim, Drizzle) | Blue: Water type, Hydration+Water move, or minor rain ability',
+          check: function(e,mv) {
+            if (e.types&&e.types.indexOf('Water')>=0) return true;
+            if (['Swift Swim','Drizzle','Rain Dish','Dry Skin'].indexOf(e.ability)>=0) return true;
+            if (e.ability==='Hydration'&&mv&&mv.some(function(m){return m.indexOf('water')>=0||m==='surf'||m==='waterfall'||m==='scald'||m==='hydropump'||m==='aquatail'||m==='liquidation'||m==='wavecrash'||m==='muddywater'||m==='watergun'||m==='bubblebeam'||m==='bubble'||m==='crabhammer';})) return true;
+            return false; },
           tier: function(e) {
             return ['Swift Swim','Drizzle'].indexOf(e.ability)>=0 ? null : 'silver'; } },
 
@@ -200,7 +202,7 @@
                            'softboiled','healpulse','lifedew','lunarblessing','milkdrink',
                            'wish','aquaring','rest','shoreup','floralhealing'];
             var healItems=['Leftovers','Black Sludge','Shell Bell','Sitrus Berry'];
-            var healAbils=['Regenerator','Rain Dish','Ice Body','Healer','Hydration'];
+            var healAbils=['Regenerator','Rain Dish','Ice Body','Healer'];
             var hasMove=healMoves.some(function(m){return mv.indexOf(m)>=0;});
             var hasItem=healItems.indexOf(e.item)>=0;
             var hasAbil=healAbils.indexOf(e.ability)>=0;
@@ -210,7 +212,7 @@
                            'softboiled','healpulse','lifedew','lunarblessing','milkdrink',
                            'wish','aquaring','rest','shoreup','floralhealing'];
             var healItems=['Leftovers','Black Sludge','Shell Bell','Sitrus Berry'];
-            var healAbils=['Regenerator','Rain Dish','Ice Body','Healer','Hydration'];
+            var healAbils=['Regenerator','Rain Dish','Ice Body','Healer'];
             var score=(healMoves.some(function(m){return mv.indexOf(m)>=0;})?1:0)+
                       (healItems.indexOf(e.item)>=0?1:0)+
                       (healAbils.indexOf(e.ability)>=0?1:0);
@@ -358,6 +360,15 @@
      */
     function computeEntryTags(entry) {
         if (!entry) return [];
+        // Enrich missing types/ability from set data so team-panel entries
+        // behave the same as box entries (which use getMonTypeInfo explicitly).
+        if ((!entry.types || entry.types.length === 0) && entry.name) {
+            try {
+                var _enrichInfo = getMonTypeInfo(entry.name, entry.setId);
+                if (_enrichInfo.types && _enrichInfo.types.length) entry.types = _enrichInfo.types;
+                if (!entry.ability && _enrichInfo.ability) entry.ability = _enrichInfo.ability;
+            } catch(ex) {}
+        }
         var moves = getEntryMoves(entry);
         var mvKeys = [];
         for (var i=0;i<moves.length;i++) {
