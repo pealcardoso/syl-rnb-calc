@@ -113,7 +113,8 @@
             var p=['protect','detect','kingsshield','banefulbunker','silktrap','spikyshield',
                    'wideguard','quickguard','matblock','craftyshield','obstruct'];
             for (var i=0;i<p.length;i++) if (mv.indexOf(p[i])>=0) return true;
-            return false; } },
+            return false; },
+          tier: function() { return 'gold'; } },
 
         { id:'PRI',  cat:'util',   emoji:'⚡', name:'Priority Move',
           desc:'Has a move with increased priority (Extremespeed, Bullet Punch, etc.)',
@@ -174,6 +175,15 @@
           check: function(e) {
             return (e.types&&e.types.indexOf('Ice')>=0)||
                    ['Snow Warning','Slush Rush','Ice Body','Snow Cloak'].indexOf(e.ability)>=0; } },
+
+        { id:'HRC',  cat:'util',   emoji:'🧹', name:'Hazard Remover',
+          desc:'Has Rapid Spin or Defog — clears entry hazards from the field',
+          check: function(e,mv) { return mv.indexOf('rapidspin')>=0||mv.indexOf('defog')>=0; },
+          tier: function() { return 'gold'; } },
+
+        { id:'BBR',  cat:'util',   emoji:'🪟', name:'Barrier Breaker',
+          desc:'Has Brick Break or Psychic Fangs — destroys Reflect, Light Screen, and Aurora Veil',
+          check: function(e,mv) { return mv.indexOf('brickbreak')>=0||mv.indexOf('psychicfangs')>=0; } },
 
         // ── Threat tags ─────────────────────────────────────────
         { id:'BOOM', cat:'threat', emoji:'💣', name:'Exploder',
@@ -293,17 +303,10 @@
           desc:'Has Pursuit — doubles in power when the target switches out',
           check: function(e,mv) { return mv.indexOf('pursuit')>=0; } },
 
-        { id:'DB',   cat:'threat', emoji:'💀', name:'Destiny Bond',
+        { id:'DB',   cat:'threat', emoji:'🪢', name:'Destiny Bond',
           desc:'Has Destiny Bond — if the user faints this turn, the attacker also faints',
           check: function(e,mv) { return mv.indexOf('destinybond')>=0; } },
 
-        { id:'HRC',  cat:'util',   emoji:'🧹', name:'Hazard Remover',
-          desc:'Has Rapid Spin or Defog — clears entry hazards from the field',
-          check: function(e,mv) { return mv.indexOf('rapidspin')>=0||mv.indexOf('defog')>=0; } },
-
-        { id:'BBR',  cat:'util',   emoji:'🧱', name:'Barrier Breaker',
-          desc:'Has Brick Break or Psychic Fangs — destroys Reflect, Light Screen, and Aurora Veil',
-          check: function(e,mv) { return mv.indexOf('brickbreak')>=0||mv.indexOf('psychicfangs')>=0; } }
     ];
 
     /**
