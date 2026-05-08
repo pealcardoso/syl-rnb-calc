@@ -71,7 +71,7 @@
     transition: all 0.15s; position: relative;
     width: 56px; text-align: center;
 }
-.rsa-box-slot:hover { background: #2d3748; border-color: #4a5568; }
+.rsa-box-slot:hover { background: #2d3748; border-color: #4a5568; z-index: 10; }
 .rsa-box-slot.rsa-in-team { opacity: 0.35; cursor: default; }
 .rsa-box-sprite { width: 40px; height: 40px; image-rendering: pixelated; }
 .rsa-box-name { font-size: 0.6em; color: #a0aec0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 56px; }
@@ -327,7 +327,7 @@
     min-width: 110px; max-width: 180px;
     flex: 1 1 110px;
 }
-.rsa-team-slot:hover { background: #2d3748; border-color: #4a5568; }
+.rsa-team-slot:hover { background: #2d3748; border-color: #4a5568; z-index: 10; }
 .rsa-team-slot.rsa-active { background: #2d3748; }
 .rsa-team-slot.rsa-fainted { opacity: 0.5; }
 
@@ -442,25 +442,21 @@
 }
 .rsa-tag-tier-gold.rsa-tag-util  { background: rgba(212,168,67,0.18); }
 .rsa-tag-tier-gold.rsa-tag-threat { background: rgba(212,168,67,0.18); }
-.rsa-tag-tier-silver { opacity: 0.62; }
-
-/* CSS tooltip shown on hover */
-.rsa-tag-badge[data-tooltip]::after,
-.rsa-tag-filter-btn[data-tooltip]::after {
-    content: attr(data-tooltip);
-    position: absolute; bottom: calc(100% + 6px); left: 50%;
-    transform: translateX(-50%);
-    background: #1a202c; color: #e2e8f0;
-    border: 1px solid #4a5568;
-    font-size: 0.7rem; line-height: 1.4;
-    padding: 4px 8px; border-radius: 4px;
-    white-space: pre-wrap; max-width: 220px; width: max-content;
-    pointer-events: none; opacity: 0; transition: opacity 0.15s;
-    z-index: 9999;
+/* Silver: dimmed; silver on threat tags gets utility-blue colour instead */
+.rsa-tag-tier-silver { opacity: 0.72; }
+.rsa-tag-tier-silver.rsa-tag-threat,
+.rsa-box-tag-badge.rsa-tag-tier-silver.rsa-tag-threat {
+    background: rgba(66,153,225,0.1) !important;
+    border-color: rgba(66,153,225,0.35) !important;
 }
-.rsa-tag-badge[data-tooltip]:hover::after,
-.rsa-tag-filter-btn[data-tooltip]:hover::after {
-    opacity: 1;
+
+/* Floating tooltip (JS-positioned, viewport-safe) */
+#rsa-ftip {
+    position: fixed; z-index: 99999; pointer-events: none; display: none;
+    background: #1a202c; color: #e2e8f0; border: 1px solid #4a5568;
+    font-size: 0.7rem; line-height: 1.4; padding: 5px 9px; border-radius: 4px;
+    white-space: pre-wrap; max-width: 260px;
+    box-shadow: 0 4px 12px rgba(0,0,0,.5);
 }
 
 /* ── Tag Filter Bar ───────────────────────────────────────── */
@@ -520,6 +516,14 @@
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     flex: 1;
 }
+/* Missing tag rows (no box coverage) */
+.rsa-util-row.rsa-util-missing { opacity: 0.42; }
+.rsa-util-missing .rsa-util-count { color: #4a5568; }
+/* Battle tag analysis */
+.rsa-util-battle-rows { display: flex; flex-direction: column; gap: 3px; margin-top: 2px; }
+.rsa-util-battle-row { display: flex; align-items: center; gap: 6px; font-size: 0.8em; padding: 2px 0; border-bottom: 1px solid #1e253350; }
+.rsa-util-battle-name { color: #cbd5e0; min-width: 110px; flex-shrink: 0; font-weight: 600; }
+.rsa-util-battle-tags { display: flex; flex-wrap: wrap; gap: 2px; }
 
 /* Tag badges on box cards — sit below the name, full card width */
 .rsa-box-tag-badges {
@@ -539,20 +543,6 @@
 .rsa-box-tag-badge.rsa-tag-threat {
     background: rgba(252,129,129,0.18); border: 1px solid rgba(252,129,129,0.55);
 }
-/* CSS tooltip on box badges */
-.rsa-box-tag-badge[data-tooltip]::after {
-    content: attr(data-tooltip);
-    position: absolute; bottom: calc(100% + 6px); left: 50%;
-    transform: translateX(-50%);
-    background: #1a202c; color: #e2e8f0;
-    border: 1px solid #4a5568;
-    font-size: 0.7rem; line-height: 1.4;
-    padding: 4px 8px; border-radius: 4px;
-    white-space: pre-wrap; max-width: 220px; width: max-content;
-    pointer-events: none; opacity: 0; transition: opacity 0.15s;
-    z-index: 9999;
-}
-.rsa-box-tag-badge[data-tooltip]:hover::after { opacity: 1; }
 
 /* ── Round Controls ───────────────────────────────────────── */
 .rsa-controls {

@@ -74,8 +74,9 @@
     var TAG_DEFS = [
         // ── Utility tags ────────────────────────────────────────
         { id:'FO',   cat:'util',   emoji:'👋', name:'Fake Out',
-          desc:'Forces flinch on first turn',
-          check: function(e,mv) { return mv.indexOf('fakeout')>=0; } },
+          desc:'Forces flinch on first turn — guaranteed priority flinch turn 1',
+          check: function(e,mv) { return mv.indexOf('fakeout')>=0; },
+          tier: function() { return 'gold'; } },
 
         { id:'INT',  cat:'util',   emoji:'😤', name:'Intimidate',
           desc:'Drops opponent Attack on switch-in',
@@ -330,9 +331,18 @@
         return result;
     }
 
+    /** Sort tag results: gold first, then threat (red), then util (blue), then silver. */
+    function sortTagResults(tagged) {
+        return tagged.slice().sort(function(a,b){
+            function key(tr){ return tr.tier==='gold'?0:tr.def.cat==='threat'?1:tr.def.cat==='util'?2:3; }
+            return key(a)-key(b);
+        });
+    }
+
     /** Render emoji badge HTML for a list of { def, tier } tag results. */
     function renderTagBadges(tagResults) {
         if (!tagResults||!tagResults.length) return '';
+        tagResults = sortTagResults(tagResults);
         var html = '<div class="rsa-tag-badges">';
         for (var i=0;i<tagResults.length;i++) {
             var t = tagResults[i].def;
@@ -368,40 +378,80 @@
     /** Render the box tag coverage modal body — analyses all box Pokémon */
     function renderUtilityModal() {
         var mons = getBoxPokemon('p1');
-        if (!mons||!mons.length) return '<p style="color:#a0aec0">No Pok\u00E9mon in box.</p>';
-        // Build full entry stubs from setId for each box mon
-        var entries = [];
-        for (var bi=0;bi<mons.length;bi++) {
-            var m = mons[bi];
-            var info = { types:[], ability:'' };
-            try { info = getMonTypeInfo(m.name, m.setId); } catch(ex) {}
-            var item = '';
-            try { var _set = lookupSet(m.setId); if (_set) item = _set.item||''; } catch(ex) {}
-            entries.push({ name:m.name, setId:m.setId, ability:info.ability, item:item, types:info.types });
-        }
-        var html = '<div class="rsa-util-grid">';
-        for (var ti=0;ti<TAG_DEFS.length;ti++) {
-            var td = TAG_DEFS[ti];
-            var matching = [];
-            for (var mi=0;mi<entries.length;mi++) {
-                try {
-                    var tags = computeEntryTags(entries[mi]);
-                    for (var k=0;k<tags.length;k++) {
-                        if (tags[k].def.id===td.id) { matching.push(entries[mi].name); break; }
-                    }
-                } catch(ex) {}
+
+        // ── Section 1: Box Tag Coverage ──────────────────────────
+        var html = '<div class="rsa-util-section-title">\ud83d\udce6 Box Tag Coverage</div>';
+        if (!mons||!mons.length) {
+            html += '<p style="color:#a0aec0">No Pok\u00e9mon in box.</p>';
+        } else {
+            var entries = [];
+            for (var bi=0;bi<mons.length;bi++) {
+                var m = mons[bi];
+                var info = { types:[], ability:'' };
+                try { info = getMonTypeInfo(m.name, m.setId); } catch(ex) {}
+                var item = '';
+                try { var _set = lookupSet(m.setId); if (_set) item = _set.item||''; } catch(ex) {}
+                entries.push({ name:m.name, setId:m.setId, ability:info.ability, item:item, types:info.types });
             }
-            if (!matching.length) continue;
-            var nameList = esc(matching.join(', '));
-            html += '<div class="rsa-util-row">' +
-                '<span class="rsa-tag-badge rsa-tag-' + td.cat + '" data-tooltip="' + esc(td.name+': '+td.desc) + '">' + td.emoji + '</span>' +
-                '<span class="rsa-util-tag-name">' + esc(td.name) + '</span>' +
-                '<span class="rsa-util-count" title="' + nameList + '">' + matching.length + '</span>' +
-                '<span class="rsa-util-names" title="' + nameList + '">' + nameList + '</span>' +
-            '</div>';
+            var coveredRows = '', missingRows = '';
+            for (var ti=0;ti<TAG_DEFS.length;ti++) {
+                var td = TAG_DEFS[ti];
+                var matching = [];
+                for (var mi=0;mi<entries.length;mi++) {
+                    try {
+                        var tags = computeEntryTags(entries[mi]);
+                        for (var k=0;k<tags.length;k++) {
+                            if (tags[k].def.id===td.id) { matching.push(entries[mi].name); break; }
+                        }
+                    } catch(ex) {}
+                }
+                var isMissing = !matching.length;
+                var nameList = esc(matching.join(', '));
+                var row = '<div class="rsa-util-row' + (isMissing ? ' rsa-util-missing' : '') + '">' +
+                    '<span class="rsa-tag-badge rsa-tag-' + td.cat + '" data-tooltip="' + esc(td.name+': '+td.desc) + '">' + td.emoji + '</span>' +
+                    '<span class="rsa-util-tag-name">' + esc(td.name) + '</span>' +
+                    '<span class="rsa-util-count">' + (isMissing ? '\u2014' : matching.length) + '</span>' +
+                    '<span class="rsa-util-names">' + (isMissing ? '<em style="color:#4a5568">not covered</em>' : nameList) + '</span>' +
+                '</div>';
+                if (isMissing) missingRows += row; else coveredRows += row;
+            }
+            html += '<div class="rsa-util-grid">' + coveredRows + missingRows + '</div>';
         }
-        html += '</div>';
-        return html||'<p style="color:#a0aec0">No tags found.</p>';
+
+        // ── Section 2: Battle Tag Analysis ───────────────────────
+        html += '<div class="rsa-util-section-title" style="margin-top:14px">\u2694\ufe0f Battle Tag Analysis</div>';
+        try {
+            var line = curLine();
+            var p2roster = line && line.teams && line.teams.p2 ? line.teams.p2.roster : [];
+            if (!p2roster||!p2roster.length) {
+                html += '<p style="color:#a0aec0;font-size:0.8em">No opponent team in current battle.</p>';
+            } else {
+                html += '<div style="font-size:0.73em;color:#a0aec0;margin-bottom:4px">Opponent team:</div>';
+                html += '<div class="rsa-util-battle-rows">';
+                for (var pi=0;pi<p2roster.length;pi++) {
+                    var pe = p2roster[pi];
+                    var ptags = sortTagResults(computeEntryTags(pe));
+                    html += '<div class="rsa-util-battle-row">' +
+                        '<span class="rsa-util-battle-name">' + esc(pe.name) + '</span>' +
+                        '<span class="rsa-util-battle-tags">';
+                    if (!ptags.length) {
+                        html += '<span style="color:#4a5568;font-size:0.75em">\u2014</span>';
+                    } else {
+                        for (var pti=0;pti<ptags.length;pti++) {
+                            var pbt = ptags[pti].def;
+                            var pbTier = ptags[pti].tier;
+                            var pbTierCls = pbTier ? ' rsa-tag-tier-'+pbTier : '';
+                            html += '<span class="rsa-tag-badge rsa-tag-'+pbt.cat+pbTierCls+'" data-tooltip="'+esc(pbt.name+': '+pbt.desc)+'">'+pbt.emoji+'</span>';
+                        }
+                    }
+                    html += '</span></div>';
+                }
+                html += '</div>';
+            }
+        } catch(exBta) {
+            html += '<p style="color:#a0aec0;font-size:0.8em">Could not load battle data.</p>';
+        }
+        return html;
     }
 
     // ── RBDex move data lookup ──────────────────────────────────
@@ -7485,7 +7535,7 @@
                     var _btItem = '';
                     try { var _bts = lookupSet(m.setId); if (_bts) _btItem = _bts.item||''; } catch(ex3) {}
                     var _btEntry = { name:m.name, setId:m.setId, ability:_boxTypeInfo.ability, item:_btItem, types:_boxTypeInfo.types };
-                    var _btTags = computeEntryTags(_btEntry);
+                    var _btTags = sortTagResults(computeEntryTags(_btEntry));
                     if (_btTags.length) {
                         boxTagBadgesHtml = '<div class="rsa-box-tag-badges">';
                         for (var bti=0;bti<_btTags.length;bti++) {
@@ -7520,7 +7570,26 @@
     // ════════════════════════════════════════════════════════════
 
     $(document).ready(function () {
-        // ── Auto-restore saved session on page load ──
+
+        // ── Floating tooltip (viewport-aware, replaces CSS ::after tooltips) ──
+        var $ftip = $('<div id="rsa-ftip"></div>').appendTo('body');
+        function positionFtip(e) {
+            var tw = $ftip.outerWidth()||0, th = $ftip.outerHeight()||0;
+            var x = e.clientX + 14, y = e.clientY - th - 10;
+            if (x + tw > window.innerWidth  - 8) x = e.clientX - tw - 14;
+            if (x < 8) x = 8;
+            if (y < 8) y = e.clientY + 22;
+            $ftip.css({ left: x, top: y });
+        }
+        $(document).on('mouseenter', '[data-tooltip]', function(e) {
+            var text = $(this).data('tooltip');
+            if (!text) return;
+            $ftip.text(text).show();
+            positionFtip(e);
+        }).on('mousemove', '[data-tooltip]', positionFtip)
+          .on('mouseleave', '[data-tooltip]', function() { $ftip.hide(); });
+
+
         var _savedSession = localStorage.getItem(RSA_STORAGE_KEY);
         if (_savedSession) {
             try {
