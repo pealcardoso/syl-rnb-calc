@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Round Simulator App — Full battle planning tool
  * Manages teams, lines, rounds, extra damage sources, and integrates with the calc engine.
  */
@@ -426,17 +426,38 @@
 
     // Active tag filters for the box: { 'FO': true, ... }
     var tagFilters = { box:{} };
+    var tagTierFilters = { box:'all' };
 
     /** Render the tag filter bar HTML for the box */
     function renderTagFilterBar(side) {
+        var currentTier = tagTierFilters[side] || 'all';
         var html = '<div class="rsa-tag-filter-bar" id="rsa-tag-filter-' + side + '">';
+        html += '<span class="rsa-tier-filter-group">' +
+            '<span class="rsa-tier-filter-pill' + (currentTier==='all'?' rsa-tier-pill-active':'') + '" data-side="' + side + '" data-tier="all">All</span>' +
+            '<span class="rsa-tier-filter-pill rsa-tier-pill-gold' + (currentTier==='gold'?' rsa-tier-pill-active':'') + '" data-side="' + side + '" data-tier="gold" title="Gold tier">\u2605</span>' +
+            '<span class="rsa-tier-filter-pill rsa-tier-pill-primary' + (currentTier==='primary'?' rsa-tier-pill-active':'') + '" data-side="' + side + '" data-tier="primary" title="Primary tier">\u25cf</span>' +
+            '<span class="rsa-tier-filter-pill rsa-tier-pill-silver' + (currentTier==='silver'?' rsa-tier-pill-active':'') + '" data-side="' + side + '" data-tier="silver" title="Silver tier">\u25cc</span>' +
+        '</span>';
         for (var i=0;i<TAG_DEFS.length;i++) {
             var t = TAG_DEFS[i];
             var active = tagFilters[side][t.id] ? ' rsa-tag-filter-active' : '';
-            var tip = esc('Filter: ' + t.name + ' — ' + t.desc);
-            html += '<span class="rsa-tag-filter-btn rsa-tag-' + t.cat + active + '"' +
+            var tip = esc('Filter: ' + t.name + ' - ' + t.desc);
+            var alwaysGold = false;
+            if (t.tier) { try { alwaysGold = t.tier({ability:'',item:'',types:[]}, [], {}) === 'gold'; } catch(ex) {} }
+            var btnGoldCls = alwaysGold ? ' rsa-tag-tier-gold' : '';
+            var tierDots = '';
+            if (t.tier && !alwaysGold) {
+                var src = t.tier.toString();
+                tierDots = '<span class="rsa-tier-dots">';
+                if (src.indexOf("'gold'") >= 0) tierDots += '<span class="rsa-tier-dot rsa-tier-dot-gold">\u2605</span>';
+                if (src.indexOf('return null') >= 0 || src.indexOf('? null') >= 0)
+                    tierDots += '<span class="rsa-tier-dot rsa-tier-dot-' + t.cat + '">\u25cf</span>';
+                tierDots += '<span class="rsa-tier-dot rsa-tier-dot-silver">\u25cc</span>';
+                tierDots += '</span>';
+            }
+            html += '<span class="rsa-tag-filter-btn rsa-tag-' + t.cat + btnGoldCls + active + '"' +
                 ' data-side="' + side + '" data-tagid="' + esc(t.id) + '"' +
-                ' data-tooltip="' + tip + '">' + t.emoji + ' <span class="rsa-tag-filter-name">' + esc(t.name) + '</span></span>';
+                ' data-tooltip="' + tip + '">' + t.emoji + ' <span class="rsa-tag-filter-name">' + esc(t.name) + '</span>' + tierDots + '</span>';
         }
         html += '<button class="rsa-tag-filter-clear" data-side="' + side + '" title="Clear all tag filters">\u2715</button>';
         html += '</div>';
