@@ -152,29 +152,37 @@
           desc:'Has Knock Off — removes the target\'s held item',
           check: function(e,mv) { return mv.indexOf('knockoff')>=0; } },
 
-        { id:'RN',   cat:'util',   emoji:'🌧️', name:'Rain Synergy',
-          desc:'Water type or ability benefiting from rain (Swift Swim, Drizzle, Rain Dish, Hydration, Dry Skin)',
+        { id:'RN',   cat:'threat', emoji:'🌧️', name:'Rain Synergy',
+          desc:'Red: speed/power-boosting rain ability (Swift Swim, Drizzle) | Blue: Water type or minor rain ability',
           check: function(e) {
             return (e.types&&e.types.indexOf('Water')>=0)||
-                   ['Swift Swim','Drizzle','Rain Dish','Hydration','Dry Skin'].indexOf(e.ability)>=0; } },
+                   ['Swift Swim','Drizzle','Rain Dish','Hydration','Dry Skin'].indexOf(e.ability)>=0; },
+          tier: function(e) {
+            return ['Swift Swim','Drizzle'].indexOf(e.ability)>=0 ? null : 'silver'; } },
 
-        { id:'SND',  cat:'util',   emoji:'🏜️', name:'Sand Synergy',
-          desc:'Rock/Steel/Ground type (sand immunity) or sand ability (Sand Rush, Sand Force, Sand Stream, Sand Spit)',
+        { id:'SND',  cat:'threat', emoji:'🏜️', name:'Sand Synergy',
+          desc:'Red: speed/power-boosting sand ability (Sand Rush, Sand Force, etc.) | Blue: immune type (Rock/Steel/Ground) or minor ability',
           check: function(e) {
             return (e.types&&e.types.some(function(t){return ['Rock','Steel','Ground'].indexOf(t)>=0;}))||
-                   ['Sand Rush','Sand Force','Sand Stream','Sand Spit'].indexOf(e.ability)>=0; } },
+                   ['Sand Rush','Sand Force','Sand Stream','Sand Spit'].indexOf(e.ability)>=0; },
+          tier: function(e) {
+            return ['Sand Rush','Sand Force','Sand Stream','Sand Spit'].indexOf(e.ability)>=0 ? null : 'silver'; } },
 
-        { id:'SUN',  cat:'util',   emoji:'☀️', name:'Sun Synergy',
-          desc:'Fire type or ability boosted by sun (Chlorophyll, Drought, Solar Power, Flower Gift)',
+        { id:'SUN',  cat:'threat', emoji:'☀️', name:'Sun Synergy',
+          desc:'Red: speed/power-boosting sun ability (Chlorophyll, Drought, Solar Power) | Blue: Fire type or minor ability',
           check: function(e) {
             return (e.types&&e.types.indexOf('Fire')>=0)||
-                   ['Chlorophyll','Drought','Solar Power','Flower Gift'].indexOf(e.ability)>=0; } },
+                   ['Chlorophyll','Drought','Solar Power','Flower Gift'].indexOf(e.ability)>=0; },
+          tier: function(e) {
+            return ['Chlorophyll','Drought','Solar Power'].indexOf(e.ability)>=0 ? null : 'silver'; } },
 
-        { id:'SNW',  cat:'util',   emoji:'❄️', name:'Snow Synergy',
-          desc:'Ice type or ability boosted by snow (Snow Warning, Slush Rush, Ice Body, Snow Cloak)',
+        { id:'SNW',  cat:'threat', emoji:'❄️', name:'Snow Synergy',
+          desc:'Red: speed-boosting snow ability (Slush Rush, Snow Warning) | Blue: Ice type or minor ability',
           check: function(e) {
             return (e.types&&e.types.indexOf('Ice')>=0)||
-                   ['Snow Warning','Slush Rush','Ice Body','Snow Cloak'].indexOf(e.ability)>=0; } },
+                   ['Snow Warning','Slush Rush','Ice Body','Snow Cloak'].indexOf(e.ability)>=0; },
+          tier: function(e) {
+            return ['Slush Rush','Snow Warning'].indexOf(e.ability)>=0 ? null : 'silver'; } },
 
         { id:'HRC',  cat:'util',   emoji:'🧹', name:'Hazard Remover',
           desc:'Has Rapid Spin or Defog — clears entry hazards from the field',
@@ -214,26 +222,36 @@
                    mv.indexOf('sandstorm')>=0||mv.indexOf('snowscape')>=0||mv.indexOf('hail')>=0; } },
 
         { id:'ACC-', cat:'threat', emoji:'🌫️', name:'Accuracy Reducer',
-          desc:'Can lower opponent accuracy: Bright Powder/Lax Incense item, Sand Veil/Snow Cloak ability, or Flash/Smokescreen/etc.',
+          desc:'Red: evasion ability + evasion item stacked | Blue: just ability, item, or accuracy-lowering move',
           check: function(e,mv) {
             if (e.item==='Bright Powder'||e.item==='Lax Incense') return true;
             if (['Sand Veil','Snow Cloak','Tangling Hair'].indexOf(e.ability)>=0) return true;
             var m=['flash','mudslap','smokescreen','sweetkiss','mudbomb','octazooka','nightdaze'];
             for (var i=0;i<m.length;i++) if (mv.indexOf(m[i])>=0) return true;
-            return false; } },
+            return false; },
+          tier: function(e) {
+            var hasAbility=['Sand Veil','Snow Cloak','Tangling Hair'].indexOf(e.ability)>=0;
+            var hasItem=e.item==='Bright Powder'||e.item==='Lax Incense';
+            return (hasAbility&&hasItem) ? null : 'silver'; } },
 
         { id:'QCL',  cat:'threat', emoji:'🐾', name:'Quick Claw',
-          desc:'Holds Quick Claw — may randomly move first regardless of speed',
-          check: function(e) { return e.item==='Quick Claw'; } },
+          desc:'Red: Quick Claw + Quick Draw stacked | Blue: Quick Claw item or Quick Draw ability alone',
+          check: function(e) { return e.item==='Quick Claw'||e.ability==='Quick Draw'; },
+          tier: function(e) {
+            return (e.item==='Quick Claw'&&e.ability==='Quick Draw') ? null : 'silver'; } },
 
         { id:'CRIT', cat:'threat', emoji:'🎲', name:'Crit Machine',
-          desc:'Elevated crit rate: Sniper ability, Scope Lens/Razor Claw, or Focus Energy/Frost Breath/Storm Throw',
+          desc:'Red: Sniper ability + Scope Lens/Razor Claw stacked | Blue: ability, item, or high-crit move alone',
           check: function(e,mv) {
             if (e.ability==='Sniper') return true;
             if (e.item==='Scope Lens'||e.item==='Razor Claw') return true;
             var m=['focusenergy','frostbreath','stormthrow','surgingstrikes','wickedblow'];
             for (var i=0;i<m.length;i++) if (mv.indexOf(m[i])>=0) return true;
-            return false; } },
+            return false; },
+          tier: function(e) {
+            var hasAbility=e.ability==='Sniper';
+            var hasItem=e.item==='Scope Lens'||e.item==='Razor Claw';
+            return (hasAbility&&hasItem) ? null : 'silver'; } },
 
         { id:'SPB',  cat:'threat', emoji:'🏎️', name:'Speed Booster',
           desc:'Primary: Speed Boost ability — threat red | Secondary: speed-raising moves (Agility, Dragon Dance, etc.) — utility blue',
