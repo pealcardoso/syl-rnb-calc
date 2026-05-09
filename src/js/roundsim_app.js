@@ -9806,4 +9806,628 @@
         }, 2500);
     });
 
+    // ════════════════════════════════════════════════════════════════════════
+    //  FIGHT ANALYSIS ENGINE  —  read-only post-hoc layer
+    //  Never modifies captureRound, getDamageInfo, createBranch, renderRoundLog
+    //  or any existing function.  All analysis data lives in its own structures.
+    //  Entire block wrapped in try/catch — if it crashes, the round log is
+    //  completely unaffected.
+    // ════════════════════════════════════════════════════════════════════════
+
+    (function initFightAnalysis() {
+        'use strict';
+        try {
+
+        // ── Re-calc helper (returns full Result for damageRolls) ──────────
+        function _fightCalcResult(atkSetId, defSetId, moveName, overrides) {
+            // overrides = { atkHP, atkMaxHP, atkItem, atkAbility,
+            //               defHP, defMaxHP, defItem, defAbility, isCrit }
+            if (!atkSetId || !defSetId || !moveName || moveName === '(No Move)') return null;
+            try {
+                var ov = overrides || {};
+                var atk = createPokemon(atkSetId);
+                var def = createPokemon(defSetId);
+                if (ov.atkHP != null) atk.originalCurHP = Math.min(ov.atkHP, atk.rawStats.hp);
+                if (ov.defHP != null) def.originalCurHP = Math.min(ov.defHP, def.rawStats.hp);
+                if (ov.atkItem !== undefined) atk.item = ov.atkItem;
+                if (ov.defItem !== undefined) def.item = ov.defItem;
+                if (ov.atkAbility) atk.ability = ov.atkAbility;
+                if (ov.defAbility) def.ability = ov.defAbility;
+
+                var field = createField();
+                field = new calc.Field({ ...field, gameType: 'Doubles' });
+
+                var mv = new calc.Move(gen || 9, moveName, {
+                    ability: atk.ability, item: atk.item,
+                    isCrit: !!ov.isCrit
+                });
+
+                return calc.calculate(gen || 9, atk, def, mv, field);
+            } catch (e) { return null; }
+        }
+
+        // ── Outcome helpers ──────────────────────────────────────────────
+
+        /** Given 16 damage rolls and defender HP, return how many KO. */
+        function _koRollCount(rolls, defHP) {
+            if (!rolls || !rolls.length) return 0;
+            var count = 0;
+            for (var i = 0; i < rolls.length; i++) {
+                if (rolls[i] >= defHP) count++;
+            }
+            return count;
+        }
+
+        /** Check if any roll triggers a berry (Sitrus = 50%, pinch = 25%). */
+        function _berryThreshold(defItem) {
+            if (!defItem) return -1;
+            var lower = defItem.toLowerCase();
+            if (lower === 'sitrus berry') return 0.50;
+            // Common pinch berries
+            if (lower.indexOf(' berry') >= 0) {
+                var pinch = ['liechi','ganlon','salac','petaya','apicot',
+                             'lansat','starf','micle','custap'];
+                for (var i = 0; i < pinch.length; i++) {
+                    if (lower.indexOf(pinch[i]) >= 0) return 0.25;
+                }
+            }
+            return -1;
+        }
+
+        /** Count how many rolls push defender below a berry threshold. */
+        function _berryTriggerCount(rolls, defHP, defMaxHP, defItem) {
+            var thresh = _berryThreshold(defItem);
+            if (thresh < 0) return { triggers: 0, total: rolls.length };
+            var triggerHP = Math.floor(defMaxHP * thresh);
+            var alreadyBelow = defHP <= triggerHP;
+            if (alreadyBelow) return { triggers: 0, total: rolls.length }; // already consumed or below
+            var count = 0;
+            for (var i = 0; i < rolls.length; i++) {
+                if (defHP - rolls[i] <= triggerHP) count++;
+            }
+            return { triggers: count, total: rolls.length };
+        }
+
+        /** Parse AI percentage string like "45%" → 0.45 */
+        function _parseAiPct(str) {
+            if (!str) return 0;
+            var n = parseFloat(str);
+            return isNaN(n) ? 0 : n / 100;
+        }
+
+        // ── Main analysis function ───────────────────────────────────────
+
+        /**
+         * analyzeFight(line) → { rounds: [ AnalyzedRound ], fightProb: number }
+         *
+         * AnalyzedRound = {
+         *   roundNum, roundIdx,
+         *   outcomes: [ Outcome ],
+         *   deterministic: boolean   // true if exactly 1 outcome
+         * }
+         *
+         * Outcome = {
+         *   description: string,         // e.g. "P2 KO'd"
+         *   probability: number,         // 0-1
+         *   factors: [ string ],         // what causes this: "14/16 rolls KO"
+         *   p1HPAfter: number,           // worst-case P1 HP in this outcome
+         *   p2HPAfter: number,           // worst-case P2 HP in this outcome
+         *   p2Alive: boolean,
+         *   p1Alive: boolean,
+         *   diedSide: string|null        // 'p1' | 'p2' | null
+         * }
+         */
+        function analyzeFight(line) {
+            if (!line || !line.rounds || line.rounds.length === 0) {
+                return { rounds: [], fightProb: 1, error: null };
+            }
+
+            var rounds = getBranchRounds(line, line.activeBranchIdx || -1);
+            var analyzed = [];
+            var fightProb = 1;
+
+            for (var ri = 0; ri < rounds.length; ri++) {
+                var rd = rounds[ri];
+                var ar = _analyzeRound(line, rd, ri);
+                analyzed.push(ar);
+                // Fight prob: multiply by lowest-risk path (for now, simple model)
+                if (!ar.deterministic) {
+                    // Sum probability of all non-death outcomes
+                    var safeProb = 0;
+                    for (var oi = 0; oi < ar.outcomes.length; oi++) {
+                        if (ar.outcomes[oi].p1Alive) {
+                            safeProb += ar.outcomes[oi].probability;
+                        }
+                    }
+                    fightProb *= Math.min(safeProb, 1);
+                }
+            }
+
+            return { rounds: analyzed, fightProb: fightProb, error: null };
+        }
+
+        /** Analyze a single round for outcome forks. */
+        function _analyzeRound(line, rd, roundIdx) {
+            var result = {
+                roundNum: rd.roundNum || (roundIdx + 1),
+                roundIdx: roundIdx,
+                outcomes: [],
+                deterministic: true,
+                isSwitch: !!rd.isSwitch || !!rd.isP2Switch
+            };
+
+            // Switch rounds are always deterministic (no damage variance)
+            if (result.isSwitch || !rd.p2 || !rd.p1) {
+                result.outcomes.push({
+                    description: result.isSwitch ? 'Switch' : 'No action',
+                    probability: 1,
+                    factors: [],
+                    p1HPAfter: rd.p1 ? rd.p1.hpAfter.current : 0,
+                    p2HPAfter: rd.p2 ? rd.p2.hpAfter.current : 0,
+                    p1Alive: rd.p1 ? rd.p1.hpAfter.current > 0 : true,
+                    p2Alive: rd.p2 ? rd.p2.hpAfter.current > 0 : true,
+                    diedSide: null
+                });
+                return result;
+            }
+
+            // ── Get entry setIds from roster (immutable) ──
+            var p1SetId = _findSetId(line, 'p1', rd.p1.name);
+            var p2SetId = _findSetId(line, 'p2', rd.p2.name);
+
+            if (!p1SetId || !p2SetId) {
+                // Can't re-calc without setIds — treat as deterministic
+                result.outcomes.push(_makeLoggedOutcome(rd));
+                return result;
+            }
+
+            var outcomes = [];
+
+            // ── 1) Check P2→P1 damage roll variance (does the roll matter?) ──
+            var p2Outcomes = _analyzeP2ToP1(rd, p2SetId, p1SetId);
+
+            // ── 2) Check AI move alternatives ──
+            var aiOutcomes = _analyzeAIMoves(rd, line, p2SetId, p1SetId);
+
+            // ── 3) Check crit vs no-crit ──
+            var critOutcomes = _analyzeCritVariance(rd, p2SetId, p1SetId);
+
+            // Merge all outcome sources
+            // For now: the primary axis is what the user logged (roll variance),
+            // plus crit variance, plus AI move variance — combined into a flat list.
+            // This is intentionally simple for Phase 1.
+
+            // Start with the logged scenario and check for roll-dependent forks
+            if (p2Outcomes.length > 0) {
+                for (var i = 0; i < p2Outcomes.length; i++) outcomes.push(p2Outcomes[i]);
+            }
+            if (critOutcomes.length > 0) {
+                for (var i = 0; i < critOutcomes.length; i++) outcomes.push(critOutcomes[i]);
+            }
+            if (aiOutcomes.length > 0) {
+                for (var i = 0; i < aiOutcomes.length; i++) outcomes.push(aiOutcomes[i]);
+            }
+
+            // Deduplicate outcomes that produce the same state
+            outcomes = _deduplicateOutcomes(outcomes);
+
+            if (outcomes.length === 0) {
+                outcomes.push(_makeLoggedOutcome(rd));
+            }
+
+            result.outcomes = outcomes;
+            result.deterministic = outcomes.length <= 1;
+            return result;
+        }
+
+        /** Analyze P2→P1 damage roll variance for the LOGGED move. */
+        function _analyzeP2ToP1(rd, p2SetId, p1SetId) {
+            if (!rd.p2.move || rd.p2.move === '—' || rd.p2.moveIdx === 'none') return [];
+
+            var res = _fightCalcResult(p2SetId, p1SetId, rd.p2.move, {
+                atkHP: rd.p2.hpBefore.current, atkMaxHP: rd.p2.hpBefore.max,
+                atkItem: rd.p2.item, atkAbility: rd.p2.ability,
+                defHP: rd.p1.hpBefore.current, defMaxHP: rd.p1.hpBefore.max,
+                defItem: rd.p1.item, defAbility: rd.p1.ability,
+                isCrit: !!rd.p2Crit
+            });
+            if (!res) return [];
+
+            var rolls = res.damageRolls();
+            if (!rolls || rolls.length <= 1) return [];
+
+            var p1HP = rd.p1.hpBefore.current;
+            var p1MaxHP = rd.p1.hpBefore.max;
+            var koCount = _koRollCount(rolls, p1HP);
+
+            // Check berry thresholds
+            var berryInfo = _berryTriggerCount(rolls, p1HP, p1MaxHP, rd.p1.item);
+
+            // If all rolls produce the same KO/survive result and same berry trigger → deterministic
+            if ((koCount === 0 || koCount === rolls.length) &&
+                (berryInfo.triggers === 0 || berryInfo.triggers === rolls.length)) {
+                // Single outcome
+                return [_makeLoggedOutcome(rd)];
+            }
+
+            // Fork: rolls produce different outcomes
+            var outcomes = [];
+            if (koCount > 0 && koCount < rolls.length) {
+                // Split: some rolls KO, some don't
+                outcomes.push({
+                    description: 'P1 KO\'d by ' + rd.p2.move,
+                    probability: koCount / rolls.length,
+                    factors: [koCount + '/' + rolls.length + ' rolls KO P1'],
+                    p1HPAfter: 0,
+                    p2HPAfter: rd.p2.hpAfter.current,
+                    p1Alive: false,
+                    p2Alive: rd.p2.hpAfter.current > 0,
+                    diedSide: 'p1'
+                });
+                outcomes.push({
+                    description: 'P1 survives ' + rd.p2.move,
+                    probability: (rolls.length - koCount) / rolls.length,
+                    factors: [(rolls.length - koCount) + '/' + rolls.length + ' rolls → P1 survives'],
+                    p1HPAfter: rd.p1.hpAfter.current, // approximate — uses logged HP
+                    p2HPAfter: rd.p2.hpAfter.current,
+                    p1Alive: true,
+                    p2Alive: rd.p2.hpAfter.current > 0,
+                    diedSide: null
+                });
+            } else if (berryInfo.triggers > 0 && berryInfo.triggers < berryInfo.total) {
+                // Berry threshold fork
+                outcomes.push({
+                    description: rd.p1.item + ' triggers',
+                    probability: berryInfo.triggers / berryInfo.total,
+                    factors: [berryInfo.triggers + '/' + berryInfo.total + ' rolls trigger ' + rd.p1.item],
+                    p1HPAfter: rd.p1.hpAfter.current,
+                    p2HPAfter: rd.p2.hpAfter.current,
+                    p1Alive: true,
+                    p2Alive: rd.p2.hpAfter.current > 0,
+                    diedSide: null
+                });
+                outcomes.push({
+                    description: rd.p1.item + ' doesn\'t trigger',
+                    probability: (berryInfo.total - berryInfo.triggers) / berryInfo.total,
+                    factors: [(berryInfo.total - berryInfo.triggers) + '/' + berryInfo.total + ' rolls — no berry'],
+                    p1HPAfter: rd.p1.hpAfter.current,
+                    p2HPAfter: rd.p2.hpAfter.current,
+                    p1Alive: true,
+                    p2Alive: rd.p2.hpAfter.current > 0,
+                    diedSide: null
+                });
+            } else {
+                return [_makeLoggedOutcome(rd)];
+            }
+
+            return outcomes;
+        }
+
+        /** Analyze P1→P2 damage + check if alternative AI moves change outcome. */
+        function _analyzeAIMoves(rd, line, p2SetId, p1SetId) {
+            var allMoves = rd.p2.allMoves;
+            var aiPcts = rd.p2.aiPcts;
+            if (!allMoves || allMoves.length === 0) return [];
+
+            var loggedMove = rd.p2.move;
+            var outcomes = [];
+            var p1HP = rd.p1.hpBefore.current;
+            var p1MaxHP = rd.p1.hpBefore.max;
+
+            // Determine KO state for logged move
+            var loggedKOs = rd.p1.hpAfter.current <= 0;
+
+            for (var mi = 0; mi < allMoves.length; mi++) {
+                var mvName = allMoves[mi];
+                if (!mvName || mvName === '(No Move)' || mvName === loggedMove) continue;
+
+                var aiPct = _parseAiPct(aiPcts[mi]);
+                if (aiPct < 0.05) continue; // skip moves with < 5% AI chance
+
+                // Re-calc this move's damage
+                var res = _fightCalcResult(p2SetId, p1SetId, mvName, {
+                    atkHP: rd.p2.hpBefore.current, atkMaxHP: rd.p2.hpBefore.max,
+                    atkItem: rd.p2.item, atkAbility: rd.p2.ability,
+                    defHP: p1HP, defMaxHP: p1MaxHP,
+                    defItem: rd.p1.item, defAbility: rd.p1.ability,
+                    isCrit: false
+                });
+                if (!res) continue;
+
+                var rolls = res.damageRolls();
+                if (!rolls || rolls.length === 0) continue;
+
+                var koCount = _koRollCount(rolls, p1HP);
+                var altKOs = koCount >= rolls.length; // all rolls KO
+                var altSurvives = koCount === 0;      // all rolls survive
+
+                // Does this move produce a different outcome than the logged move?
+                if (altKOs && !loggedKOs) {
+                    // This AI move kills but logged move doesn't → dangerous fork
+                    outcomes.push({
+                        description: 'P1 KO\'d if AI uses ' + mvName,
+                        probability: aiPct,
+                        factors: ['AI ' + mvName + ' (' + aiPcts[mi] + ') KOs P1'],
+                        p1HPAfter: 0,
+                        p2HPAfter: rd.p2.hpAfter.current,
+                        p1Alive: false,
+                        p2Alive: rd.p2.hpAfter.current > 0,
+                        diedSide: 'p1'
+                    });
+                } else if (altSurvives && loggedKOs) {
+                    // Logged move kills but this doesn't → different game state
+                    var minRoll = rolls[0];
+                    var surviveHP = Math.max(1, p1HP - rolls[rolls.length - 1]);
+                    outcomes.push({
+                        description: 'P1 survives if AI uses ' + mvName,
+                        probability: aiPct,
+                        factors: ['AI ' + mvName + ' (' + aiPcts[mi] + ') — P1 survives'],
+                        p1HPAfter: surviveHP,
+                        p2HPAfter: rd.p2.hpAfter.current,
+                        p1Alive: true,
+                        p2Alive: rd.p2.hpAfter.current > 0,
+                        diedSide: null
+                    });
+                }
+                // If KO state is the same, check if HP difference is significant
+                // (crosses berry/ability thresholds) — future enhancement
+            }
+
+            return outcomes;
+        }
+
+        /** Analyze crit vs no-crit variance for the logged move. */
+        function _analyzeCritVariance(rd, p2SetId, p1SetId) {
+            // If the logged round already has crit toggled, check what happens without it
+            // If the logged round has no crit, check what happens with one
+            if (!rd.p2.move || rd.p2.move === '—') return [];
+
+            var p1HP = rd.p1.hpBefore.current;
+            var loggedKOs = rd.p1.hpAfter.current <= 0;
+
+            // Get the opposite-crit result
+            var altCrit = !rd.p2Crit;
+            var altResult;
+
+            if (altCrit && rd.p2.critDamage) {
+                // Logged was no-crit, check crit from stored data
+                var critMaxDmg = rd.p2.critDamage.maxDmg || 0;
+                var critKOs = critMaxDmg >= p1HP;
+                if (critKOs && !loggedKOs) {
+                    return [{
+                        description: 'P1 KO\'d if P2 crits ' + rd.p2.move,
+                        probability: 1 / 24,
+                        factors: ['Crit (1/24 = 4.2%) — ' + rd.p2.move + ' KOs P1'],
+                        p1HPAfter: 0,
+                        p2HPAfter: rd.p2.hpAfter.current,
+                        p1Alive: false,
+                        p2Alive: rd.p2.hpAfter.current > 0,
+                        diedSide: 'p1'
+                    }];
+                }
+                // Crit doesn't change KO outcome → no fork
+                return [];
+            } else if (!altCrit && rd.p2Crit) {
+                // Logged was crit, check no-crit via re-calc
+                altResult = _fightCalcResult(p2SetId, p1SetId, rd.p2.move, {
+                    atkHP: rd.p2.hpBefore.current, atkMaxHP: rd.p2.hpBefore.max,
+                    atkItem: rd.p2.item, atkAbility: rd.p2.ability,
+                    defHP: p1HP, defMaxHP: rd.p1.hpBefore.max,
+                    defItem: rd.p1.item, defAbility: rd.p1.ability,
+                    isCrit: false
+                });
+                if (!altResult) return [];
+
+                var altRolls = altResult.damageRolls();
+                var noCritKOCount = _koRollCount(altRolls, p1HP);
+                var noCritAllSurvive = noCritKOCount === 0;
+
+                if (noCritAllSurvive && loggedKOs) {
+                    // Without crit, P1 survives — this is the 23/24 case
+                    return [{
+                        description: 'P1 survives without crit',
+                        probability: 23 / 24,
+                        factors: ['No crit (23/24 = 95.8%) — P1 survives ' + rd.p2.move],
+                        p1HPAfter: Math.max(1, p1HP - altRolls[altRolls.length - 1]),
+                        p2HPAfter: rd.p2.hpAfter.current,
+                        p1Alive: true,
+                        p2Alive: rd.p2.hpAfter.current > 0,
+                        diedSide: null
+                    }];
+                }
+                return [];
+            }
+
+            return [];
+        }
+
+        /** Build an outcome from the logged round data (no variance). */
+        function _makeLoggedOutcome(rd) {
+            return {
+                description: rd.p1.hpAfter.current <= 0 ? 'P1 KO\'d' :
+                             rd.p2.hpAfter.current <= 0 ? 'P2 KO\'d' : 'Both survive',
+                probability: 1,
+                factors: [],
+                p1HPAfter: rd.p1.hpAfter.current,
+                p2HPAfter: rd.p2.hpAfter.current,
+                p1Alive: rd.p1.hpAfter.current > 0,
+                p2Alive: rd.p2.hpAfter.current > 0,
+                diedSide: rd.p1.hpAfter.current <= 0 ? 'p1' :
+                          rd.p2.hpAfter.current <= 0 ? 'p2' : null
+            };
+        }
+
+        /** Find roster setId from a pokemon name. */
+        function _findSetId(line, side, name) {
+            var team = line.teams[side];
+            if (!team || !team.roster) return null;
+            for (var i = 0; i < team.roster.length; i++) {
+                if (team.roster[i].name === name) return team.roster[i].setId;
+            }
+            return null;
+        }
+
+        /** Deduplicate outcomes that describe the same game state. */
+        function _deduplicateOutcomes(outcomes) {
+            if (outcomes.length <= 1) return outcomes;
+            var seen = {};
+            var result = [];
+            for (var i = 0; i < outcomes.length; i++) {
+                var o = outcomes[i];
+                // Key: alive states + approximate HP (rounded to 5)
+                var key = (o.p1Alive ? '1' : '0') + ':' +
+                          (o.p2Alive ? '1' : '0') + ':' +
+                          Math.round(o.p1HPAfter / 5) + ':' +
+                          Math.round(o.p2HPAfter / 5);
+                if (seen[key]) {
+                    // Merge probabilities
+                    seen[key].probability += o.probability;
+                    // Append factors
+                    for (var fi = 0; fi < o.factors.length; fi++) {
+                        seen[key].factors.push(o.factors[fi]);
+                    }
+                } else {
+                    seen[key] = $.extend(true, {}, o);
+                    result.push(seen[key]);
+                }
+            }
+            // Normalize probabilities if sum > 1
+            var total = 0;
+            for (var i = 0; i < result.length; i++) total += result[i].probability;
+            if (total > 1.01) {
+                for (var i = 0; i < result.length; i++) result[i].probability /= total;
+            }
+            return result;
+        }
+
+        // ── Render Analysis Panel ────────────────────────────────────────
+
+        function renderAnalysisPanel(analysisResult) {
+            var $panel = $('#rsa-analysis-panel');
+            if ($panel.length === 0) return; // guard
+
+            if (analysisResult.error) {
+                $panel.html('<div class="rsa-analysis-error">⚠ Analysis error: ' +
+                    $('<span>').text(analysisResult.error).html() + '</div>');
+                $panel.show();
+                return;
+            }
+
+            var rounds = analysisResult.rounds;
+            if (rounds.length === 0) {
+                $panel.html('<div class="rsa-analysis-empty">No rounds to analyze.</div>');
+                $panel.show();
+                return;
+            }
+
+            var html = '';
+
+            // ── Fight-level summary banner ──
+            var fightPct = Math.round(analysisResult.fightProb * 1000) / 10;
+            var bannerClass = fightPct >= 100 ? 'rsa-fight-safe' :
+                              fightPct >= 95  ? 'rsa-fight-good' :
+                              fightPct >= 80  ? 'rsa-fight-warn' : 'rsa-fight-danger';
+            var forkCount = 0;
+            var deathRounds = [];
+            for (var i = 0; i < rounds.length; i++) {
+                if (!rounds[i].deterministic) forkCount++;
+                for (var j = 0; j < rounds[i].outcomes.length; j++) {
+                    if (!rounds[i].outcomes[j].p1Alive) {
+                        deathRounds.push(rounds[i].roundNum);
+                        break;
+                    }
+                }
+            }
+            var bannerText = fightPct >= 100 ? '✓ 100% Safe — No variance in this fight plan' :
+                             fightPct + '% Safe';
+            var bannerDetail = '';
+            if (forkCount > 0) bannerDetail += forkCount + ' decision point' + (forkCount > 1 ? 's' : '');
+            if (deathRounds.length > 0) {
+                bannerDetail += (bannerDetail ? ' · ' : '') +
+                    '☠ Death possible at round' + (deathRounds.length > 1 ? 's ' : ' ') + deathRounds.join(', ');
+            }
+
+            html += '<div class="rsa-fight-banner ' + bannerClass + '">';
+            html += '<span class="rsa-fight-banner-text">' + bannerText + '</span>';
+            if (bannerDetail) html += '<span class="rsa-fight-banner-detail">' + bannerDetail + '</span>';
+            html += '</div>';
+
+            // ── Per-round rows ──
+            html += '<div class="rsa-analysis-rounds">';
+            for (var ri = 0; ri < rounds.length; ri++) {
+                var ar = rounds[ri];
+                var rowClass = ar.deterministic ? 'rsa-ar-ok' : 'rsa-ar-fork';
+                html += '<div class="rsa-analysis-round ' + rowClass + '">';
+                html += '<div class="rsa-ar-header">';
+                html += '<span class="rsa-ar-num">R' + ar.roundNum + '</span>';
+
+                if (ar.isSwitch) {
+                    html += '<span class="rsa-ar-badge rsa-ar-switch">↔ Switch</span>';
+                } else if (ar.deterministic) {
+                    html += '<span class="rsa-ar-badge rsa-ar-det">✓ Deterministic</span>';
+                } else {
+                    html += '<span class="rsa-ar-badge rsa-ar-multi">⚠ ' + ar.outcomes.length + ' outcome' +
+                            (ar.outcomes.length > 1 ? 's' : '') + '</span>';
+                }
+                html += '</div>'; // .rsa-ar-header
+
+                // Outcome details (only for non-deterministic rounds)
+                if (!ar.deterministic && ar.outcomes.length > 1) {
+                    html += '<div class="rsa-ar-outcomes">';
+                    for (var oi = 0; oi < ar.outcomes.length; oi++) {
+                        var o = ar.outcomes[oi];
+                        var pct = Math.round(o.probability * 1000) / 10;
+                        var oClass = o.diedSide === 'p1' ? 'rsa-outcome-death' :
+                                     o.diedSide === 'p2' ? 'rsa-outcome-ko' : 'rsa-outcome-ok';
+                        html += '<div class="rsa-outcome ' + oClass + '">';
+                        html += '<span class="rsa-outcome-prob">' + pct + '%</span>';
+                        html += '<span class="rsa-outcome-desc">' + $('<span>').text(o.description).html() + '</span>';
+                        if (o.factors.length > 0) {
+                            html += '<div class="rsa-outcome-factors">';
+                            for (var fi = 0; fi < o.factors.length; fi++) {
+                                html += '<span class="rsa-outcome-factor">' + $('<span>').text(o.factors[fi]).html() + '</span>';
+                            }
+                            html += '</div>';
+                        }
+                        html += '</div>'; // .rsa-outcome
+                    }
+                    html += '</div>'; // .rsa-ar-outcomes
+                }
+
+                html += '</div>'; // .rsa-analysis-round
+            }
+            html += '</div>'; // .rsa-analysis-rounds
+
+            $panel.html(html);
+            $panel.show();
+        }
+
+        // ── Wire up the Analyze button ───────────────────────────────────
+
+        $(document).on('click', '#rsa-analyze-fight', function () {
+            try {
+                var line = curLine();
+                if (!line || !line.rounds || line.rounds.length === 0) {
+                    $('#rsa-analysis-panel').html(
+                        '<div class="rsa-analysis-empty">No rounds logged yet.</div>'
+                    ).show();
+                    return;
+                }
+                var result = analyzeFight(line);
+                renderAnalysisPanel(result);
+            } catch (e) {
+                $('#rsa-analysis-panel').html(
+                    '<div class="rsa-analysis-error">⚠ Analysis error: ' +
+                    $('<span>').text(String(e)).html() + '</div>'
+                ).show();
+                console.error('[FightAnalysis]', e);
+            }
+        });
+
+        } catch (initError) {
+            // If the entire analysis module fails to load, log it but don't break the app
+            console.error('[FightAnalysis] Init failed:', initError);
+        }
+    })();
+
 })();

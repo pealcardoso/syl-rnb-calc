@@ -2011,6 +2011,63 @@ fieldset {
 .rsa-info-defense { margin-top: 8px; padding-top: 6px; border-top: 1px solid #2d3748; }
 .rsa-info-section-title { color: #a0aec0; font-weight: 700; font-size: 0.85em; margin-bottom: 4px; }
 .rsa-def-row { display: flex; align-items: center; gap: 4px; margin: 2px 0; font-size: 0.85em; flex-wrap: wrap; }
+
+/* ════════════════════════════════════════════════════════════
+   FIGHT ANALYSIS PANEL  —  read-only post-hoc layer
+   ════════════════════════════════════════════════════════════ */
+
+.rsa-analysis-panel { margin: 12px 0 0; }
+
+/* ── Fight-level safety banner ── */
+.rsa-fight-banner {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+    padding: 10px 14px; border-radius: 8px; margin-bottom: 10px;
+    font-weight: 700; font-size: 1.05em;
+}
+.rsa-fight-safe   { background: #22543d; color: #9ae6b4; border: 1px solid #276749; }
+.rsa-fight-good   { background: #234e52; color: #81e6d9; border: 1px solid #285e61; }
+.rsa-fight-warn   { background: #744210; color: #fbd38d; border: 1px solid #975a16; }
+.rsa-fight-danger  { background: #742a2a; color: #feb2b2; border: 1px solid #9b2c2c; }
+.rsa-fight-banner-detail { font-weight: 400; font-size: 0.85em; opacity: 0.85; }
+
+/* ── Per-round analysis rows ── */
+.rsa-analysis-rounds { display: flex; flex-direction: column; gap: 4px; }
+.rsa-analysis-round {
+    background: #1a202c; border: 1px solid #2d3748; border-radius: 6px;
+    padding: 6px 10px; transition: border-color 0.15s;
+}
+.rsa-analysis-round.rsa-ar-fork { border-color: #d69e2e; }
+.rsa-ar-header { display: flex; align-items: center; gap: 8px; }
+.rsa-ar-num { font-weight: 700; color: #a0aec0; font-size: 0.9em; min-width: 28px; }
+
+.rsa-ar-badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 2px 8px; border-radius: 4px; font-size: 0.8em; font-weight: 600;
+}
+.rsa-ar-det    { background: #22543d; color: #9ae6b4; }
+.rsa-ar-switch { background: #2a4365; color: #90cdf4; }
+.rsa-ar-multi  { background: #744210; color: #fbd38d; }
+
+/* ── Outcome detail rows ── */
+.rsa-ar-outcomes { margin-top: 6px; padding-left: 36px; display: flex; flex-direction: column; gap: 4px; }
+.rsa-outcome {
+    display: flex; align-items: flex-start; gap: 8px;
+    padding: 4px 8px; border-radius: 4px; font-size: 0.85em;
+}
+.rsa-outcome-ok    { background: #1c3d2e; }
+.rsa-outcome-ko    { background: #1c3a4d; }
+.rsa-outcome-death { background: #3d1c1c; border: 1px solid #9b2c2c; }
+.rsa-outcome-prob  { font-weight: 700; min-width: 48px; text-align: right; color: #e2e8f0; }
+.rsa-outcome-desc  { color: #e2e8f0; }
+.rsa-outcome-factors { margin-top: 2px; }
+.rsa-outcome-factor {
+    display: inline-block; padding: 1px 6px; border-radius: 3px;
+    background: #2d3748; color: #a0aec0; font-size: 0.8em; margin-right: 4px;
+}
+
+/* ── Error / empty states ── */
+.rsa-analysis-error { padding: 10px; background: #742a2a; color: #feb2b2; border-radius: 6px; }
+.rsa-analysis-empty { padding: 10px; color: #718096; font-style: italic; }
 .rsa-def-label { font-weight: 600; min-width: 70px; }
 .rsa-def-immune { color: #a0aec0; }
 .rsa-def-qresist { color: #68d391; }

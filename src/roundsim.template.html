@@ -357,11 +357,15 @@
             <span class="rsa-log-title">Round Log</span>
             <span id="rsa-round-count">0</span>
             <button class="rsa-line-btn" id="rsa-collapse-all" title="Collapse / expand all rounds" style="margin-left:auto">⊖ Collapse All</button>
+            <button class="rsa-line-btn" id="rsa-analyze-fight" title="Analyze fight for outcome forks and risk" style="margin-left:8px">🔍 Analyze Fight</button>
             <button class="rsa-line-btn rsa-line-btn-danger" id="rsa-delete-all-rounds" title="Delete all rounds in this line" style="margin-left:8px">🗑 Delete All</button>
         </div>
         <div id="rsa-round-log">
             <div class="rsa-empty">No rounds yet. Set your teams, load the calc, and log rounds.</div>
         </div>
+
+        <!-- ═══ Fight Analysis Panel (read-only post-hoc layer) ═══ -->
+        <div id="rsa-analysis-panel" class="rsa-analysis-panel" style="display:none"></div>
 
         <!-- ═══ Field State Panel (inside round log area) ═══ -->
         <div class="rsa-field-panel" id="rsa-field-panel">
