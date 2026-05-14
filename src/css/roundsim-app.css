@@ -252,6 +252,26 @@
     font-size: 0.8em; border-radius: 0 0 8px 8px;
 }
 
+/* Per-round fork indicators */
+.rsa-round-forks {
+    display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+    padding: 4px 10px; font-size: 0.78em;
+    border-top: 1px solid #2d3748;
+}
+.rsa-rfk-info   { background: #1a202c; }
+.rsa-rfk-danger { background: #2d1a1a; }
+.rsa-rfk-count {
+    font-weight: 700; color: #a0aec0; background: #2d3748;
+    padding: 1px 6px; border-radius: 4px; font-size: 0.9em;
+}
+.rsa-rfk-danger .rsa-rfk-count { background: #4a2020; color: #fc8181; }
+.rsa-rfk-item {
+    color: #a0aec0; white-space: nowrap;
+    padding: 1px 4px; border-radius: 3px;
+}
+.rsa-rfk-item-danger { color: #fc8181; font-weight: 600; }
+.rsa-rfk-item:hover { background: rgba(255,255,255,0.05); }
+
 /* Drop target highlight */
 .rsa-team-drop.rsa-drag-over {
     background: #2d3748;
@@ -320,6 +340,11 @@
 .rsa-team-title { font-weight: 700; color: #e2e8f0; font-size: 1em; }
 .rsa-team-title-p1 { color: #63b3ed; }
 .rsa-team-title-p2 { color: #fc8181; }
+.rsa-trainer-label {
+    color: #fbd38d; font-size: 0.85em; font-weight: 600;
+    margin-left: 6px; opacity: 0.9;
+}
+.rsa-trainer-label:empty { display: none; }
 .rsa-team-count {
     background: #4a5568; color: #e2e8f0; border-radius: 10px;
     padding: 1px 8px; font-size: 0.75em; font-weight: 700;
@@ -702,6 +727,7 @@
 #rsa-round-log.rsa-all-collapsed .rsa-hp-summary,
 #rsa-round-log.rsa-all-collapsed .rsa-dbl-order,
 #rsa-round-log.rsa-all-collapsed .rsa-round-switchpred,
+#rsa-round-log.rsa-all-collapsed .rsa-round-forks,
 #rsa-round-log.rsa-all-collapsed .rsa-comment { display: none; }
 /* Individual card collapse */
 .rsa-round-card.rsa-collapsed .rsa-round-body,
@@ -710,6 +736,7 @@
 .rsa-round-card.rsa-collapsed .rsa-hp-summary,
 .rsa-round-card.rsa-collapsed .rsa-dbl-order,
 .rsa-round-card.rsa-collapsed .rsa-round-switchpred,
+.rsa-round-card.rsa-collapsed .rsa-round-forks,
 .rsa-round-card.rsa-collapsed .rsa-comment { display: none; }
 .rsa-round-header { cursor: pointer; }
 .rsa-round-card { border-bottom-left-radius: 8px; border-bottom-right-radius: 8px; }
@@ -2013,66 +2040,277 @@ fieldset {
 .rsa-def-row { display: flex; align-items: center; gap: 4px; margin: 2px 0; font-size: 0.85em; flex-wrap: wrap; }
 
 /* ════════════════════════════════════════════════════════════
-   FIGHT ANALYSIS PANEL  —  read-only post-hoc layer
+   FIGHT ANALYSIS — vertical timeline tree
    ════════════════════════════════════════════════════════════ */
 
 .rsa-analysis-panel { margin: 12px 0 0; }
 
-/* ── Fight-level safety banner ── */
-.rsa-fight-banner {
-    display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
-    padding: 10px 14px; border-radius: 8px; margin-bottom: 10px;
-    font-weight: 700; font-size: 1.05em;
+/* Banner */
+.rsa-fa-banner {
+    padding: 10px 14px; border-radius: 6px; margin-bottom: 10px;
+    font-weight: 600; font-size: 0.95em;
 }
-.rsa-fight-safe   { background: #22543d; color: #9ae6b4; border: 1px solid #276749; }
-.rsa-fight-good   { background: #234e52; color: #81e6d9; border: 1px solid #285e61; }
-.rsa-fight-warn   { background: #744210; color: #fbd38d; border: 1px solid #975a16; }
-.rsa-fight-danger  { background: #742a2a; color: #feb2b2; border: 1px solid #9b2c2c; }
-.rsa-fight-banner-detail { font-weight: 400; font-size: 0.85em; opacity: 0.85; }
+.rsa-fa-safe   { background: #1a3a2a; color: #68d391; border: 1px solid #2d6a4f; }
+.rsa-fa-fork   { background: #2d2a1a; color: #fbd38d; border: 1px solid #6a5a2d; }
+.rsa-fa-danger { background: #3a1a1a; color: #fc8181; border: 1px solid #6a2d2d; }
 
-/* ── Per-round analysis rows ── */
-.rsa-analysis-rounds { display: flex; flex-direction: column; gap: 4px; }
-.rsa-analysis-round {
+/* Tree container */
+.rsa-fa-tree { padding: 4px 0 4px 4px; }
+
+/* Node = connector + body */
+.rsa-fa-node { display: flex; gap: 0; position: relative; }
+
+/* Vertical connector line + dot */
+.rsa-fan-conn {
+    width: 24px; min-width: 24px; position: relative;
+    display: flex; flex-direction: column; align-items: center;
+}
+.rsa-fan-conn::before {
+    content: ''; position: absolute; top: 0; bottom: 0;
+    left: 50%; width: 2px; background: #4a5568;
+}
+.rsa-fan-last .rsa-fan-conn::before { bottom: 50%; }
+.rsa-fan-dot {
+    width: 12px; height: 12px; border-radius: 50%;
+    margin-top: 14px; border: 2px solid #4a5568;
+    background: #2d3748; position: relative; z-index: 1;
+}
+.rsa-fan-ok .rsa-fan-dot      { background: #48bb78; border-color: #48bb78; }
+.rsa-fan-switch .rsa-fan-dot  { background: #63b3ed; border-color: #63b3ed; }
+.rsa-fan-fork .rsa-fan-dot    { background: #ecc94b; border-color: #ecc94b; }
+.rsa-fan-death .rsa-fan-dot   { background: #fc8181; border-color: #fc8181; }
+
+/* Node body */
+.rsa-fan-body {
+    flex: 1; min-width: 0;
     background: #1a202c; border: 1px solid #2d3748; border-radius: 6px;
-    padding: 6px 10px; transition: border-color 0.15s;
+    padding: 8px 12px; margin: 4px 0;
 }
-.rsa-analysis-round.rsa-ar-fork { border-color: #d69e2e; }
-.rsa-ar-header { display: flex; align-items: center; gap: 8px; }
-.rsa-ar-num { font-weight: 700; color: #a0aec0; font-size: 0.9em; min-width: 28px; }
+.rsa-fan-fork .rsa-fan-body  { border-color: #6a5a2d; }
+.rsa-fan-death .rsa-fan-body { border-color: #6a2d2d; }
 
-.rsa-ar-badge {
-    display: inline-flex; align-items: center; gap: 4px;
-    padding: 2px 8px; border-radius: 4px; font-size: 0.8em; font-weight: 600;
+/* Header */
+.rsa-fan-hdr { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.rsa-fan-num {
+    font-weight: 700; font-size: 0.9em; color: #a0aec0;
+    background: #2d3748; padding: 2px 6px; border-radius: 4px;
 }
-.rsa-ar-det    { background: #22543d; color: #9ae6b4; }
-.rsa-ar-switch { background: #2a4365; color: #90cdf4; }
-.rsa-ar-multi  { background: #744210; color: #fbd38d; }
+.rsa-fan-mu { color: #e2e8f0; font-size: 0.9em; }
+.rsa-fan-mu small { color: #a0aec0; }
 
-/* ── Outcome detail rows ── */
-.rsa-ar-outcomes { margin-top: 6px; padding-left: 36px; display: flex; flex-direction: column; gap: 4px; }
-.rsa-outcome {
-    display: flex; align-items: flex-start; gap: 8px;
-    padding: 4px 8px; border-radius: 4px; font-size: 0.85em;
+/* Badges */
+.rsa-fan-bdg {
+    font-size: 0.75em; padding: 2px 8px; border-radius: 10px;
+    font-weight: 600; margin-left: auto; white-space: nowrap;
 }
-.rsa-outcome-ok    { background: #1c3d2e; }
-.rsa-outcome-ko    { background: #1c3a4d; }
-.rsa-outcome-death { background: #3d1c1c; border: 1px solid #9b2c2c; }
-.rsa-outcome-prob  { font-weight: 700; min-width: 48px; text-align: right; color: #e2e8f0; }
-.rsa-outcome-desc  { color: #e2e8f0; }
-.rsa-outcome-factors { margin-top: 2px; }
-.rsa-outcome-factor {
-    display: inline-block; padding: 1px 6px; border-radius: 3px;
-    background: #2d3748; color: #a0aec0; font-size: 0.8em; margin-right: 4px;
+.rsa-fan-bdg-ok    { background: #1a3a2a; color: #68d391; }
+.rsa-fan-bdg-sw    { background: #1a2a3a; color: #63b3ed; }
+.rsa-fan-bdg-fork  { background: #2d2a1a; color: #fbd38d; }
+.rsa-fan-bdg-death { background: #3a1a1a; color: #fc8181; }
+
+/* Damage line */
+.rsa-fan-dmg { color: #cbd5e0; font-size: 0.85em; margin-top: 6px; }
+.rsa-fan-dmg b { color: #e2e8f0; }
+.rsa-fan-koc { color: #fc8181; font-weight: 600; }
+.rsa-fan-ko-txt { color: #fc8181; }
+
+/* Inline bait at logged HP */
+.rsa-fan-bait-inline {
+    color: #a0aec0; font-size: 0.85em; margin-top: 4px;
+}
+.rsa-fan-bait-inline b { color: #e2e8f0; }
+
+/* ── Fork var badges ── */
+.rsa-fan-vars {
+    display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px;
+}
+.rsa-fv {
+    display: inline-flex; align-items: center; gap: 2px;
+    padding: 1px 7px; border-radius: 10px; font-size: 0.75em;
+    border: 1px solid transparent; cursor: default;
+}
+.rsa-fv-active {
+    background: #1a365d; color: #90cdf4; border-color: #2b6cb0;
+}
+.rsa-fv-elim {
+    background: #2d2d2d; color: #888; border-color: #555;
+    text-decoration: none;
+}
+.rsa-fv-elim s { text-decoration: none; color: #e53e3e; margin-left: 2px; font-weight: 700; }
+.rsa-fv-skip {
+    background: #2d2d2d; color: #666; border-color: #444;
+}
+.rsa-fv-skip s { text-decoration: none; color: #a0a0a0; margin-left: 2px; }
+
+/* ── Fork branches ── */
+.rsa-fk-container {
+    margin-top: 6px; padding-top: 6px; border-top: 1px solid #2d3748;
 }
 
-/* ── Error / empty states ── */
-.rsa-analysis-error { padding: 10px; background: #742a2a; color: #feb2b2; border-radius: 6px; }
-.rsa-analysis-empty { padding: 10px; color: #718096; font-style: italic; }
-.rsa-def-label { font-weight: 600; min-width: 70px; }
-.rsa-def-immune { color: #a0aec0; }
-.rsa-def-qresist { color: #68d391; }
-.rsa-def-resist { color: #9ae6b4; }
-.rsa-def-weak { color: #fc8181; }
+.rsa-fk {
+    border-left: 3px solid #4a5568; margin: 3px 0 3px 6px;
+    border-radius: 0 4px 4px 0;
+}
+.rsa-fk-death   { border-left-color: #fc8181; }
+.rsa-fk-warn    { border-left-color: #ecc94b; }
+.rsa-fk-info    { border-left-color: #63b3ed; }
+
+.rsa-fk-toggle {
+    display: flex; align-items: center; gap: 6px;
+    padding: 4px 8px; cursor: pointer; user-select: none;
+    font-size: 0.83em; color: #cbd5e0; border-radius: 0 4px 4px 0;
+    transition: background 0.15s;
+}
+.rsa-fk-toggle:hover { background: rgba(255,255,255,0.04); }
+.rsa-fk-no-expand .rsa-fk-toggle { cursor: default; }
+
+.rsa-fk-icon { font-size: 1em; flex-shrink: 0; }
+.rsa-fk-label { flex: 1; min-width: 0; }
+
+.rsa-fk-outcome {
+    color: #a0aec0; font-size: 0.9em; white-space: nowrap;
+}
+.rsa-fk-ko       { color: #fc8181; font-weight: 600; }
+.rsa-fk-survives { color: #68d391; font-weight: 600; }
+
+/* ── Fork visual: sprite → move → dmg → sprite → HP bar ── */
+.rsa-fk-visual {
+    display: flex; align-items: center; gap: 4px;
+    padding: 2px 8px 3px 22px; font-size: 0.78em; color: #a0aec0;
+}
+.rsa-fk-spr {
+    width: 22px; height: 22px; image-rendering: pixelated; flex-shrink: 0;
+}
+.rsa-fk-mv { color: #cbd5e0; font-weight: 600; }
+.rsa-fk-dmg { color: #fbd38d; font-weight: 500; }
+.rsa-fk-miss { color: #fc8181; font-weight: 600; text-transform: uppercase; font-size: 0.9em; }
+.rsa-fk-arrow { color: #4a5568; font-weight: 700; }
+.rsa-fk-hp-wrap {
+    width: 44px; height: 5px; background: #1a202c; border-radius: 3px;
+    overflow: hidden; flex-shrink: 0;
+}
+.rsa-fk-hp-bar { display: block; height: 100%; border-radius: 3px; }
+.rsa-fk-hp-txt { white-space: nowrap; font-size: 0.92em; }
+.rsa-fk-hp-ko { color: #fc8181; font-weight: 700; }
+.rsa-fk-survives-tag { color: #68d391; font-weight: 700; }
+
+.rsa-fk-prob {
+    font-size: 0.8em; padding: 1px 6px; border-radius: 8px;
+    background: #2d3748; color: #a0aec0; font-weight: 600;
+    white-space: nowrap;
+}
+
+.rsa-fk-chevron {
+    font-size: 0.7em; color: #718096;
+    transition: transform 0.2s;
+}
+.rsa-fk-open > .rsa-fk-toggle .rsa-fk-chevron {
+    transform: rotate(90deg);
+}
+
+/* Fork detail — hidden by default, shown when open */
+.rsa-fk-detail {
+    display: none; padding: 4px 8px 6px 22px;
+    font-size: 0.82em; color: #a0aec0;
+}
+.rsa-fk-open > .rsa-fk-detail { display: block; }
+
+.rsa-fk-summary {
+    color: #cbd5e0; margin-bottom: 4px; font-weight: 500;
+}
+.rsa-fk-bait-diff { margin-bottom: 3px; }
+.rsa-fk-bait-diff b { color: #e2e8f0; }
+.rsa-fk-bait-range { color: #718096; font-size: 0.9em; margin-bottom: 3px; }
+.rsa-fk-bait-rates {
+    display: flex; flex-direction: column; gap: 1px;
+    margin-top: 3px; padding: 3px 6px; border-radius: 3px;
+    background: rgba(255,255,255,0.03); font-size: 0.92em;
+}
+.rsa-fk-br-main { color: #a0aec0; }
+.rsa-fk-br-fork { color: #fbd38d; }
+
+/* Replay container */
+.rsa-fk-replay { margin-top: 4px; }
+.rsa-fk-replay-hdr {
+    color: #718096; font-size: 0.9em; font-weight: 600; margin-bottom: 3px;
+}
+
+/* Replayed rounds */
+.rsa-rp {
+    display: flex; align-items: center; gap: 6px;
+    padding: 2px 0; font-size: 0.95em;
+}
+.rsa-rp-num {
+    font-weight: 700; color: #718096; background: #2d3748;
+    padding: 1px 4px; border-radius: 3px; font-size: 0.85em;
+}
+.rsa-rp-mu { color: #a0aec0; }
+.rsa-rp-result { margin-left: auto; white-space: nowrap; }
+.rsa-rp-ko { color: #fc8181; font-weight: 600; }
+.rsa-rp-ok { color: #68d391; }
+.rsa-rp-hp-diff { color: #fbd38d; }
+.rsa-rp-death { background: rgba(252,129,129,0.06); border-radius: 3px; padding: 2px 4px; }
+.rsa-rp-diff  { background: rgba(251,211,141,0.06); border-radius: 3px; padding: 2px 4px; }
+
+/* Replay move alternatives (kept for future use) */
+.rsa-rp-alts {
+    margin: 3px 0 2px 20px; padding: 3px 6px;
+    border-left: 2px solid rgba(255,255,255,0.08);
+}
+.rsa-rp-alts-hdr { color: #718096; font-size: 0.85em; margin-bottom: 2px; }
+.rsa-rp-alt {
+    display: flex; align-items: center; gap: 6px;
+    padding: 1px 4px; font-size: 0.9em;
+}
+.rsa-rp-alt-name { font-weight: 500; color: #e2e8f0; min-width: 90px; }
+.rsa-rp-alt-pct { color: #718096; font-size: 0.85em; min-width: 30px; }
+.rsa-rp-alt-result { color: #a0aec0; }
+.rsa-rp-alt-ko .rsa-rp-alt-name { color: #fc8181; }
+.rsa-rp-alt-ko-tag { color: #fc8181; font-weight: 700; }
+.rsa-rp-alt-status .rsa-rp-alt-name { color: #fbd38d; }
+.rsa-rp-alt-item { color: #68d391; font-size: 0.85em; margin-left: 4px; }
+
+/* Replay round details (EOT, status, items from full sim) */
+.rsa-rp-details {
+    margin-top: 2px; padding-left: 20px;
+    font-size: 0.82em; color: #718096;
+}
+
+/* Fork impact indicators */
+.rsa-fk-impact {
+    font-size: 0.75em; padding: 1px 5px; border-radius: 3px;
+    font-weight: 600; white-space: nowrap; margin-left: 4px;
+}
+.rsa-fk-imp-backup { background: rgba(252,129,129,0.2); color: #fc8181; }
+.rsa-fk-imp-diff   { background: rgba(236,201,75,0.15); color: #ecc94b; }
+.rsa-fk-imp-clean  { background: rgba(104,211,145,0.12); color: #68d391; }
+
+/* Bait matchup panel */
+.rsa-bm {
+    margin: 6px 0; padding: 6px 8px; border-radius: 4px;
+    border: 1px solid rgba(255,255,255,0.08);
+}
+.rsa-bm-safe   { background: rgba(104,211,145,0.06); }
+.rsa-bm-threat { background: rgba(252,129,129,0.06); }
+.rsa-bm-hdr { margin-bottom: 4px; font-size: 0.92em; }
+.rsa-bm-hdr small { color: #718096; }
+.rsa-bm-verdict { font-size: 0.8em; padding: 1px 5px; border-radius: 3px; margin-left: 6px; font-weight: 600; }
+.rsa-bm-ko { background: rgba(252,129,129,0.2); color: #fc8181; }
+.rsa-bm-ok { background: rgba(104,211,145,0.15); color: #68d391; }
+.rsa-bm-moves { display: flex; flex-direction: column; gap: 2px; }
+.rsa-bm-mv {
+    display: flex; align-items: center; gap: 6px;
+    padding: 2px 4px; border-radius: 3px; font-size: 0.9em;
+}
+.rsa-bm-mv-ko { background: rgba(252,129,129,0.08); }
+.rsa-bm-mv-name { font-weight: 500; color: #e2e8f0; min-width: 100px; }
+.rsa-bm-mv-dmg { color: #a0aec0; }
+.rsa-bm-mv-ko-tag { color: #fc8181; font-weight: 700; font-size: 0.85em; margin-left: auto; }
+
+/* Loading / empty / error */
+.rsa-fa-loading { color: #a0aec0; padding: 20px; text-align: center; }
+.rsa-fa-empty   { color: #718096; padding: 20px; text-align: center; }
+.rsa-fa-error   { color: #fc8181; padding: 20px; }
 .rsa-def-qweak { color: #feb2b2; }
 
 /* ── Footer (dark mode only) ────────────────────────────────── */
@@ -2080,6 +2318,29 @@ fieldset {
     padding: 8px 16px; text-align: right;
 }
 .rsa-bait-segment:hover { opacity: 1; }
+
+/* ── Item Recommendations ── */
+.rsa-fa-recs {
+    margin-top: 12px; padding: 10px; border-radius: 6px;
+    background: rgba(99,179,237,0.06); border: 1px solid #2d4a6a;
+}
+.rsa-fa-recs-hdr {
+    font-size: 0.95em; font-weight: 700; color: #63b3ed; margin-bottom: 8px;
+}
+.rsa-rec {
+    display: flex; align-items: center; gap: 6px;
+    padding: 4px 6px; border-radius: 4px; margin-bottom: 3px;
+    font-size: 0.82em; color: #cbd5e0;
+}
+.rsa-rec-status { border-left: 3px solid #ecc94b; }
+.rsa-rec-hp     { border-left: 3px solid #68d391; }
+.rsa-rec-spr { width: 24px; height: 24px; image-rendering: pixelated; flex-shrink: 0; }
+.rsa-rec-mon { font-weight: 600; color: #e2e8f0; min-width: 80px; }
+.rsa-rec-item { color: #fbd38d; }
+.rsa-rec-item b { color: #f6e05e; }
+.rsa-rec-reason { flex: 1; color: #a0aec0; }
+.rsa-rec-cost { font-size: 0.9em; color: #fc8181; }
+.rsa-rec-rounds { font-size: 0.85em; padding: 1px 5px; border-radius: 8px; background: #2d3748; color: #718096; }
 
 .rsa-bait-marker {
     position: absolute;
