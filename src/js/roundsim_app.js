@@ -2727,6 +2727,31 @@
      * switching lines or restoring a session, the bar reflects truth.
      */
     function syncFieldBarFromState() {
+        var fld = (curLine() && curLine().fieldState) || {};
+
+        // If fieldState has a saved weather, restore it to the DOM radio first
+        if (fld.weather !== undefined) {
+            if (fld.weather) {
+                var _wMap2 = { 'Sun': 'sun', 'Rain': 'rain', 'Sand': 'sand', 'Snow': 'snow', 'Hail': 'hail',
+                    'Harsh Sunshine': 'harsh-sunshine', 'Heavy Rain': 'heavy-rain', 'Strong Winds': 'strong-winds' };
+                var _wId2 = _wMap2[fld.weather];
+                if (_wId2) $('#' + _wId2).prop('checked', true);
+            } else {
+                $('input:radio[name="weather"][value=""]').prop('checked', true);
+            }
+        }
+        if (fld.terrain !== undefined) {
+            $('input:checkbox[name="terrain"]').prop('checked', false);
+            if (fld.terrain) {
+                var _tMap2 = { 'Electric': 'electric', 'Grassy': 'grassy', 'Misty': 'misty', 'Psychic': 'psychic' };
+                var _tId2 = _tMap2[fld.terrain];
+                if (_tId2) $('#' + _tId2).prop('checked', true);
+            }
+        }
+        if (fld.trickRoom !== undefined) {
+            $('#trickroom').prop('checked', !!fld.trickRoom);
+        }
+
         // Weather: read from hidden radio (authoritative)
         var w = getWeather();
         $('#rsa-weather-select').val(w === 'None' ? '' : w);
@@ -8039,6 +8064,22 @@
                     $('[data-format="' + battleFormat + '"]').addClass('rsa-format-active');
                     $('#rsa-doubles-moves').show();
                 }
+                // Restore weather/terrain/trickroom from fieldState
+                var _fld = curLine().fieldState || {};
+                if (_fld.weather) {
+                    var _wRadioMap = { 'Sun': 'sun', 'Rain': 'rain', 'Sand': 'sand', 'Snow': 'snow', 'Hail': 'hail',
+                        'Harsh Sunshine': 'harsh-sunshine', 'Heavy Rain': 'heavy-rain', 'Strong Winds': 'strong-winds' };
+                    var _wId = _wRadioMap[_fld.weather];
+                    if (_wId) $('#' + _wId).prop('checked', true);
+                }
+                if (_fld.terrain) {
+                    var _tMap = { 'Electric': 'electric', 'Grassy': 'grassy', 'Misty': 'misty', 'Psychic': 'psychic' };
+                    var _tId = _tMap[_fld.terrain];
+                    if (_tId) $('#' + _tId).prop('checked', true);
+                }
+                if (_fld.trickRoom) {
+                    $('#trickroom').prop('checked', true);
+                }
                 // Load active Pokémon from restored session into the calc form
                 // Use a delay to ensure Select2 and calc form are fully initialized
                 var _line = curLine();
@@ -9872,9 +9913,11 @@
                 // None — check the "clear" radio
                 $('input:radio[name="weather"][value=""]').prop('checked', true);
             }
+            curLine().fieldState.weather = val || '';
             try { performCalculations(); } catch (e) {}
             updateFieldPanel();
             refreshTeamSpeeds();
+            autoSave();
         });
 
         // Permanent weather checkbox
@@ -9894,9 +9937,11 @@
                 var cbId = terrainMap[val];
                 if (cbId) $('#' + cbId).prop('checked', true);
             }
+            curLine().fieldState.terrain = val || '';
             try { performCalculations(); } catch (e) {}
             updateFieldPanel();
             refreshTeamSpeeds();
+            autoSave();
         });
 
         // Trick Room toggle
@@ -9904,6 +9949,7 @@
             var on = $(this).is(':checked');
             $('#trickroom').prop('checked', on);
             $(this).closest('.rsa-trickroom-toggle').toggleClass('rsa-tr-active', on);
+            curLine().fieldState.trickRoom = on;
             try { performCalculations(); } catch (e) {}
             updateFieldPanel();
             autoSave();
@@ -11513,7 +11559,7 @@
         // Fork var summary — which variables exist per round and status
         // ═══════════════════════════════════════════════════════════════
 
-        function _computeForkVars(rd, roundIdx, allRounds, identifiedForks) {
+        function _computeForkVars(rd, roundIdx, allRounds, identifiedForks, dmgRange) {
             var vars = [];
             if (!rd.p1 || !rd.p2 || rd.isP2Switch) return vars;
 
@@ -11552,7 +11598,8 @@
             if (!p2KOdBeforeAttack && p2MoveData && p2MoveData.category !== 'Status' &&
                     rd.p2.damage && rd.p2.damage.minDmg !== rd.p2.damage.maxDmg) {
                 var p2rollKO = rd.p2.damage.maxDmg >= p1HP && rd.p2.damage.minDmg < p1HP;
-                if (!p2rollKO && !forkedTypes['dmgRoll'] && !rd._rollChangesBait) {
+                var p2rollKOCount = dmgRange && dmgRange.koCount > 0;
+                if (!p2rollKO && !p2rollKOCount && !forkedTypes['dmgRoll'] && !rd._rollChangesBait) {
                     vars.push({ key: 'p2roll', icon: '🎰', label: 'P2 Roll', status: 'eliminated', reason: 'no KO or bait impact' });
                 }
             }
@@ -11613,9 +11660,6 @@
             // ── Identify all fork sources ──
             ar.forks = _identifyForks(line, rd, roundIdx, allRounds);
 
-            // ── Fork var summary (for badges) ──
-            ar.forkVars = _computeForkVars(rd, roundIdx, allRounds, ar.forks);
-
             // ── Bait analysis if P2 dies ──
             if (p2Dies) {
                 ar.baitBands = _getBaitBands(line, rd, roundIdx);
@@ -11659,6 +11703,9 @@
                     }
                 }
             }
+
+            // ── Fork var summary (for badges) — computed after bait so rd._rollChangesBait is set ──
+            ar.forkVars = _computeForkVars(rd, roundIdx, allRounds, ar.forks, ar.dmgRange);
 
             // ── Determine which P1 faces the bait (same for all forks) ──
             var baitRd = rd;
