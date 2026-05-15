@@ -6028,9 +6028,11 @@
             }
         }
         // Renumber remaining rounds sequentially
+        // P2 switch rounds share the number of the preceding combat round
         line.roundCounter = 0;
         for (var i = 0; i < line.rounds.length; i++) {
-            line.rounds[i].roundNum = ++line.roundCounter;
+            if (!line.rounds[i].isP2Switch) line.roundCounter++;
+            line.rounds[i].roundNum = line.roundCounter;
         }
         // Rebuild hazard state by replaying each round's moves
         if (line.fieldState && line.fieldState.hazards) {
@@ -6677,16 +6679,16 @@
 
         // ════════════ P2 FORK VARS ════════════
 
-        // 1. P2 damage roll range — only show when roll crosses a KO boundary
+        // 1. P2 damage roll range — show when roll crosses KO boundary OR bait changes (set during fight analysis)
         if (!p2KOdBeforeAttack && rd.p2.damage && rd.p2.damage.minDmg !== rd.p2.damage.maxDmg && !rd.p2.flinched) {
             var rollKOBoundary = rd.p2.damage.maxDmg >= p1HP && rd.p2.damage.minDmg < p1HP;
-            if (rollKOBoundary) {
-                var minHP = Math.max(0, p1HP - rd.p2.damage.maxDmg);
-                var maxHP = Math.max(0, p1HP - rd.p2.damage.minDmg);
+            var rollMinHP = Math.max(0, p1HP - rd.p2.damage.maxDmg);
+            var rollMaxHP = Math.max(0, p1HP - rd.p2.damage.minDmg);
+            if (rollKOBoundary || rd._rollChangesBait) {
                 forks.push({
                     icon: '🎰', label: 'P2 Roll',
-                    detail: 'P1 at ' + minHP + '–' + maxHP + ' HP',
-                    danger: true
+                    detail: 'P1 at ' + rollMinHP + '–' + rollMaxHP + ' HP',
+                    danger: rollKOBoundary
                 });
             }
         }
@@ -9399,6 +9401,8 @@
                 var rd = captureRound(p1MoveIdx, 'none', false, 0, '', inlineComment, false, false);
                 if (!rd) { return; }
                 rd.isP2Switch = true;
+                rd.roundNum = line.roundCounter; // share number with preceding combat round
+                line.roundCounter--;              // undo the increment from captureRound
                 getActiveRounds(curLine()).push(rd);
                 renderAll();
                 syncActiveStatusToForm();
@@ -11509,7 +11513,7 @@
         // Fork var summary — which variables exist per round and status
         // ═══════════════════════════════════════════════════════════════
 
-        function _computeForkVars(rd, roundIdx, allRounds) {
+        function _computeForkVars(rd, roundIdx, allRounds, identifiedForks) {
             var vars = [];
             if (!rd.p1 || !rd.p2 || rd.isP2Switch) return vars;
 
@@ -11519,92 +11523,37 @@
             var p2Move = rd.p2.move && rd.p2.move !== '—' ? rd.p2.move : null;
             var p2MoveData = p2Move ? lookupMoveData(p2Move) : null;
             var p1MoveData = p1Attacked ? lookupMoveData(rd.p1.move) : null;
-            var p1SwitchesNext = false;
-            if (allRounds && roundIdx < allRounds.length - 1) {
-                var _nxt = allRounds[roundIdx + 1];
-                if (_nxt && _nxt.p1 && _nxt.p1.name && _nxt.p1.name !== rd.p1.name) p1SwitchesNext = true;
-            }
+            var p2HP = rd.p2.hpBefore.current;
+            var p1HP = rd.p1.hpBefore.current;
 
-            // ── P2 crit ──
-            if (p2MoveData && p2MoveData.category !== 'Status') {
-                if (p2KOdBeforeAttack) {
-                    vars.push({ key: 'p2crit', icon: '⚡', label: 'P2 Crit', status: 'skipped', reason: 'P2 KO\'d before attack' });
-                } else {
-                    vars.push({ key: 'p2crit', icon: '⚡', label: 'P2 Crit', status: 'active', reason: '' });
+            // Which fork types are already addressed in detail below
+            var forkedTypes = {};
+            if (identifiedForks) {
+                for (var fi = 0; fi < identifiedForks.length; fi++) {
+                    forkedTypes[identifiedForks[fi].type] = true;
                 }
             }
 
-            // ── P2 secondary ──
-            if (p2MoveData && p2MoveData.secondary && p2MoveData.secondary.chance && p2MoveData.secondary.chance < 100) {
-                var secEff = resolveSecondaryEffects(p2MoveData, 'p1', false);
-                var secName = secEff.status || secEff.volatile || (p2MoveData.secondary.boosts ? 'stat change' : '');
-                if (p2KOdBeforeAttack) {
-                    vars.push({ key: 'p2sec', icon: '🧪', label: 'P2 ' + (secName || 'Eff'), status: 'skipped', reason: 'P2 KO\'d before attack' });
-                } else {
-                    var onlyBoosts = p2MoveData.secondary.boosts && !p2MoveData.secondary.status && !p2MoveData.secondary.volatileStatus;
-                    if (onlyBoosts && p1SwitchesNext) {
-                        vars.push({ key: 'p2sec', icon: '🧪', label: 'P2 ' + (secName || 'Eff'), status: 'eliminated', reason: 'stat-only + P1 switches' });
-                    } else if (onlyBoosts && rd.p2.hpAfter.current <= 0) {
-                        vars.push({ key: 'p2sec', icon: '🧪', label: 'P2 ' + (secName || 'Eff'), status: 'eliminated', reason: 'stat-only + P2 dies' });
-                    } else {
-                        vars.push({ key: 'p2sec', icon: '🧪', label: 'P2 ' + (secName || 'Eff'), status: 'active', reason: p2MoveData.secondary.chance + '%' });
-                    }
+            // ── P1 Roll: zero consequence when all rolls OHKO P2 ──
+            if (p1Attacked && p1MoveData && p1MoveData.category !== 'Status' && rd.p1.damage) {
+                if ((rd.p1.damage.minDmg || 0) >= p2HP) {
+                    vars.push({ key: 'p1roll', icon: '🎰', label: 'P1 Roll', status: 'eliminated', reason: 'OHKO regardless' });
                 }
             }
 
-            // ── P2 miss ──
-            if (p2MoveData && p2MoveData.accuracy && p2MoveData.accuracy !== true && p2MoveData.accuracy < 100) {
-                if (p2KOdBeforeAttack) {
-                    vars.push({ key: 'p2miss', icon: '🎯', label: 'P2 Miss', status: 'skipped', reason: 'P2 KO\'d before attack' });
-                } else {
-                    vars.push({ key: 'p2miss', icon: '🎯', label: 'P2 Miss', status: 'active', reason: (100 - p2MoveData.accuracy) + '%' });
+            // ── P1 Crit: zero consequence when P1 already OHKOs on min roll ──
+            if (p1Attacked && p1MoveData && p1MoveData.category !== 'Status' && rd.p1.damage) {
+                if ((rd.p1.damage.minDmg || 0) >= p2HP) {
+                    vars.push({ key: 'p1crit', icon: '⚡', label: 'P1 Crit', status: 'eliminated', reason: 'OHKO regardless' });
                 }
             }
 
-            // ── Flinch (from P1's move) ──
-            if (p1Faster && p1Attacked && !p2KOdBeforeAttack && p1MoveData &&
-                p1MoveData.secondary && p1MoveData.secondary.volatileStatus === 'flinch' &&
-                p1MoveData.secondary.chance) {
-                vars.push({ key: 'flinch', icon: '💫', label: 'Flinch', status: 'active', reason: p1MoveData.secondary.chance + '%' });
-            }
-
-            // ── P1 secondary on P2 ──
-            if (p1Attacked && p1MoveData && p1MoveData.secondary &&
-                p1MoveData.secondary.chance && p1MoveData.secondary.chance < 100) {
-                var p1SecEff = resolveSecondaryEffects(p1MoveData, 'p2', false);
-                var p1SecName = p1SecEff.status || p1SecEff.volatile || '';
-                if (p1SecName) {
-                    vars.push({ key: 'p1sec', icon: '🧪', label: 'P1 ' + p1SecName, status: 'active', reason: p1MoveData.secondary.chance + '%' });
-                }
-            }
-
-            // ── Contact ability (Flame Body, Static on P1) ──
-            if (!p2KOdBeforeAttack && p2MoveData && p2MoveData.flags && p2MoveData.flags.contact && rd.p1.ability) {
-                var ae = getAbilityEffects(rd.p1.ability);
-                if (ae && ae.contactStatusInflict) {
-                    vars.push({ key: 'contact', icon: '🔥', label: ae.contactStatusInflict.status, status: 'active', reason: ae.contactStatusInflict.chance + '%' });
-                }
-            }
-
-            // ── P1 crit ──
-            if (p1Attacked && p1MoveData && p1MoveData.category !== 'Status') {
-                vars.push({ key: 'p1crit', icon: '⚡', label: 'P1 Crit', status: 'active', reason: '4.2%' });
-            }
-
-            // ── P1 miss ──
-            if (p1Attacked && p1MoveData && p1MoveData.accuracy &&
-                p1MoveData.accuracy !== true && p1MoveData.accuracy < 100) {
-                vars.push({ key: 'p1miss', icon: '🎯', label: 'P1 Miss', status: 'active', reason: (100 - p1MoveData.accuracy) + '%' });
-            }
-
-            // ── Alt moves ──
-            if (!p2KOdBeforeAttack && rd.p2.allMoves && rd.p2.allMoves.length > 1) {
-                var altCount = 0;
-                for (var i = 0; i < rd.p2.allMoves.length; i++) {
-                    if (rd.p2.allMoves[i] !== rd.p2.move && rd.p2.allMoves[i] !== '(No Move)') altCount++;
-                }
-                if (altCount > 0) {
-                    vars.push({ key: 'altMove', icon: '🎲', label: altCount + ' alt move' + (altCount > 1 ? 's' : ''), status: 'active', reason: '' });
+            // ── P2 Roll: zero consequence when not KO boundary and bait same regardless ──
+            if (!p2KOdBeforeAttack && p2MoveData && p2MoveData.category !== 'Status' &&
+                    rd.p2.damage && rd.p2.damage.minDmg !== rd.p2.damage.maxDmg) {
+                var p2rollKO = rd.p2.damage.maxDmg >= p1HP && rd.p2.damage.minDmg < p1HP;
+                if (!p2rollKO && !forkedTypes['dmgRoll'] && !rd._rollChangesBait) {
+                    vars.push({ key: 'p2roll', icon: '🎰', label: 'P2 Roll', status: 'eliminated', reason: 'no KO or bait impact' });
                 }
             }
 
@@ -11665,7 +11614,7 @@
             ar.forks = _identifyForks(line, rd, roundIdx, allRounds);
 
             // ── Fork var summary (for badges) ──
-            ar.forkVars = _computeForkVars(rd, roundIdx, allRounds);
+            ar.forkVars = _computeForkVars(rd, roundIdx, allRounds, ar.forks);
 
             // ── Bait analysis if P2 dies ──
             if (p2Dies) {
@@ -11689,6 +11638,7 @@
                     var baitAtMax = _lookupBait(ar.baitBands, ar.dmgRange.maxHP);
                     if (_baitsDiffer(baitAtMin, baitAtMax)) {
                         var dmgBaitDiffType = _baitDiffType(baitAtMin, baitAtMax);
+                        rd._rollChangesBait = true; // mark round for card badge
                         ar.forks.unshift({
                             id: 'R' + ar.roundNum + '-dmg-bait',
                             type: 'dmgRoll',

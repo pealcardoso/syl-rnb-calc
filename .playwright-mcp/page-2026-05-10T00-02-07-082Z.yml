@@ -1,0 +1,2314 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - generic [ref=e3]: Round Simulator
+    - button "📋 Bug Report" [ref=e4] [cursor=pointer]
+    - link "← Back to Calculator" [ref=e5] [cursor=pointer]:
+      - /url: ./index.html
+  - navigation [ref=e6]
+  - generic [ref=e8]:
+    - region "Settings" [ref=e9]:
+      - text: Pokémon Damage Calculator
+      - radiogroup "Select the generation.":
+        - generic [ref=e10]: Select the generation.
+        - radio [checked] [ref=e11]
+      - radiogroup "Select the output notation.":
+        - generic [ref=e12]: Select the output notation.
+        - radio [ref=e13]
+        - radio [checked] [ref=e14]
+      - radiogroup "Select the calculator's mode of function." [ref=e15]:
+        - generic [ref=e16]: Select the calculator's mode of function.
+        - radio [checked] [ref=e17]
+        - radio [ref=e18]
+        - radio [ref=e19]
+        - radio [ref=e20]
+    - separator [ref=e21]
+    - generic [ref=e22]:
+      - generic [ref=e23]: "Lines:"
+      - generic [ref=e24]:
+        - button "Line B (1)" [ref=e25] [cursor=pointer]
+        - button "Line B (1)" [ref=e26] [cursor=pointer]
+      - button "+ New Line" [ref=e27] [cursor=pointer]
+      - button "Delete Line" [ref=e28] [cursor=pointer]
+      - button "💾 Save" [ref=e29] [cursor=pointer]
+      - button "📂 Load" [ref=e30] [cursor=pointer]
+      - button "✕ Clear Save" [ref=e31] [cursor=pointer]
+    - generic [ref=e32]:
+      - generic [ref=e33]: "Battle Format:"
+      - generic [ref=e34]:
+        - button "Singles" [ref=e35] [cursor=pointer]
+        - button "Doubles (1 Trainer)" [ref=e36] [cursor=pointer]
+        - button "Doubles (2 Trainers)" [ref=e37] [cursor=pointer]
+    - generic [ref=e39]:
+      - generic [ref=e40]:
+        - generic [ref=e41]: Your Box
+        - generic [ref=e42]: "39"
+        - generic [ref=e43]:
+          - button "📥 Import" [ref=e44] [cursor=pointer]
+          - button "🗑 Delete" [ref=e45] [cursor=pointer]
+          - button "📊 Coverage" [ref=e46] [cursor=pointer]
+          - button "🏷️ Tag Cov." [ref=e47] [cursor=pointer]
+          - button "🚫 Items" [ref=e48] [cursor=pointer]
+      - generic [ref=e49]:
+        - generic [ref=e50]: "Sort:"
+        - button "Default" [ref=e51] [cursor=pointer]
+        - button "⚔ Offense" [ref=e52] [cursor=pointer]
+        - button "🛡 Move Def" [ref=e53] [cursor=pointer]
+        - button "🛡 All Def" [ref=e54] [cursor=pointer]
+        - button "⚙ Settings" [ref=e55] [cursor=pointer]
+      - generic [ref=e57]:
+        - generic [ref=e58]:
+          - generic [ref=e59] [cursor=pointer]: All
+          - generic "Gold tier" [ref=e60] [cursor=pointer]: ★
+          - generic "Primary tier" [ref=e61] [cursor=pointer]: ●
+          - generic "Silver tier" [ref=e62] [cursor=pointer]: ◌
+        - generic [ref=e63] [cursor=pointer]:
+          - text: 👋
+          - generic [ref=e64]: Fake Out
+        - generic [ref=e65] [cursor=pointer]:
+          - text: 😤
+          - generic [ref=e66]: Intimidate
+        - generic [ref=e67] [cursor=pointer]:
+          - text: ⏱️
+          - generic [ref=e68]: Speed Control
+          - generic [ref=e69]:
+            - generic [ref=e70]: ★
+            - generic [ref=e71]: ◌
+        - generic [ref=e72] [cursor=pointer]:
+          - text: 🛡️
+          - generic [ref=e73]: Crit Immunity
+        - generic [ref=e74] [cursor=pointer]:
+          - text: 🔨
+          - generic [ref=e75]: Mold Breaker
+        - generic [ref=e76] [cursor=pointer]:
+          - text: 🔒
+          - generic [ref=e77]: Protect
+        - generic [ref=e78] [cursor=pointer]:
+          - text: ⚡
+          - generic [ref=e79]: Priority Move
+        - generic [ref=e80] [cursor=pointer]:
+          - text: 💫
+          - generic [ref=e81]: Spread Move
+        - generic [ref=e82] [cursor=pointer]:
+          - text: 🎯
+          - generic [ref=e83]: Never Misses
+        - generic [ref=e84] [cursor=pointer]:
+          - text: 💊
+          - generic [ref=e85]: Status Immune
+        - generic [ref=e86] [cursor=pointer]:
+          - text: 🕊️
+          - generic [ref=e87]: Ground Immune
+        - generic [ref=e88] [cursor=pointer]:
+          - text: 💧
+          - generic [ref=e89]: Soaker
+        - generic [ref=e90] [cursor=pointer]:
+          - text: 📣
+          - generic [ref=e91]: Follow Me
+        - generic [ref=e92] [cursor=pointer]:
+          - text: 🎒
+          - generic [ref=e93]: Knock Off
+        - generic [ref=e94] [cursor=pointer]:
+          - text: 🌧️
+          - generic [ref=e95]: Rain Synergy
+          - generic [ref=e96]:
+            - generic [ref=e97]: ●
+            - generic [ref=e98]: ◌
+        - generic [ref=e99] [cursor=pointer]:
+          - text: 🏜️
+          - generic [ref=e100]: Sand Synergy
+          - generic [ref=e101]:
+            - generic [ref=e102]: ●
+            - generic [ref=e103]: ◌
+        - generic [ref=e104] [cursor=pointer]:
+          - text: ☀️
+          - generic [ref=e105]: Sun Synergy
+          - generic [ref=e106]:
+            - generic [ref=e107]: ●
+            - generic [ref=e108]: ◌
+        - generic [ref=e109] [cursor=pointer]:
+          - text: ❄️
+          - generic [ref=e110]: Snow Synergy
+          - generic [ref=e111]:
+            - generic [ref=e112]: ●
+            - generic [ref=e113]: ◌
+        - generic [ref=e114] [cursor=pointer]:
+          - text: 🧹
+          - generic [ref=e115]: Hazard Remover
+        - generic [ref=e116] [cursor=pointer]:
+          - text: 🪟
+          - generic [ref=e117]: Barrier Breaker
+        - generic [ref=e118] [cursor=pointer]:
+          - text: 💚
+          - generic [ref=e119]: Self Healer
+          - generic [ref=e120]:
+            - generic [ref=e121]: ★
+            - generic [ref=e122]: ●
+            - generic [ref=e123]: ◌
+        - generic [ref=e124] [cursor=pointer]:
+          - text: 💣
+          - generic [ref=e125]: Exploder
+        - generic [ref=e126] [cursor=pointer]:
+          - text: 🧱
+          - generic [ref=e127]: Sturdy / Sash
+        - generic [ref=e128] [cursor=pointer]:
+          - text: ⚠️
+          - generic [ref=e129]: Hazard Setter
+        - generic [ref=e130] [cursor=pointer]:
+          - text: 🪞
+          - generic [ref=e131]: Screen Setter
+        - generic [ref=e132] [cursor=pointer]:
+          - text: 🌦️
+          - generic [ref=e133]: Weather Setter
+        - generic [ref=e134] [cursor=pointer]:
+          - text: 🌫️
+          - generic [ref=e135]: Accuracy Reducer
+          - generic [ref=e136]:
+            - generic [ref=e137]: ●
+            - generic [ref=e138]: ◌
+        - generic [ref=e139] [cursor=pointer]:
+          - text: 🐾
+          - generic [ref=e140]: Quick Claw
+          - generic [ref=e141]:
+            - generic [ref=e142]: ●
+            - generic [ref=e143]: ◌
+        - generic [ref=e144] [cursor=pointer]:
+          - text: 🎲
+          - generic [ref=e145]: Crit Machine
+          - generic [ref=e146]:
+            - generic [ref=e147]: ●
+            - generic [ref=e148]: ◌
+        - generic [ref=e149] [cursor=pointer]:
+          - text: 🏎️
+          - generic [ref=e150]: Speed Booster
+          - generic [ref=e151]:
+            - generic [ref=e152]: ●
+            - generic [ref=e153]: ◌
+        - generic [ref=e154] [cursor=pointer]:
+          - text: ↩️
+          - generic [ref=e155]: Retaliator
+        - generic [ref=e156] [cursor=pointer]:
+          - text: ❗
+          - generic [ref=e157]: Priority Proc
+        - generic [ref=e158] [cursor=pointer]:
+          - text: 🕸️
+          - generic [ref=e159]: Trapper
+        - generic [ref=e160] [cursor=pointer]:
+          - text: ☠️
+          - generic [ref=e161]: Status Inducer
+          - generic [ref=e162]:
+            - generic [ref=e163]: ●
+            - generic [ref=e164]: ◌
+        - generic [ref=e165] [cursor=pointer]:
+          - text: 📉
+          - generic [ref=e166]: Debuffer
+          - generic [ref=e167]:
+            - generic [ref=e168]: ★
+            - generic [ref=e169]: ◌
+        - generic [ref=e170] [cursor=pointer]:
+          - text: 📈
+          - generic [ref=e171]: Self Booster
+        - generic [ref=e172] [cursor=pointer]:
+          - text: 🔄
+          - generic [ref=e173]: Trick Room
+        - generic [ref=e174] [cursor=pointer]:
+          - text: 🏃
+          - generic [ref=e175]: Pursuit
+        - generic [ref=e176] [cursor=pointer]:
+          - text: 🪢
+          - generic [ref=e177]: Destiny Bond
+        - button "✕" [ref=e178] [cursor=pointer]
+      - generic [ref=e179]:
+        - generic [ref=e180]:
+          - 'generic "Speed: 141"': "141"
+          - img "Togedemaru" [ref=e182]
+          - generic [ref=e183]: Togedemaru
+          - generic [ref=e184]:
+            - 'generic "Offense rank: #11 (199% max dmg)" [ref=e185]': ⚔11
+            - 'generic "Move defense rank: #30 (89% dmg taken)" [ref=e186]': 🛡30
+            - 'generic "All-moves defense rank: #31 (140% worst move)" [ref=e187]': 🛡A31
+          - 'generic "AI sends Rotom-Wash (+2: Better trade)" [ref=e188]'
+          - generic [ref=e189]:
+            - generic [ref=e190]: 👋
+            - generic [ref=e191]: 🔒
+            - generic [ref=e192]: 🏜️
+            - generic [ref=e193]: ☠️
+            - generic [ref=e194]: ⚡
+        - generic [ref=e195]:
+          - 'generic "Speed: 127"': "127"
+          - img "Toxicroak" [ref=e197]
+          - generic [ref=e198]: Toxicroak
+          - generic [ref=e199]:
+            - 'generic "Offense rank: #20 (162% max dmg)" [ref=e200]': ⚔20
+            - 'generic "Move defense rank: #27 (75% dmg taken)" [ref=e201]': 🛡27
+            - 'generic "All-moves defense rank: #37 (168% worst move)" [ref=e202]': 🛡A37
+          - 'generic "AI sends Jynx (+5: Faster + OHKO)" [ref=e203]'
+          - generic [ref=e204]:
+            - generic [ref=e205]: 👋
+            - generic [ref=e206]: ☠️
+            - generic [ref=e207]: ⏱️
+            - generic [ref=e208]: ⚡
+        - generic [ref=e209]:
+          - 'generic "Speed: 126"': "126"
+          - img "Basculegion" [ref=e211]
+          - generic [ref=e212]: Basculegion
+          - generic [ref=e213]:
+            - 'generic "Offense rank: #18 (166% max dmg)" [ref=e214]': ⚔18
+            - 'generic "Move defense rank: #5 (33% dmg taken)" [ref=e215]': 🛡5
+            - 'generic "All-moves defense rank: #3 (36% worst move)" [ref=e216]': 🛡A3
+          - 'generic "AI sends Roserade (+5: Faster + OHKO)" [ref=e217]'
+          - generic [ref=e218]:
+            - generic [ref=e219]: 🌧️
+            - generic [ref=e220]: 📉
+            - generic [ref=e221]: 🔨
+            - generic [ref=e222]: 💧
+        - generic [ref=e223]:
+          - 'generic "Speed: 135"': "135"
+          - img "Nidoking" [ref=e225]
+          - generic [ref=e226]: Nidoking
+          - generic [ref=e227]:
+            - 'generic "Offense rank: #31 (129% max dmg)" [ref=e228]': ⚔31
+            - 'generic "Move defense rank: #32 (132% dmg taken)" [ref=e229]': 🛡32
+            - 'generic "All-moves defense rank: #29 (132% worst move)" [ref=e230]': 🛡A29
+          - 'generic "AI sends Rotom-Wash (+5: Faster + OHKO)" [ref=e231]'
+          - generic [ref=e232]:
+            - generic [ref=e233]: 🏜️
+            - generic [ref=e234]: ☠️
+            - generic [ref=e235]: 📉
+            - generic [ref=e236]: ⏱️
+            - generic [ref=e237]: 💫
+        - generic [ref=e238]:
+          - 'generic "Speed: 104"': "104"
+          - img "Tyranitar" [ref=e240]
+          - generic [ref=e241]: Tyranitar
+          - generic [ref=e242]:
+            - 'generic "Offense rank: #25 (143% max dmg)" [ref=e243]': ⚔25
+            - 'generic "Move defense rank: #29 (89% dmg taken)" [ref=e244]': 🛡29
+            - 'generic "All-moves defense rank: #32 (140% worst move)" [ref=e245]': 🛡A32
+          - 'generic "AI sends Roserade (+5: Faster + OHKO)" [ref=e246]'
+          - generic [ref=e247]:
+            - generic [ref=e248]: 🏜️
+            - generic [ref=e249]: 📉
+            - generic [ref=e250]: ⏱️
+            - generic [ref=e251]: 💫
+        - generic [ref=e252]:
+          - 'generic "Speed: 109"': "109"
+          - img "Metagross" [ref=e254]
+          - generic [ref=e255]: Metagross
+          - generic [ref=e256]:
+            - 'generic "Offense rank: #24 (146% max dmg)" [ref=e257]': ⚔24
+            - 'generic "Move defense rank: #15 (44% dmg taken)" [ref=e258]': 🛡15
+            - 'generic "All-moves defense rank: #9 (44% worst move)" [ref=e259]': 🛡A9
+          - 'generic "AI sends Roserade (+1: Faster)" [ref=e260]'
+          - generic [ref=e261]:
+            - generic [ref=e262]: 🏜️
+            - generic [ref=e263]: ⚡
+        - generic [ref=e264]:
+          - 'generic "Speed: 164"': "164"
+          - img "Starmie" [ref=e266]
+          - generic [ref=e267]: Starmie
+          - generic [ref=e268]:
+            - 'generic "Offense rank: #33 (122% max dmg)" [ref=e269]': ⚔33
+            - 'generic "Move defense rank: #6 (33% dmg taken)" [ref=e270]': 🛡6
+            - 'generic "All-moves defense rank: #2 (33% worst move)" [ref=e271]': 🛡A2
+          - 'generic "AI sends Roserade (+4: OHKO + survives)" [ref=e272]'
+          - generic [ref=e273]:
+            - generic [ref=e274]: 🌧️
+            - generic [ref=e275]: 💚
+            - generic [ref=e276]: ☠️
+            - generic [ref=e277]: 📉
+            - generic [ref=e278]: 💫
+            - generic [ref=e279]: 💊
+        - generic [ref=e280]:
+          - 'generic "Speed: 69"': "69"
+          - img "Araquanid" [ref=e282]
+          - generic [ref=e283]: Araquanid
+          - generic [ref=e284]:
+            - 'generic "Offense rank: #38 (77% max dmg)" [ref=e285]': ⚔38
+            - 'generic "Move defense rank: #8 (34% dmg taken)" [ref=e286]': 🛡8
+            - 'generic "All-moves defense rank: #4 (38% worst move)" [ref=e287]': 🛡A4
+          - 'generic "AI sends Rotom-Wash (+3: Faster + better trade)" [ref=e288]'
+          - generic [ref=e289]:
+            - generic [ref=e290]: 📉
+            - generic [ref=e291]: 🌧️
+            - generic [ref=e292]: 💧
+        - generic [ref=e293]:
+          - 'generic "Speed: 102"': "102"
+          - img "Eldegoss" [ref=e295]
+          - generic [ref=e296]: Eldegoss
+          - generic [ref=e297]:
+            - 'generic "Offense rank: #6 (294% max dmg)" [ref=e298]': ⚔6
+            - 'generic "Move defense rank: #9 (36% dmg taken)" [ref=e299]': 🛡9
+            - 'generic "All-moves defense rank: #19 (56% worst move)" [ref=e300]': 🛡A19
+          - 'generic "AI sends Roserade (+3: Faster + better trade)" [ref=e301]'
+          - generic [ref=e302]:
+            - generic [ref=e303]: ⏱️
+            - generic [ref=e304]: 🧹
+            - generic [ref=e305]: 💚
+            - generic [ref=e306]: 📉
+        - generic [ref=e307]:
+          - 'generic "Speed: 146"': "146"
+          - img "Gliscor" [ref=e309]
+          - generic [ref=e310]: Gliscor
+          - generic [ref=e311]:
+            - 'generic "Offense rank: #29 (130% max dmg)" [ref=e312]': ⚔29
+            - 'generic "Move defense rank: #31 (97% dmg taken)" [ref=e313]': 🛡31
+            - 'generic "All-moves defense rank: #27 (97% worst move)" [ref=e314]': 🛡A27
+          - 'generic "AI sends Jynx (+5: Faster + OHKO)" [ref=e315]'
+          - generic [ref=e316]:
+            - generic [ref=e317]: 🏜️
+            - generic [ref=e318]: 💫
+            - generic [ref=e319]: 🕊️
+            - generic [ref=e320]: 🎒
+        - generic [ref=e321]:
+          - 'generic "Speed: 113"': "113"
+          - img "Luxray" [ref=e323]
+          - generic [ref=e324]: Luxray
+          - generic [ref=e325]:
+            - 'generic "Offense rank: #8 (242% max dmg)" [ref=e326]': ⚔8
+            - 'generic "Move defense rank: #13 (43% dmg taken)" [ref=e327]': 🛡13
+            - 'generic "All-moves defense rank: #8 (43% worst move)" [ref=e328]': 🛡A8
+          - 'generic "AI sends Roserade (+3: Faster + better trade)" [ref=e329]'
+          - generic [ref=e330]:
+            - generic [ref=e331]: ☠️
+            - generic [ref=e332]: 📉
+            - generic [ref=e333]: 😤
+        - generic [ref=e334]:
+          - 'generic "Speed: 101"': "101"
+          - img "Corviknight" [ref=e336]
+          - generic [ref=e337]: Corviknight
+          - generic [ref=e338]:
+            - 'generic "Offense rank: #28 (131% max dmg)" [ref=e339]': ⚔28
+            - 'generic "Move defense rank: #10 (40% dmg taken)" [ref=e340]': 🛡10
+            - 'generic "All-moves defense rank: #5 (40% worst move)" [ref=e341]': 🛡A5
+          - 'generic "AI sends Rotom-Wash (+3: Faster + better trade)" [ref=e342]'
+          - generic [ref=e343]:
+            - generic [ref=e344]: 🧹
+            - generic [ref=e345]: 📉
+            - generic [ref=e346]: 🏜️
+            - generic [ref=e347]: 💚
+            - generic [ref=e348]: 🕊️
+        - generic [ref=e349]:
+          - 'generic "Speed: 187"': "187"
+          - img "Talonflame" [ref=e351]
+          - generic [ref=e352]: Talonflame
+          - generic [ref=e353]:
+            - 'generic "Offense rank: #30 (130% max dmg)" [ref=e354]': ⚔30
+            - 'generic "Move defense rank: #35 (140% dmg taken)" [ref=e355]': 🛡35
+            - 'generic "All-moves defense rank: #33 (140% worst move)" [ref=e356]': 🛡A33
+          - 'generic "AI sends Rotom-Wash (+4: OHKO + survives)" [ref=e357]'
+          - generic [ref=e358]:
+            - generic [ref=e359]: ⏱️
+            - generic [ref=e360]: ☀️
+            - generic [ref=e361]: 💚
+            - generic [ref=e362]: ☠️
+            - generic [ref=e363]: 🕊️
+        - generic [ref=e364]:
+          - 'generic "Speed: 100"': "100"
+          - img "Rampardos" [ref=e366]
+          - generic [ref=e367]: Rampardos
+          - generic [ref=e368]:
+            - 'generic "Offense rank: #19 (164% max dmg)" [ref=e369]': ⚔19
+            - 'generic "Move defense rank: #36 (141% dmg taken)" [ref=e370]': 🛡36
+            - 'generic "All-moves defense rank: #34 (141% worst move)" [ref=e371]': 🛡A34
+          - 'generic "AI sends Roserade (+5: Faster + OHKO)" [ref=e372]'
+          - generic [ref=e373]:
+            - generic [ref=e374]: 🏜️
+            - generic [ref=e375]: 📉
+            - generic [ref=e376]: ⏱️
+            - generic [ref=e377]: 🔨
+            - generic [ref=e378]: 💫
+        - generic [ref=e379]:
+          - 'generic "Speed: 144"': "144"
+          - img "Drapion" [ref=e381]
+          - generic [ref=e382]: Drapion
+          - generic [ref=e383]:
+            - 'generic "Offense rank: #34 (122% max dmg)" [ref=e384]': ⚔34
+            - 'generic "Move defense rank: #23 (57% dmg taken)" [ref=e385]': 🛡23
+            - 'generic "All-moves defense rank: #20 (57% worst move)" [ref=e386]': 🛡A20
+          - 'generic "AI sends Rotom-Wash (+2: Better trade)" [ref=e387]'
+          - generic [ref=e388]:
+            - generic [ref=e389]: ☠️
+            - generic [ref=e390]: 🛡️
+            - generic [ref=e391]: 🎒
+        - generic [ref=e392]:
+          - 'generic "Speed: 75"': "75"
+          - img "Druddigon" [ref=e394]
+          - generic [ref=e395]: Druddigon
+          - generic [ref=e396]:
+            - 'generic "Offense rank: #26 (133% max dmg)" [ref=e397]': ⚔26
+            - 'generic "Move defense rank: #3 (29% dmg taken)" [ref=e398]': 🛡3
+            - 'generic "All-moves defense rank: #11 (45% worst move)" [ref=e399]': 🛡A11
+          - 'generic "AI sends Jynx (+5: Faster + OHKO)" [ref=e400]'
+        - generic [ref=e401]:
+          - 'generic "Speed: 92"': "92"
+          - img "Clefable" [ref=e403]
+          - generic [ref=e404]: Clefable
+          - generic [ref=e405]:
+            - 'generic "Offense rank: #23 (147% max dmg)" [ref=e406]': ⚔23
+            - 'generic "Move defense rank: #26 (61% dmg taken)" [ref=e407]': 🛡26
+            - 'generic "All-moves defense rank: #22 (61% worst move)" [ref=e408]': 🛡A22
+          - 'generic "AI sends Roserade (+3: Faster + better trade)" [ref=e409]'
+          - generic [ref=e410]:
+            - generic [ref=e411]: 📉
+            - generic [ref=e412]: 💫
+            - generic [ref=e413]: 💊
+            - generic [ref=e414]: 📣
+        - generic [ref=e415]:
+          - 'generic "Speed: 49"': "49"
+          - img "Carracosta" [ref=e417]
+          - generic [ref=e418]: Carracosta
+          - generic [ref=e419]:
+            - 'generic "Offense rank: #36 (99% max dmg)" [ref=e420]': ⚔36
+            - 'generic "Move defense rank: #14 (43% dmg taken)" [ref=e421]': 🛡14
+            - 'generic "All-moves defense rank: #14 (50% worst move)" [ref=e422]': 🛡A14
+          - 'generic "AI sends Roserade (+5: Faster + OHKO)" [ref=e423]'
+          - generic [ref=e424]:
+            - generic [ref=e425]: 🔒
+            - generic [ref=e426]: 🌧️
+            - generic [ref=e427]: 🏜️
+            - generic [ref=e428]: ⚡
+            - generic [ref=e429]: 💫
+            - generic [ref=e430]: 🎒
+        - generic [ref=e431]:
+          - 'generic "Speed: 142"': "142"
+          - img "Houndoom" [ref=e433]
+          - generic [ref=e434]: Houndoom
+          - generic [ref=e435]:
+            - 'generic "Offense rank: #22 (149% max dmg)" [ref=e436]': ⚔22
+            - 'generic "Move defense rank: #38 (218% dmg taken)" [ref=e437]': 🛡38
+            - 'generic "All-moves defense rank: #38 (218% worst move)" [ref=e438]': 🛡A38
+          - 'generic "AI sends Rotom-Wash (+4: OHKO + survives)" [ref=e439]'
+          - generic [ref=e440]:
+            - generic [ref=e441]: ☀️
+            - generic [ref=e442]: ☠️
+            - generic [ref=e443]: ⚡
+        - generic [ref=e444]:
+          - 'generic "Speed: 121"': "121"
+          - img "Breloom" [ref=e446]
+          - generic [ref=e447]: Breloom
+          - generic [ref=e448]:
+            - 'generic "Offense rank: #7 (247% max dmg)" [ref=e449]': ⚔7
+            - 'generic "Move defense rank: #11 (41% dmg taken)" [ref=e450]': 🛡11
+            - 'generic "All-moves defense rank: #26 (91% worst move)" [ref=e451]': 🛡A26
+          - 'generic "AI sends Roserade (+5: Faster + OHKO)" [ref=e452]'
+          - generic [ref=e453]:
+            - generic [ref=e454]: 💚
+            - generic [ref=e455]: ⚡
+        - generic [ref=e456]:
+          - 'generic "Speed: 122"': "122"
+          - img "Beedrill" [ref=e458]
+          - generic [ref=e459]: Beedrill
+          - generic [ref=e460]:
+            - 'generic "Offense rank: #35 (99% max dmg)" [ref=e461]': ⚔35
+            - 'generic "Move defense rank: #33 (134% dmg taken)" [ref=e462]': 🛡33
+            - 'generic "All-moves defense rank: #35 (149% worst move)" [ref=e463]': 🛡A35
+          - 'generic "AI sends Jynx (+5: Faster + OHKO)" [ref=e464]'
+          - generic [ref=e465]:
+            - generic [ref=e466]: 🎲
+            - generic [ref=e467]: ☠️
+        - generic [ref=e468]:
+          - 'generic "Speed: 90"': "90"
+          - img "Swampert" [ref=e470]
+          - generic [ref=e471]: Swampert
+          - generic [ref=e472]:
+            - 'generic "Offense rank: #21 (152% max dmg)" [ref=e473]': ⚔21
+            - 'generic "Move defense rank: #20 (52% dmg taken)" [ref=e474]': 🛡20
+            - 'generic "All-moves defense rank: #16 (52% worst move)" [ref=e475]': 🛡A16
+          - 'generic "AI sends Roserade (+5: Faster + OHKO)" [ref=e476]'
+          - generic [ref=e477]:
+            - generic [ref=e478]: 🔒
+            - generic [ref=e479]: 🌧️
+            - generic [ref=e480]: 🏜️
+            - generic [ref=e481]: 📉
+            - generic [ref=e482]: 💫
+        - generic [ref=e483]:
+          - 'generic "Speed: 99"': "99"
+          - img "Bewear" [ref=e485]
+          - generic [ref=e486]: Bewear
+          - generic [ref=e487]:
+            - 'generic "Offense rank: #13 (187% max dmg)" [ref=e488]': ⚔13
+            - 'generic "Move defense rank: #1 (27% dmg taken)" [ref=e489]': 🛡1
+            - 'generic "All-moves defense rank: #6 (42% worst move)" [ref=e490]': 🛡A6
+          - 'generic "AI sends Jynx (+5: Faster + OHKO)" [ref=e491]'
+          - generic [ref=e492]:
+            - generic [ref=e493]: 📉
+            - generic [ref=e494]: ⏱️
+            - generic [ref=e495]: 🎯
+        - generic [ref=e496]:
+          - 'generic "Speed: 124"': "124"
+          - img "Dragonite" [ref=e498]
+          - generic [ref=e499]: Dragonite
+          - generic [ref=e500]:
+            - 'generic "Offense rank: #17 (176% max dmg)" [ref=e501]': ⚔17
+            - 'generic "Move defense rank: #2 (28% dmg taken)" [ref=e502]': 🛡2
+            - 'generic "All-moves defense rank: #1 (32% worst move)" [ref=e503]': 🛡A1
+          - 'generic "AI sends Jynx (+5: Faster + OHKO)" [ref=e504]'
+          - generic [ref=e505]:
+            - generic [ref=e506]: 📉
+            - generic [ref=e507]: ⚡
+            - generic [ref=e508]: 💫
+            - generic [ref=e509]: 💊
+            - generic [ref=e510]: 🕊️
+        - generic [ref=e511]:
+          - 'generic "Speed: 98"': "98"
+          - img "Porygon2" [ref=e513]
+          - generic [ref=e514]: Porygon2
+          - generic [ref=e515]:
+            - 'generic "Offense rank: #14 (183% max dmg)" [ref=e516]': ⚔14
+            - 'generic "Move defense rank: #24 (58% dmg taken)" [ref=e517]': 🛡24
+            - 'generic "All-moves defense rank: #25 (91% worst move)" [ref=e518]': 🛡A25
+          - 'generic "AI sends Jynx (+3: Faster + better trade)" [ref=e519]'
+          - generic [ref=e520]:
+            - generic [ref=e521]: 💚
+            - generic [ref=e522]: ☠️
+            - generic [ref=e523]: 📉
+        - generic [ref=e524]:
+          - 'generic "Speed: 81"': "81"
+          - img "Huntail" [ref=e526]
+          - generic [ref=e527]: Huntail
+          - generic [ref=e528]:
+            - 'generic "Offense rank: #39 (61% max dmg)" [ref=e529]': ⚔39
+            - 'generic "Move defense rank: #4 (31% dmg taken)" [ref=e530]': 🛡4
+            - 'generic "All-moves defense rank: #12 (48% worst move)" [ref=e531]': 🛡A12
+          - 'generic "AI sends Roserade (+5: Faster + OHKO)" [ref=e532]'
+          - generic [ref=e533]:
+            - generic [ref=e534]: 🌧️
+            - generic [ref=e535]: 📉
+            - generic [ref=e536]: ⚡
+        - generic [ref=e537]:
+          - 'generic "Speed: 142"': "142"
+          - img "Arcanine-Hisui" [ref=e539]
+          - generic [ref=e540]: Arcanine-Hisui
+          - generic [ref=e541]:
+            - 'generic "Offense rank: #32 (127% max dmg)" [ref=e542]': ⚔32
+            - 'generic "Move defense rank: #39 (220% dmg taken)" [ref=e543]': 🛡39
+            - 'generic "All-moves defense rank: #39 (220% worst move)" [ref=e544]': 🛡A39
+          - 'generic "AI sends Rotom-Wash (+4: OHKO + survives)" [ref=e545]'
+          - generic [ref=e546]:
+            - generic [ref=e547]: 🏜️
+            - generic [ref=e548]: ☀️
+            - generic [ref=e549]: ☠️
+            - generic [ref=e550]: ⚡
+            - generic [ref=e551]: 💫
+        - generic [ref=e552]:
+          - 'generic "Speed: 114"': "114"
+          - img "Diggersby" [ref=e554]
+          - generic [ref=e555]: Diggersby
+          - generic [ref=e556]:
+            - 'generic "Offense rank: #37 (88% max dmg)" [ref=e557]': ⚔37
+            - 'generic "Move defense rank: #34 (137% dmg taken)" [ref=e558]': 🛡34
+            - 'generic "All-moves defense rank: #30 (137% worst move)" [ref=e559]': 🛡A30
+          - 'generic "AI sends Roserade (+5: Faster + OHKO)" [ref=e560]'
+          - generic [ref=e561]:
+            - generic [ref=e562]: 🏜️
+            - generic [ref=e563]: 📉
+            - generic [ref=e564]: ⏱️
+            - generic [ref=e565]: 💫
+        - generic [ref=e566]:
+          - 'generic "Speed: 45"': "45"
+          - img "Turtonator" [ref=e568]
+          - generic [ref=e569]: Turtonator
+          - generic [ref=e570]:
+            - 'generic "Offense rank: #5 (326% max dmg)" [ref=e571]': ⚔5
+            - 'generic "Move defense rank: #12 (42% dmg taken)" [ref=e572]': 🛡12
+            - 'generic "All-moves defense rank: #7 (42% worst move)" [ref=e573]': 🛡A7
+          - 'generic "AI sends Roserade (+1: Faster)" [ref=e574]'
+          - generic [ref=e575]:
+            - generic [ref=e576]: 🧹
+            - generic [ref=e577]: ☀️
+            - generic [ref=e578]: 💣
+            - generic [ref=e579]: 🛡️
+            - generic [ref=e580]: 💫
+        - generic [ref=e581]:
+          - 'generic "Speed: 92"': "92"
+          - img "Torterra" [ref=e583]
+          - generic [ref=e584]: Torterra
+          - generic [ref=e585]:
+            - 'generic "Offense rank: #4 (333% max dmg)" [ref=e586]': ⚔4
+            - 'generic "Move defense rank: #16 (44% dmg taken)" [ref=e587]': 🛡16
+            - 'generic "All-moves defense rank: #10 (44% worst move)" [ref=e588]': 🛡A10
+          - 'generic "AI sends Jynx (+5: Faster + OHKO)" [ref=e589]'
+          - generic [ref=e590]:
+            - generic [ref=e591]: 🏜️
+            - generic [ref=e592]: 📉
+            - generic [ref=e593]: 🛡️
+            - generic [ref=e594]: 💫
+        - generic [ref=e595]:
+          - 'generic "Speed: 74"': "74"
+          - img "Conkeldurr" [ref=e597]
+          - generic [ref=e598]: Conkeldurr
+          - generic [ref=e599]:
+            - 'generic "Offense rank: #9 (227% max dmg)" [ref=e600]': ⚔9
+            - 'generic "Move defense rank: #17 (48% dmg taken)" [ref=e601]': 🛡17
+            - 'generic "All-moves defense rank: #17 (53% worst move)" [ref=e602]': 🛡A17
+          - 'generic "AI sends Jynx (+5: Faster + OHKO)" [ref=e603]'
+          - generic [ref=e604]:
+            - generic [ref=e605]: ⚡
+            - generic [ref=e606]: 💫
+        - generic [ref=e607]:
+          - 'generic "Speed: 143"': "143"
+          - img "Roserade" [ref=e609]
+          - generic [ref=e610]: Roserade
+          - generic [ref=e611]:
+            - 'generic "Offense rank: #1 (462% max dmg)" [ref=e612]': ⚔1
+            - 'generic "Move defense rank: #19 (50% dmg taken)" [ref=e613]': 🛡19
+            - 'generic "All-moves defense rank: #28 (112% worst move)" [ref=e614]': 🛡A28
+          - 'generic "AI sends Jynx (+5: Faster + OHKO)" [ref=e615]'
+          - generic [ref=e616]:
+            - generic [ref=e617]: 💚
+            - generic [ref=e618]: ☠️
+        - generic [ref=e619]:
+          - 'generic "Speed: 153"': "153"
+          - img "Garchomp" [ref=e621]
+          - generic [ref=e622]: Garchomp
+          - generic [ref=e623]:
+            - 'generic "Offense rank: #16 (178% max dmg)" [ref=e624]': ⚔16
+            - 'generic "Move defense rank: #18 (49% dmg taken)" [ref=e625]': 🛡18
+            - 'generic "All-moves defense rank: #13 (49% worst move)" [ref=e626]': 🛡A13
+          - 'generic "AI sends Jynx (+2: Better trade)" [ref=e627]'
+          - generic [ref=e628]:
+            - generic [ref=e629]: 📉
+            - generic [ref=e630]: 🏜️
+            - generic [ref=e631]: 💫
+        - generic [ref=e632]:
+          - 'generic "Speed: 127"': "127"
+          - img "Masquerain" [ref=e634]
+          - generic [ref=e635]: Masquerain
+          - generic [ref=e636]:
+            - 'generic "Offense rank: #27 (132% max dmg)" [ref=e637]': ⚔27
+            - 'generic "Move defense rank: #25 (60% dmg taken)" [ref=e638]': 🛡25
+            - 'generic "All-moves defense rank: #21 (60% worst move)" [ref=e639]': 🛡A21
+          - 'generic "AI sends Rotom-Wash (+5: Faster + OHKO)" [ref=e640]'
+          - generic [ref=e641]:
+            - generic [ref=e642]: ☠️
+            - generic [ref=e643]: 📉
+            - generic [ref=e644]: 😤
+            - generic [ref=e645]: ⚡
+            - generic [ref=e646]: 🕊️
+        - generic [ref=e647]:
+          - 'generic "Speed: 94"': "94"
+          - img "Magnezone" [ref=e649]
+          - generic [ref=e650]: Magnezone
+          - generic [ref=e651]:
+            - 'generic "Offense rank: #2 (460% max dmg)" [ref=e652]': ⚔2
+            - 'generic "Move defense rank: #21 (52% dmg taken)" [ref=e653]': 🛡21
+            - 'generic "All-moves defense rank: #24 (82% worst move)" [ref=e654]': 🛡A24
+          - 'generic "AI sends Roserade (+1: Faster)" [ref=e655]'
+          - generic [ref=e656]:
+            - generic [ref=e657]: 🏜️
+            - generic [ref=e658]: 💣
+            - generic [ref=e659]: ☠️
+            - generic [ref=e660]: 📉
+            - generic [ref=e661]: ⏱️
+            - generic [ref=e662]: 💫
+        - generic [ref=e663]:
+          - 'generic "Speed: 73"': "73"
+          - img "Muk-Alola" [ref=e665]
+          - generic [ref=e666]: Muk-Alola
+          - generic [ref=e667]:
+            - 'generic "Offense rank: #3 (439% max dmg)" [ref=e668]': ⚔3
+            - 'generic "Move defense rank: #22 (54% dmg taken)" [ref=e669]': 🛡22
+            - 'generic "All-moves defense rank: #18 (54% worst move)" [ref=e670]': 🛡A18
+          - 'generic "AI sends Roserade (+1: Faster)" [ref=e671]'
+          - generic [ref=e672]:
+            - generic [ref=e673]: 💣
+            - generic [ref=e674]: ☠️
+            - generic [ref=e675]: ⏱️
+            - generic [ref=e676]: 💫
+            - generic [ref=e677]: 🎒
+        - generic [ref=e678]:
+          - 'generic "Speed: 99"': "99"
+          - img "Lanturn" [ref=e680]
+          - generic [ref=e681]: Lanturn
+          - generic [ref=e682]:
+            - 'generic "Offense rank: #12 (198% max dmg)" [ref=e683]': ⚔12
+            - 'generic "Move defense rank: #7 (33% dmg taken)" [ref=e684]': 🛡7
+            - 'generic "All-moves defense rank: #15 (52% worst move)" [ref=e685]': 🛡A15
+          - 'generic "AI sends Jynx (+3: Faster + better trade)" [ref=e686]'
+          - generic [ref=e687]:
+            - generic [ref=e688]: 🌧️
+            - generic [ref=e689]: ☠️
+            - generic [ref=e690]: 💫
+        - generic [ref=e691]:
+          - 'generic "Speed: 141"': "141"
+          - img "Gardevoir" [ref=e693]
+          - generic [ref=e694]: Gardevoir
+          - generic [ref=e695]:
+            - 'generic "Offense rank: #10 (214% max dmg)" [ref=e696]': ⚔10
+            - 'generic "Move defense rank: #28 (81% dmg taken)" [ref=e697]': 🛡28
+            - 'generic "All-moves defense rank: #23 (81% worst move)" [ref=e698]': 🛡A23
+          - 'generic "AI sends Roserade (+1: Faster)" [ref=e699]'
+          - generic [ref=e701]: 📉
+        - generic [ref=e702]:
+          - 'generic "Speed: 131"': "131"
+          - img "Excadrill" [ref=e704]
+          - generic [ref=e705]: Excadrill
+          - generic [ref=e706]:
+            - 'generic "Offense rank: #15 (181% max dmg)" [ref=e707]': ⚔15
+            - 'generic "Move defense rank: #37 (155% dmg taken)" [ref=e708]': 🛡37
+            - 'generic "All-moves defense rank: #36 (155% worst move)" [ref=e709]': 🛡A36
+          - 'generic "AI sends Rotom-Wash (+5: Faster + OHKO)" [ref=e710]'
+          - generic [ref=e711]:
+            - generic [ref=e712]: 🧹
+            - generic [ref=e713]: 🏜️
+            - generic [ref=e714]: 💫
+    - generic [ref=e715]:
+      - generic [ref=e716]:
+        - generic [ref=e717]:
+          - generic [ref=e718]:
+            - generic [ref=e719]: Your Team (drag from box)
+            - generic [ref=e720]: "2"
+          - button "⚔️" [ref=e721] [cursor=pointer]
+        - generic [ref=e722]:
+          - generic [ref=e723] [cursor=pointer]:
+            - button "ⓘ" [ref=e724]
+            - generic [ref=e725]:
+              - img "Bewear" [ref=e726]
+              - 'generic "Speed: 99" [ref=e727]': ⚡99
+            - generic [ref=e728]:
+              - generic [ref=e729]: Bewear
+              - generic [ref=e733]:
+                - spinbutton "Edit HP before round" [ref=e734]: "59"
+                - generic [ref=e735]: HP (24%) (59–126)
+              - combobox "Set status" [ref=e736]:
+                - option "— Status —" [selected]
+                - option "Burn"
+                - option "Paralysis"
+                - option "Poison"
+                - option "Badly Poisoned"
+                - option "Sleep"
+                - option "Freeze"
+              - generic "This Pokemon takes 1/2 damage from contact moves, 2x damage from Fire moves." [ref=e737]: Fluffy
+              - combobox [ref=e738]:
+                - option "(no item)" [selected]
+                - option "Ability Shield"
+                - option "Abomasite"
+                - option "Absolite"
+                - option "Absorb Bulb"
+                - option "Adamant Crystal"
+                - option "Adamant Orb"
+                - option "Adrenaline Orb"
+                - option "Aerodactylite"
+                - option "Aggronite"
+                - option "Aguav Berry"
+                - option "Air Balloon"
+                - option "Alakazite"
+                - option "Aloraichium Z"
+                - option "Altarianite"
+                - option "Ampharosite"
+                - option "Apicot Berry"
+                - option "Armor Fossil"
+                - option "Aspear Berry"
+                - option "Assault Vest"
+                - option "Audinite"
+                - option "Auspicious Armor"
+                - option "Babiri Berry"
+                - option "Banettite"
+                - option "Beast Ball"
+                - option "Beedrillite"
+                - option "Belue Berry"
+                - option "Berry"
+                - option "Berry Juice"
+                - option "Berry Sweet"
+                - option "Berserk Gene"
+                - option "Big Nugget"
+                - option "Big Root"
+                - option "Binding Band"
+                - option "Bitter Berry"
+                - option "Black Belt"
+                - option "Black Glasses"
+                - option "Black Sludge"
+                - option "Blastoisinite"
+                - option "Blazikenite"
+                - option "Blue Orb"
+                - option "Bluk Berry"
+                - option "Blunder Policy"
+                - option "Booster Energy"
+                - option "Bottle Cap"
+                - option "Bright Powder"
+                - option "Bug Gem"
+                - option "Bug Memory"
+                - option "Buginium Z"
+                - option "Burn Drive"
+                - option "Burnt Berry"
+                - option "Cameruptite"
+                - option "Cell Battery"
+                - option "Charcoal"
+                - option "Charizardite X"
+                - option "Charizardite Y"
+                - option "Charti Berry"
+                - option "Cheri Berry"
+                - option "Cherish Ball"
+                - option "Chesto Berry"
+                - option "Chilan Berry"
+                - option "Chill Drive"
+                - option "Chipped Pot"
+                - option "Choice Band"
+                - option "Choice Scarf"
+                - option "Choice Specs"
+                - option "Chople Berry"
+                - option "Claw Fossil"
+                - option "Clear Amulet"
+                - option "Clover Sweet"
+                - option "Coba Berry"
+                - option "Colbur Berry"
+                - option "Cornn Berry"
+                - option "Cover Fossil"
+                - option "Covert Cloak"
+                - option "Cracked Pot"
+                - option "Crucibellite"
+                - option "Custap Berry"
+                - option "Damp Rock"
+                - option "Dark Gem"
+                - option "Dark Memory"
+                - option "Darkinium Z"
+                - option "Dawn Stone"
+                - option "Decidium Z"
+                - option "Deep Sea Scale"
+                - option "Deep Sea Tooth"
+                - option "Destiny Knot"
+                - option "Diancite"
+                - option "Dive Ball"
+                - option "Dome Fossil"
+                - option "Douse Drive"
+                - option "Draco Plate"
+                - option "Dragon Fang"
+                - option "Dragon Gem"
+                - option "Dragon Memory"
+                - option "Dragon Scale"
+                - option "Dragonium Z"
+                - option "Dread Plate"
+                - option "Dream Ball"
+                - option "Dubious Disc"
+                - option "Durin Berry"
+                - option "Dusk Ball"
+                - option "Dusk Stone"
+                - option "Earth Plate"
+                - option "Eevium Z"
+                - option "Eject Button"
+                - option "Eject Pack"
+                - option "Electirizer"
+                - option "Electric Gem"
+                - option "Electric Memory"
+                - option "Electric Seed"
+                - option "Electrium Z"
+                - option "Enigma Berry"
+                - option "Eviolite"
+                - option "Expert Belt"
+                - option "Fairium Z"
+                - option "Fairy Gem"
+                - option "Fairy Memory"
+                - option "Fast Ball"
+                - option "Fighting Gem"
+                - option "Fighting Memory"
+                - option "Fightinium Z"
+                - option "Figy Berry"
+                - option "Fire Gem"
+                - option "Fire Memory"
+                - option "Fire Stone"
+                - option "Firium Z"
+                - option "Fist Plate"
+                - option "Flame Orb"
+                - option "Flame Plate"
+                - option "Float Stone"
+                - option "Flower Sweet"
+                - option "Flying Gem"
+                - option "Flying Memory"
+                - option "Flyinium Z"
+                - option "Focus Band"
+                - option "Focus Sash"
+                - option "Fossilized Bird"
+                - option "Fossilized Dino"
+                - option "Fossilized Drake"
+                - option "Fossilized Fish"
+                - option "Friend Ball"
+                - option "Full Incense"
+                - option "Galarica Cuff"
+                - option "Galarica Wreath"
+                - option "Galladite"
+                - option "Ganlon Berry"
+                - option "Garchompite"
+                - option "Gardevoirite"
+                - option "Gengarite"
+                - option "Ghost Gem"
+                - option "Ghost Memory"
+                - option "Ghostium Z"
+                - option "Glalitite"
+                - option "Gold Berry"
+                - option "Gold Bottle Cap"
+                - option "Grass Gem"
+                - option "Grass Memory"
+                - option "Grassium Z"
+                - option "Grassy Seed"
+                - option "Great Ball"
+                - option "Grepa Berry"
+                - option "Grip Claw"
+                - option "Griseous Core"
+                - option "Griseous Orb"
+                - option "Ground Gem"
+                - option "Ground Memory"
+                - option "Groundium Z"
+                - option "Gyaradosite"
+                - option "Haban Berry"
+                - option "Hard Stone"
+                - option "Heal Ball"
+                - option "Heat Rock"
+                - option "Heavy Ball"
+                - option "Heavy-Duty Boots"
+                - option "Helix Fossil"
+                - option "Heracronite"
+                - option "Hondew Berry"
+                - option "Houndoominite"
+                - option "Iapapa Berry"
+                - option "Ice Berry"
+                - option "Ice Gem"
+                - option "Ice Memory"
+                - option "Ice Stone"
+                - option "Icicle Plate"
+                - option "Icium Z"
+                - option "Icy Rock"
+                - option "Incinium Z"
+                - option "Insect Plate"
+                - option "Iron Ball"
+                - option "Iron Plate"
+                - option "Jaboca Berry"
+                - option "Jaw Fossil"
+                - option "Kangaskhanite"
+                - option "Kasib Berry"
+                - option "Kebia Berry"
+                - option "Kee Berry"
+                - option "Kelpsy Berry"
+                - option "King's Rock"
+                - option "Kommonium Z"
+                - option "Lagging Tail"
+                - option "Lansat Berry"
+                - option "Latiasite"
+                - option "Latiosite"
+                - option "Lax Incense"
+                - option "Leaf Stone"
+                - option "Leek"
+                - option "Leftovers"
+                - option "Leppa Berry"
+                - option "Level Ball"
+                - option "Liechi Berry"
+                - option "Life Orb"
+                - option "Light Ball"
+                - option "Light Clay"
+                - option "Loaded Dice"
+                - option "Lopunnite"
+                - option "Love Ball"
+                - option "Love Sweet"
+                - option "Lucarionite"
+                - option "Lucky Punch"
+                - option "Lum Berry"
+                - option "Luminous Moss"
+                - option "Lunalium Z"
+                - option "Lure Ball"
+                - option "Lustrous Globe"
+                - option "Lustrous Orb"
+                - option "Luxury Ball"
+                - option "Lycanium Z"
+                - option "Macho Brace"
+                - option "Magmarizer"
+                - option "Magnet"
+                - option "Mago Berry"
+                - option "Magost Berry"
+                - option "Mail"
+                - option "Malicious Armor"
+                - option "Manectite"
+                - option "Maranga Berry"
+                - option "Marshadium Z"
+                - option "Master Ball"
+                - option "Mawilite"
+                - option "Meadow Plate"
+                - option "Medichamite"
+                - option "Mental Herb"
+                - option "Metagrossite"
+                - option "Metal Coat"
+                - option "Metal Powder"
+                - option "Metronome"
+                - option "Mewnium Z"
+                - option "Mewtwonite X"
+                - option "Mewtwonite Y"
+                - option "Micle Berry"
+                - option "Mimikium Z"
+                - option "Mind Plate"
+                - option "Mint Berry"
+                - option "Miracle Berry"
+                - option "Miracle Seed"
+                - option "Mirror Herb"
+                - option "Misty Seed"
+                - option "Moon Ball"
+                - option "Moon Stone"
+                - option "Muscle Band"
+                - option "Mystery Berry"
+                - option "Mystic Water"
+                - option "Nanab Berry"
+                - option "Nest Ball"
+                - option "Net Ball"
+                - option "Never-Melt Ice"
+                - option "Nomel Berry"
+                - option "Normal Gem"
+                - option "Normalium Z"
+                - option "Occa Berry"
+                - option "Odd Incense"
+                - option "Old Amber"
+                - option "Oran Berry"
+                - option "Oval Stone"
+                - option "PRZ Cure Berry"
+                - option "PSN Cure Berry"
+                - option "Pamtre Berry"
+                - option "Park Ball"
+                - option "Passho Berry"
+                - option "Payapa Berry"
+                - option "Pecha Berry"
+                - option "Persim Berry"
+                - option "Petaya Berry"
+                - option "Pidgeotite"
+                - option "Pikanium Z"
+                - option "Pikashunium Z"
+                - option "Pinap Berry"
+                - option "Pink Bow"
+                - option "Pinsirite"
+                - option "Pixie Plate"
+                - option "Plume Fossil"
+                - option "Poison Barb"
+                - option "Poison Gem"
+                - option "Poison Memory"
+                - option "Poisonium Z"
+                - option "Poke Ball"
+                - option "Polkadot Bow"
+                - option "Pomeg Berry"
+                - option "Power Anklet"
+                - option "Power Band"
+                - option "Power Belt"
+                - option "Power Bracer"
+                - option "Power Herb"
+                - option "Power Lens"
+                - option "Power Weight"
+                - option "Premier Ball"
+                - option "Primarium Z"
+                - option "Prism Scale"
+                - option "Protective Pads"
+                - option "Protector"
+                - option "Psychic Gem"
+                - option "Psychic Memory"
+                - option "Psychic Seed"
+                - option "Psychium Z"
+                - option "Punching Glove"
+                - option "Qualot Berry"
+                - option "Quick Ball"
+                - option "Quick Claw"
+                - option "Quick Powder"
+                - option "Rabuta Berry"
+                - option "Rare Bone"
+                - option "Rawst Berry"
+                - option "Razor Claw"
+                - option "Razor Fang"
+                - option "Razz Berry"
+                - option "Reaper Cloth"
+                - option "Red Card"
+                - option "Red Orb"
+                - option "Repeat Ball"
+                - option "Ribbon Sweet"
+                - option "Rindo Berry"
+                - option "Ring Target"
+                - option "Rock Gem"
+                - option "Rock Incense"
+                - option "Rock Memory"
+                - option "Rockium Z"
+                - option "Rocky Helmet"
+                - option "Room Service"
+                - option "Root Fossil"
+                - option "Rose Incense"
+                - option "Roseli Berry"
+                - option "Rowap Berry"
+                - option "Rusted Shield"
+                - option "Rusted Sword"
+                - option "Sablenite"
+                - option "Sachet"
+                - option "Safari Ball"
+                - option "Safety Goggles"
+                - option "Sail Fossil"
+                - option "Salac Berry"
+                - option "Salamencite"
+                - option "Sceptilite"
+                - option "Scizorite"
+                - option "Scope Lens"
+                - option "Sea Incense"
+                - option "Sharp Beak"
+                - option "Sharpedonite"
+                - option "Shed Shell"
+                - option "Shell Bell"
+                - option "Shiny Stone"
+                - option "Shock Drive"
+                - option "Shuca Berry"
+                - option "Silk Scarf"
+                - option "Silver Powder"
+                - option "Sitrus Berry"
+                - option "Skull Fossil"
+                - option "Sky Plate"
+                - option "Slowbronite"
+                - option "Smooth Rock"
+                - option "Snorlium Z"
+                - option "Snowball"
+                - option "Soft Sand"
+                - option "Solganium Z"
+                - option "Soul Dew"
+                - option "Spell Tag"
+                - option "Spelon Berry"
+                - option "Splash Plate"
+                - option "Spooky Plate"
+                - option "Sport Ball"
+                - option "Star Sweet"
+                - option "Starf Berry"
+                - option "Steel Gem"
+                - option "Steel Memory"
+                - option "Steelium Z"
+                - option "Steelixite"
+                - option "Stick"
+                - option "Sticky Barb"
+                - option "Stone Plate"
+                - option "Strange Ball"
+                - option "Strawberry Sweet"
+                - option "Sun Stone"
+                - option "Swampertite"
+                - option "Sweet Apple"
+                - option "TR00"
+                - option "TR01"
+                - option "TR02"
+                - option "TR03"
+                - option "TR04"
+                - option "TR05"
+                - option "TR06"
+                - option "TR07"
+                - option "TR08"
+                - option "TR09"
+                - option "TR10"
+                - option "TR11"
+                - option "TR12"
+                - option "TR13"
+                - option "TR14"
+                - option "TR15"
+                - option "TR16"
+                - option "TR17"
+                - option "TR18"
+                - option "TR19"
+                - option "TR20"
+                - option "TR21"
+                - option "TR22"
+                - option "TR23"
+                - option "TR24"
+                - option "TR25"
+                - option "TR26"
+                - option "TR27"
+                - option "TR28"
+                - option "TR29"
+                - option "TR30"
+                - option "TR31"
+                - option "TR32"
+                - option "TR33"
+                - option "TR34"
+                - option "TR35"
+                - option "TR36"
+                - option "TR37"
+                - option "TR38"
+                - option "TR39"
+                - option "TR40"
+                - option "TR41"
+                - option "TR42"
+                - option "TR43"
+                - option "TR44"
+                - option "TR45"
+                - option "TR46"
+                - option "TR47"
+                - option "TR48"
+                - option "TR49"
+                - option "TR50"
+                - option "TR51"
+                - option "TR52"
+                - option "TR53"
+                - option "TR54"
+                - option "TR55"
+                - option "TR56"
+                - option "TR57"
+                - option "TR58"
+                - option "TR59"
+                - option "TR60"
+                - option "TR61"
+                - option "TR62"
+                - option "TR63"
+                - option "TR64"
+                - option "TR65"
+                - option "TR66"
+                - option "TR67"
+                - option "TR68"
+                - option "TR69"
+                - option "TR70"
+                - option "TR71"
+                - option "TR72"
+                - option "TR73"
+                - option "TR74"
+                - option "TR75"
+                - option "TR76"
+                - option "TR77"
+                - option "TR78"
+                - option "TR79"
+                - option "TR80"
+                - option "TR81"
+                - option "TR82"
+                - option "TR83"
+                - option "TR84"
+                - option "TR85"
+                - option "TR86"
+                - option "TR87"
+                - option "TR88"
+                - option "TR89"
+                - option "TR90"
+                - option "TR91"
+                - option "TR92"
+                - option "TR93"
+                - option "TR94"
+                - option "TR95"
+                - option "TR96"
+                - option "TR97"
+                - option "TR98"
+                - option "TR99"
+                - option "Tamato Berry"
+                - option "Tanga Berry"
+                - option "Tapunium Z"
+                - option "Tart Apple"
+                - option "Terrain Extender"
+                - option "Thick Club"
+                - option "Throat Spray"
+                - option "Thunder Stone"
+                - option "Timer Ball"
+                - option "Toxic Orb"
+                - option "Toxic Plate"
+                - option "Twisted Spoon"
+                - option "Tyranitarite"
+                - option "Ultra Ball"
+                - option "Ultranecrozium Z"
+                - option "Up-Grade"
+                - option "Utility Umbrella"
+                - option "Venusaurite"
+                - option "Vile Vial"
+                - option "Wacan Berry"
+                - option "Water Gem"
+                - option "Water Memory"
+                - option "Water Stone"
+                - option "Waterium Z"
+                - option "Watmel Berry"
+                - option "Wave Incense"
+                - option "Weakness Policy"
+                - option "Wepear Berry"
+                - option "Whipped Dream"
+                - option "White Herb"
+                - option "Wide Lens"
+                - option "Wiki Berry"
+                - option "Wise Glasses"
+                - option "Yache Berry"
+                - option "Zap Plate"
+                - option "Zoom Lens"
+              - generic [ref=e739]:
+                - generic [ref=e740]: 📉
+                - generic [ref=e741]: ⏱️
+                - generic [ref=e742]: 🎯
+            - button "×" [ref=e743]
+          - generic [ref=e744] [cursor=pointer]:
+            - button "ⓘ" [ref=e745]
+            - generic [ref=e746]:
+              - img "Garchomp" [ref=e747]
+              - 'generic "Speed: 153" [ref=e748]': ⚡153
+            - generic [ref=e749]:
+              - generic [ref=e750]: Garchomp
+              - generic [ref=e754]:
+                - spinbutton "Edit HP before round" [ref=e755]: "89"
+                - generic [ref=e756]: HP (40%) (89–149)
+              - combobox "Set status" [ref=e757]:
+                - option "— Status —" [selected]
+                - option "Burn"
+                - option "Paralysis"
+                - option "Poison"
+                - option "Badly Poisoned"
+                - option "Sleep"
+                - option "Freeze"
+              - generic "Pokemon making contact with this Pokemon lose 1/8 of their max HP." [ref=e758]: Rough Skin
+              - combobox [ref=e759]:
+                - option "(no item)"
+                - option "Ability Shield"
+                - option "Abomasite"
+                - option "Absolite"
+                - option "Absorb Bulb"
+                - option "Adamant Crystal"
+                - option "Adamant Orb"
+                - option "Adrenaline Orb"
+                - option "Aerodactylite"
+                - option "Aggronite"
+                - option "Aguav Berry"
+                - option "Air Balloon"
+                - option "Alakazite"
+                - option "Aloraichium Z"
+                - option "Altarianite"
+                - option "Ampharosite"
+                - option "Apicot Berry"
+                - option "Armor Fossil"
+                - option "Aspear Berry"
+                - option "Assault Vest"
+                - option "Audinite"
+                - option "Auspicious Armor"
+                - option "Babiri Berry"
+                - option "Banettite"
+                - option "Beast Ball"
+                - option "Beedrillite"
+                - option "Belue Berry"
+                - option "Berry"
+                - option "Berry Juice"
+                - option "Berry Sweet"
+                - option "Berserk Gene"
+                - option "Big Nugget"
+                - option "Big Root"
+                - option "Binding Band"
+                - option "Bitter Berry"
+                - option "Black Belt"
+                - option "Black Glasses"
+                - option "Black Sludge"
+                - option "Blastoisinite"
+                - option "Blazikenite"
+                - option "Blue Orb"
+                - option "Bluk Berry"
+                - option "Blunder Policy"
+                - option "Booster Energy"
+                - option "Bottle Cap"
+                - option "Bright Powder"
+                - option "Bug Gem"
+                - option "Bug Memory"
+                - option "Buginium Z"
+                - option "Burn Drive"
+                - option "Burnt Berry"
+                - option "Cameruptite"
+                - option "Cell Battery"
+                - option "Charcoal"
+                - option "Charizardite X"
+                - option "Charizardite Y"
+                - option "Charti Berry"
+                - option "Cheri Berry"
+                - option "Cherish Ball"
+                - option "Chesto Berry"
+                - option "Chilan Berry"
+                - option "Chill Drive"
+                - option "Chipped Pot"
+                - option "Choice Band"
+                - option "Choice Scarf"
+                - option "Choice Specs"
+                - option "Chople Berry"
+                - option "Claw Fossil"
+                - option "Clear Amulet"
+                - option "Clover Sweet"
+                - option "Coba Berry"
+                - option "Colbur Berry"
+                - option "Cornn Berry"
+                - option "Cover Fossil"
+                - option "Covert Cloak"
+                - option "Cracked Pot"
+                - option "Crucibellite"
+                - option "Custap Berry"
+                - option "Damp Rock"
+                - option "Dark Gem"
+                - option "Dark Memory"
+                - option "Darkinium Z"
+                - option "Dawn Stone"
+                - option "Decidium Z"
+                - option "Deep Sea Scale"
+                - option "Deep Sea Tooth"
+                - option "Destiny Knot"
+                - option "Diancite"
+                - option "Dive Ball"
+                - option "Dome Fossil"
+                - option "Douse Drive"
+                - option "Draco Plate"
+                - option "Dragon Fang"
+                - option "Dragon Gem"
+                - option "Dragon Memory"
+                - option "Dragon Scale"
+                - option "Dragonium Z"
+                - option "Dread Plate"
+                - option "Dream Ball"
+                - option "Dubious Disc"
+                - option "Durin Berry"
+                - option "Dusk Ball"
+                - option "Dusk Stone"
+                - option "Earth Plate"
+                - option "Eevium Z"
+                - option "Eject Button"
+                - option "Eject Pack"
+                - option "Electirizer"
+                - option "Electric Gem"
+                - option "Electric Memory"
+                - option "Electric Seed"
+                - option "Electrium Z"
+                - option "Enigma Berry"
+                - option "Eviolite"
+                - option "Expert Belt"
+                - option "Fairium Z"
+                - option "Fairy Gem"
+                - option "Fairy Memory"
+                - option "Fast Ball"
+                - option "Fighting Gem"
+                - option "Fighting Memory"
+                - option "Fightinium Z"
+                - option "Figy Berry"
+                - option "Fire Gem"
+                - option "Fire Memory"
+                - option "Fire Stone"
+                - option "Firium Z"
+                - option "Fist Plate"
+                - option "Flame Orb"
+                - option "Flame Plate"
+                - option "Float Stone"
+                - option "Flower Sweet"
+                - option "Flying Gem"
+                - option "Flying Memory"
+                - option "Flyinium Z"
+                - option "Focus Band"
+                - option "Focus Sash"
+                - option "Fossilized Bird"
+                - option "Fossilized Dino"
+                - option "Fossilized Drake"
+                - option "Fossilized Fish"
+                - option "Friend Ball"
+                - option "Full Incense"
+                - option "Galarica Cuff"
+                - option "Galarica Wreath"
+                - option "Galladite"
+                - option "Ganlon Berry"
+                - option "Garchompite"
+                - option "Gardevoirite"
+                - option "Gengarite"
+                - option "Ghost Gem"
+                - option "Ghost Memory"
+                - option "Ghostium Z"
+                - option "Glalitite"
+                - option "Gold Berry"
+                - option "Gold Bottle Cap"
+                - option "Grass Gem"
+                - option "Grass Memory"
+                - option "Grassium Z"
+                - option "Grassy Seed"
+                - option "Great Ball"
+                - option "Grepa Berry"
+                - option "Grip Claw"
+                - option "Griseous Core"
+                - option "Griseous Orb"
+                - option "Ground Gem"
+                - option "Ground Memory"
+                - option "Groundium Z"
+                - option "Gyaradosite"
+                - option "Haban Berry"
+                - option "Hard Stone"
+                - option "Heal Ball"
+                - option "Heat Rock"
+                - option "Heavy Ball"
+                - option "Heavy-Duty Boots"
+                - option "Helix Fossil"
+                - option "Heracronite"
+                - option "Hondew Berry"
+                - option "Houndoominite"
+                - option "Iapapa Berry"
+                - option "Ice Berry"
+                - option "Ice Gem"
+                - option "Ice Memory"
+                - option "Ice Stone"
+                - option "Icicle Plate"
+                - option "Icium Z"
+                - option "Icy Rock"
+                - option "Incinium Z"
+                - option "Insect Plate"
+                - option "Iron Ball"
+                - option "Iron Plate"
+                - option "Jaboca Berry"
+                - option "Jaw Fossil"
+                - option "Kangaskhanite"
+                - option "Kasib Berry"
+                - option "Kebia Berry"
+                - option "Kee Berry"
+                - option "Kelpsy Berry"
+                - option "King's Rock"
+                - option "Kommonium Z"
+                - option "Lagging Tail"
+                - option "Lansat Berry"
+                - option "Latiasite"
+                - option "Latiosite"
+                - option "Lax Incense"
+                - option "Leaf Stone"
+                - option "Leek"
+                - option "Leftovers"
+                - option "Leppa Berry"
+                - option "Level Ball"
+                - option "Liechi Berry"
+                - option "Life Orb"
+                - option "Light Ball"
+                - option "Light Clay"
+                - option "Loaded Dice"
+                - option "Lopunnite"
+                - option "Love Ball"
+                - option "Love Sweet"
+                - option "Lucarionite"
+                - option "Lucky Punch"
+                - option "Lum Berry"
+                - option "Luminous Moss"
+                - option "Lunalium Z"
+                - option "Lure Ball"
+                - option "Lustrous Globe"
+                - option "Lustrous Orb"
+                - option "Luxury Ball"
+                - option "Lycanium Z"
+                - option "Macho Brace"
+                - option "Magmarizer"
+                - option "Magnet"
+                - option "Mago Berry"
+                - option "Magost Berry"
+                - option "Mail"
+                - option "Malicious Armor"
+                - option "Manectite"
+                - option "Maranga Berry"
+                - option "Marshadium Z"
+                - option "Master Ball"
+                - option "Mawilite"
+                - option "Meadow Plate"
+                - option "Medichamite"
+                - option "Mental Herb"
+                - option "Metagrossite"
+                - option "Metal Coat"
+                - option "Metal Powder"
+                - option "Metronome"
+                - option "Mewnium Z"
+                - option "Mewtwonite X"
+                - option "Mewtwonite Y"
+                - option "Micle Berry"
+                - option "Mimikium Z"
+                - option "Mind Plate"
+                - option "Mint Berry"
+                - option "Miracle Berry"
+                - option "Miracle Seed"
+                - option "Mirror Herb"
+                - option "Misty Seed"
+                - option "Moon Ball"
+                - option "Moon Stone"
+                - option "Muscle Band"
+                - option "Mystery Berry"
+                - option "Mystic Water"
+                - option "Nanab Berry"
+                - option "Nest Ball"
+                - option "Net Ball"
+                - option "Never-Melt Ice"
+                - option "Nomel Berry"
+                - option "Normal Gem"
+                - option "Normalium Z"
+                - option "Occa Berry"
+                - option "Odd Incense"
+                - option "Old Amber"
+                - option "Oran Berry"
+                - option "Oval Stone"
+                - option "PRZ Cure Berry"
+                - option "PSN Cure Berry"
+                - option "Pamtre Berry"
+                - option "Park Ball"
+                - option "Passho Berry"
+                - option "Payapa Berry"
+                - option "Pecha Berry"
+                - option "Persim Berry"
+                - option "Petaya Berry"
+                - option "Pidgeotite"
+                - option "Pikanium Z"
+                - option "Pikashunium Z"
+                - option "Pinap Berry"
+                - option "Pink Bow"
+                - option "Pinsirite"
+                - option "Pixie Plate"
+                - option "Plume Fossil"
+                - option "Poison Barb"
+                - option "Poison Gem"
+                - option "Poison Memory"
+                - option "Poisonium Z"
+                - option "Poke Ball"
+                - option "Polkadot Bow"
+                - option "Pomeg Berry"
+                - option "Power Anklet"
+                - option "Power Band"
+                - option "Power Belt"
+                - option "Power Bracer"
+                - option "Power Herb"
+                - option "Power Lens"
+                - option "Power Weight"
+                - option "Premier Ball"
+                - option "Primarium Z"
+                - option "Prism Scale"
+                - option "Protective Pads"
+                - option "Protector"
+                - option "Psychic Gem"
+                - option "Psychic Memory"
+                - option "Psychic Seed"
+                - option "Psychium Z"
+                - option "Punching Glove"
+                - option "Qualot Berry"
+                - option "Quick Ball"
+                - option "Quick Claw"
+                - option "Quick Powder"
+                - option "Rabuta Berry"
+                - option "Rare Bone"
+                - option "Rawst Berry"
+                - option "Razor Claw"
+                - option "Razor Fang"
+                - option "Razz Berry"
+                - option "Reaper Cloth"
+                - option "Red Card"
+                - option "Red Orb"
+                - option "Repeat Ball"
+                - option "Ribbon Sweet"
+                - option "Rindo Berry"
+                - option "Ring Target"
+                - option "Rock Gem"
+                - option "Rock Incense"
+                - option "Rock Memory"
+                - option "Rockium Z"
+                - option "Rocky Helmet"
+                - option "Room Service"
+                - option "Root Fossil"
+                - option "Rose Incense"
+                - option "Roseli Berry"
+                - option "Rowap Berry"
+                - option "Rusted Shield"
+                - option "Rusted Sword"
+                - option "Sablenite"
+                - option "Sachet"
+                - option "Safari Ball"
+                - option "Safety Goggles"
+                - option "Sail Fossil"
+                - option "Salac Berry"
+                - option "Salamencite"
+                - option "Sceptilite"
+                - option "Scizorite"
+                - option "Scope Lens"
+                - option "Sea Incense"
+                - option "Sharp Beak"
+                - option "Sharpedonite"
+                - option "Shed Shell"
+                - option "Shell Bell"
+                - option "Shiny Stone"
+                - option "Shock Drive"
+                - option "Shuca Berry"
+                - option "Silk Scarf"
+                - option "Silver Powder"
+                - option "Sitrus Berry"
+                - option "Skull Fossil"
+                - option "Sky Plate"
+                - option "Slowbronite"
+                - option "Smooth Rock"
+                - option "Snorlium Z"
+                - option "Snowball"
+                - option "Soft Sand" [selected]
+                - option "Solganium Z"
+                - option "Soul Dew"
+                - option "Spell Tag"
+                - option "Spelon Berry"
+                - option "Splash Plate"
+                - option "Spooky Plate"
+                - option "Sport Ball"
+                - option "Star Sweet"
+                - option "Starf Berry"
+                - option "Steel Gem"
+                - option "Steel Memory"
+                - option "Steelium Z"
+                - option "Steelixite"
+                - option "Stick"
+                - option "Sticky Barb"
+                - option "Stone Plate"
+                - option "Strange Ball"
+                - option "Strawberry Sweet"
+                - option "Sun Stone"
+                - option "Swampertite"
+                - option "Sweet Apple"
+                - option "TR00"
+                - option "TR01"
+                - option "TR02"
+                - option "TR03"
+                - option "TR04"
+                - option "TR05"
+                - option "TR06"
+                - option "TR07"
+                - option "TR08"
+                - option "TR09"
+                - option "TR10"
+                - option "TR11"
+                - option "TR12"
+                - option "TR13"
+                - option "TR14"
+                - option "TR15"
+                - option "TR16"
+                - option "TR17"
+                - option "TR18"
+                - option "TR19"
+                - option "TR20"
+                - option "TR21"
+                - option "TR22"
+                - option "TR23"
+                - option "TR24"
+                - option "TR25"
+                - option "TR26"
+                - option "TR27"
+                - option "TR28"
+                - option "TR29"
+                - option "TR30"
+                - option "TR31"
+                - option "TR32"
+                - option "TR33"
+                - option "TR34"
+                - option "TR35"
+                - option "TR36"
+                - option "TR37"
+                - option "TR38"
+                - option "TR39"
+                - option "TR40"
+                - option "TR41"
+                - option "TR42"
+                - option "TR43"
+                - option "TR44"
+                - option "TR45"
+                - option "TR46"
+                - option "TR47"
+                - option "TR48"
+                - option "TR49"
+                - option "TR50"
+                - option "TR51"
+                - option "TR52"
+                - option "TR53"
+                - option "TR54"
+                - option "TR55"
+                - option "TR56"
+                - option "TR57"
+                - option "TR58"
+                - option "TR59"
+                - option "TR60"
+                - option "TR61"
+                - option "TR62"
+                - option "TR63"
+                - option "TR64"
+                - option "TR65"
+                - option "TR66"
+                - option "TR67"
+                - option "TR68"
+                - option "TR69"
+                - option "TR70"
+                - option "TR71"
+                - option "TR72"
+                - option "TR73"
+                - option "TR74"
+                - option "TR75"
+                - option "TR76"
+                - option "TR77"
+                - option "TR78"
+                - option "TR79"
+                - option "TR80"
+                - option "TR81"
+                - option "TR82"
+                - option "TR83"
+                - option "TR84"
+                - option "TR85"
+                - option "TR86"
+                - option "TR87"
+                - option "TR88"
+                - option "TR89"
+                - option "TR90"
+                - option "TR91"
+                - option "TR92"
+                - option "TR93"
+                - option "TR94"
+                - option "TR95"
+                - option "TR96"
+                - option "TR97"
+                - option "TR98"
+                - option "TR99"
+                - option "Tamato Berry"
+                - option "Tanga Berry"
+                - option "Tapunium Z"
+                - option "Tart Apple"
+                - option "Terrain Extender"
+                - option "Thick Club"
+                - option "Throat Spray"
+                - option "Thunder Stone"
+                - option "Timer Ball"
+                - option "Toxic Orb"
+                - option "Toxic Plate"
+                - option "Twisted Spoon"
+                - option "Tyranitarite"
+                - option "Ultra Ball"
+                - option "Ultranecrozium Z"
+                - option "Up-Grade"
+                - option "Utility Umbrella"
+                - option "Venusaurite"
+                - option "Vile Vial"
+                - option "Wacan Berry"
+                - option "Water Gem"
+                - option "Water Memory"
+                - option "Water Stone"
+                - option "Waterium Z"
+                - option "Watmel Berry"
+                - option "Wave Incense"
+                - option "Weakness Policy"
+                - option "Wepear Berry"
+                - option "Whipped Dream"
+                - option "White Herb"
+                - option "Wide Lens"
+                - option "Wiki Berry"
+                - option "Wise Glasses"
+                - option "Yache Berry"
+                - option "Zap Plate"
+                - option "Zoom Lens"
+              - generic [ref=e760]:
+                - generic [ref=e761]: 📉
+                - generic [ref=e762]: 🏜️
+                - generic [ref=e763]: 💫
+            - button "×" [ref=e764]
+        - generic [ref=e765]:
+          - generic [ref=e766]:
+            - generic [ref=e767]: "🔮 AI sends:"
+            - generic [ref=e768]: Roserade
+            - generic [ref=e769]: (-1 — Slower + OHKO'd)
+          - generic [ref=e770]:
+            - text: "Moves:"
+            - generic "Grass Knot" [ref=e771]: Grass Knot 65%
+            - text: ","
+            - generic "Sleep Powder" [ref=e772]: Sleep Powder 35%
+          - generic [ref=e773]:
+            - 'generic "Roserade: Slower + OHKO''d" [ref=e774]':
+              - generic [ref=e775]: "-1"
+            - 'generic "Rotom-Wash: Slower + OHKO''d" [ref=e776]':
+              - generic [ref=e777]: "-1"
+            - 'generic "Jynx: Slower + OHKO''d" [ref=e778]':
+              - generic [ref=e779]: "-1"
+      - generic [ref=e780]:
+        - generic [ref=e781]:
+          - generic [ref=e782]: Opponent Team
+          - generic [ref=e783]: "5"
+          - generic [ref=e784]:
+            - button "◀" [ref=e785] [cursor=pointer]
+            - button "▶" [ref=e786] [cursor=pointer]
+            - button "🚚" [ref=e787] [cursor=pointer]
+        - textbox "Search trainer…" [ref=e789]
+        - generic [ref=e790]:
+          - generic [ref=e791] [cursor=pointer]:
+            - button "ⓘ" [ref=e792]
+            - generic [ref=e793]:
+              - img "Barraskewda" [ref=e794]
+              - 'generic "Speed: 186" [ref=e795]': ⚡186
+            - generic [ref=e796]:
+              - generic [ref=e797]: Barraskewda
+              - generic [ref=e799]: 0 HP (0%)
+              - generic "If Rain Dance is active, this Pokemon's Speed is doubled." [ref=e800]: Swift Swim
+              - generic "Holder's Water-type attacks have 1.2x power." [ref=e801]: Mystic Water
+              - generic [ref=e802]:
+                - generic [ref=e803]: 🌧️
+                - generic [ref=e804]: 📉
+                - generic [ref=e805]: 🪟
+          - generic [ref=e806] [cursor=pointer]:
+            - button "ⓘ" [ref=e807]
+            - generic [ref=e808]:
+              - img "Roserade" [ref=e809]
+              - 'generic "Speed: 144" [ref=e810]': ⚡144
+            - generic [ref=e811]:
+              - generic [ref=e812]: Roserade
+              - generic [ref=e815]: 150 HP (94%)
+              - generic "This Pokemon's moves of 60 power or less have 1.5x power, including Struggle." [ref=e816]: Technician
+              - generic "Each turn, if holder is a Poison type, restores 1/16 max HP; loses 1/8 if not." [ref=e817]: Black Sludge
+              - generic [ref=e818]:
+                - generic [ref=e819]: 💚
+                - generic [ref=e820]: ☠️
+          - generic [ref=e821] [cursor=pointer]:
+            - button "ⓘ" [ref=e822]
+            - generic [ref=e823]:
+              - img "Rotom-Wash" [ref=e824]
+              - 'generic "Speed: 138" [ref=e825]': ⚡138
+            - generic [ref=e826]:
+              - generic [ref=e827]: Rotom-Wash
+              - generic [ref=e830]: 148 HP (100%)
+              - generic "This Pokemon is immune to Ground; Gravity/Ingrain/Smack Down/Iron Ball nullify it." [ref=e831]: Levitate
+              - generic "Holder cures itself if it has a non-volatile status or is confused. Single use." [ref=e832]: Lum Berry
+              - generic [ref=e833]:
+                - generic [ref=e834]: 🌧️
+                - generic [ref=e835]: ☠️
+                - generic [ref=e836]: 🕊️
+          - generic [ref=e837] [cursor=pointer]:
+            - button "ⓘ" [ref=e838]
+            - generic [ref=e839]:
+              - img "Jynx" [ref=e840]
+              - 'generic "Speed: 152" [ref=e841]': ⚡152
+            - generic [ref=e842]:
+              - generic [ref=e843]: Jynx
+              - generic [ref=e846]: 169 HP (100%)
+              - generic "This Pokemon is healed 1/4 by Water, 1/8 by Rain; is hurt 1.25x by Fire, 1/8 by Sun." [ref=e847]: Dry Skin
+              - generic "Holder's attacks do 1.3x damage, and it loses 1/10 its max HP after the attack." [ref=e848]: Life Orb
+              - generic [ref=e849]:
+                - generic [ref=e850]: 🌧️
+                - generic [ref=e851]: ❄️
+                - generic [ref=e852]: ☠️
+                - generic [ref=e853]: 📉
+          - generic [ref=e854] [cursor=pointer]:
+            - button "ⓘ" [ref=e855]
+            - generic [ref=e856]:
+              - img "Goodra" [ref=e857]
+              - 'generic "Speed: 119" [ref=e858]': ⚡119
+            - generic [ref=e859]:
+              - generic [ref=e860]: Goodra
+              - generic [ref=e863]: 196 HP (100%)
+              - generic "This Pokemon has its status cured at the end of each turn if Rain Dance is active." [ref=e864]: Hydration
+              - generic "Holder's Water-type attacks have 1.2x power." [ref=e865]: Mystic Water
+              - generic [ref=e866]:
+                - generic [ref=e867]: 🌧️
+                - generic [ref=e868]: 💚
+    - generic [ref=e869]:
+      - generic [ref=e870]: Log Round
+      - region "Move selection" [ref=e872]:
+        - radiogroup "Bewear's Moves (select one to show detailed results)" [ref=e873]:
+          - generic [ref=e874]: Bewear's Moves (select one to show detailed results)
+          - generic [ref=e875]:
+            - radio "Fighting Physical Superpower" [ref=e876]
+            - generic [ref=e877] [cursor=pointer]:
+              - generic [ref=e878]:
+                - img "Fighting" [ref=e879]
+                - img "Physical" [ref=e880]
+              - generic [ref=e881]: Superpower
+            - generic [ref=e882] [cursor=pointer]: 169-201 (105-125%)
+            - checkbox "Crit" [ref=e883]
+            - generic "Force this attack to be a critical hit?" [ref=e884] [cursor=pointer]: Crit
+          - generic [ref=e885]:
+            - radio "Flying Physical Aerial Ace" [ref=e886]
+            - generic [ref=e887] [cursor=pointer]:
+              - generic [ref=e888]:
+                - img "Flying" [ref=e889]
+                - img "Physical" [ref=e890]
+              - generic [ref=e891]: Aerial Ace
+            - generic [ref=e892] [cursor=pointer]: 57-68 (35-42%)
+            - checkbox "Crit" [ref=e893]
+            - generic "Force this attack to be a critical hit?" [ref=e894] [cursor=pointer]: Crit
+          - generic [ref=e895]:
+            - radio "Normal Physical Double-Edge" [ref=e896]
+            - generic [ref=e897] [cursor=pointer]:
+              - generic [ref=e898]:
+                - img "Normal" [ref=e899]
+                - img "Physical" [ref=e900]
+              - generic [ref=e901]: Double-Edge
+            - generic [ref=e902] [cursor=pointer]: 169-201 (105-125%)
+            - checkbox "Crit" [ref=e903]
+            - generic "Force this attack to be a critical hit?" [ref=e904] [cursor=pointer]: Crit
+          - generic [ref=e905]:
+            - radio "Rock Physical Rock Tomb" [ref=e906]
+            - generic [ref=e907] [cursor=pointer]:
+              - generic [ref=e908]:
+                - img "Rock" [ref=e909]
+                - img "Physical" [ref=e910]
+              - generic [ref=e911]: Rock Tomb
+            - generic [ref=e912] [cursor=pointer]: 57-68 (35-42%)
+            - checkbox "Crit" [ref=e913]
+            - generic "Force this attack to be a critical hit?" [ref=e914] [cursor=pointer]: Crit
+        - radiogroup "Barraskewda's Moves (select one to show detailed results)" [ref=e915]:
+          - generic [ref=e916]: Barraskewda's Moves (select one to show detailed results)
+          - generic [ref=e917]:
+            - checkbox "Crit" [ref=e918]
+            - generic "Force this attack to be a critical hit?" [ref=e919] [cursor=pointer]: Crit
+            - radio "Water Physical Liquidation" [checked] [ref=e920]
+            - generic [ref=e921]:
+              - generic [ref=e922]:
+                - img "Water" [ref=e923]
+                - img "Physical" [ref=e924]
+              - generic [ref=e925]: Liquidation
+            - generic [ref=e926] [cursor=pointer]: 81-96 (33-39%)
+            - generic [ref=e927]: 25.52%
+          - generic [ref=e928]:
+            - checkbox "Crit" [ref=e929]
+            - generic "Force this attack to be a critical hit?" [ref=e930] [cursor=pointer]: Crit
+            - radio "Water Physical Flip Turn" [ref=e931]
+            - generic [ref=e932] [cursor=pointer]:
+              - generic [ref=e933]:
+                - img "Water" [ref=e934]
+                - img "Physical" [ref=e935]
+              - generic [ref=e936]: Flip Turn
+            - generic [ref=e937] [cursor=pointer]: 58-69 (24-28%)
+            - generic [ref=e938]: 23.44%
+          - generic [ref=e939]:
+            - checkbox "Crit" [ref=e940]
+            - generic "Force this attack to be a critical hit?" [ref=e941] [cursor=pointer]: Crit
+            - radio "Fighting Physical Close Combat" [ref=e942]
+            - generic [ref=e943] [cursor=pointer]:
+              - generic [ref=e944]:
+                - img "Fighting" [ref=e945]
+                - img "Physical" [ref=e946]
+              - generic [ref=e947]: Close Combat
+            - generic [ref=e948] [cursor=pointer]: 129-152 (53-62%)
+            - generic [ref=e949]: 25.52%
+          - generic [ref=e950]:
+            - checkbox "Crit" [ref=e951]
+            - generic "Force this attack to be a critical hit?" [ref=e952] [cursor=pointer]: Crit
+            - radio "Psychic Physical Psychic Fangs" [ref=e953]
+            - generic [ref=e954] [cursor=pointer]:
+              - generic [ref=e955]:
+                - img "Psychic" [ref=e956]
+                - img "Physical" [ref=e957]
+              - generic [ref=e958]: Psychic Fangs
+            - generic [ref=e959] [cursor=pointer]: 91-108 (37-44%)
+            - generic [ref=e960]: 25.52%
+      - generic [ref=e961]:
+        - generic [ref=e962]:
+          - generic [ref=e963]:
+            - img "Flying" [ref=e964]
+            - img "Physical" [ref=e965]
+            - generic [ref=e966]: Aerial Ace
+          - generic [ref=e967]: "BP: 60 · Acc: — · PP: 20"
+          - generic [ref=e968]: This move does not check accuracy.
+        - generic [ref=e969]:
+          - generic [ref=e970]:
+            - img "Water" [ref=e971]
+            - img "Physical" [ref=e972]
+            - generic [ref=e973]: Liquidation
+          - generic [ref=e974]: "BP: 85 · Acc: 100 · PP: 10"
+          - generic [ref=e975]: 20% chance to lower the target's Defense by 1.
+          - generic [ref=e976]: 20% chance Def-1
+      - generic [ref=e977]:
+        - generic [ref=e978]:
+          - checkbox "P2 Crits" [ref=e979]
+          - generic [ref=e980]: P2 Crits
+        - generic [ref=e981]:
+          - checkbox "Apply P1 Effect" [ref=e982]
+          - generic [ref=e983]: Apply P1 Effect
+        - generic [ref=e984]:
+          - checkbox "Apply P2 Effect" [checked] [ref=e985]
+          - generic [ref=e986]: Apply P2 Effect
+      - generic [ref=e988]:
+        - generic [ref=e989]: Comment
+        - textbox "Comment" [ref=e990]:
+          - /placeholder: Note...
+      - generic [ref=e991]:
+        - generic [ref=e992]:
+          - generic [ref=e993]: ☀ Weather
+          - combobox "☀ Weather" [ref=e994] [cursor=pointer]:
+            - option "None" [selected]
+            - option "Sun"
+            - option "Rain"
+            - option "Sand"
+            - option "Snow"
+            - option "Hail"
+            - option "Harsh Sunshine"
+            - option "Heavy Rain"
+            - option "Strong Winds"
+          - generic "Weather does not expire after 5 turns" [ref=e995] [cursor=pointer]:
+            - checkbox "Permanent" [ref=e996]
+            - text: Permanent
+        - generic [ref=e997]:
+          - generic [ref=e998]: 🌿 Terrain
+          - combobox "🌿 Terrain" [ref=e999] [cursor=pointer]:
+            - option "None" [selected]
+            - option "Electric"
+            - option "Grassy"
+            - option "Misty"
+            - option "Psychic"
+        - 'generic "Trick Room: slower Pokémon move first" [ref=e1001] [cursor=pointer]':
+          - checkbox "🔮 Trick Room" [ref=e1002]
+          - generic [ref=e1003]: 🔮 Trick Room
+      - generic [ref=e1004]:
+        - button "▶ Log Round" [ref=e1005] [cursor=pointer]
+        - generic [ref=e1006]:
+          - combobox "Switch P1 active" [ref=e1007]:
+            - option "— Switch P1 —" [selected]
+            - option "Bewear"
+          - button "⇄ Switch In" [ref=e1008] [cursor=pointer]
+        - button "📋 Copy Log" [ref=e1009] [cursor=pointer]
+        - button "Clear Line" [ref=e1010] [cursor=pointer]
+    - generic [ref=e1011]:
+      - generic [ref=e1012]:
+        - generic [ref=e1013]: Round Log
+        - generic [ref=e1014]: "2"
+        - button "⊖ Collapse All" [ref=e1015] [cursor=pointer]
+        - button "🔍 Analyze Fight" [ref=e1016] [cursor=pointer]
+        - button "🗑 Delete All" [ref=e1017] [cursor=pointer]
+      - generic [ref=e1018]:
+        - generic [ref=e1019]:
+          - button "Main (1)" [ref=e1020] [cursor=pointer]
+          - button "Line B → B1 (2) ×" [ref=e1021] [cursor=pointer]
+        - generic [ref=e1022]:
+          - generic [ref=e1023]:
+            - generic [ref=e1025]: Main
+            - generic [ref=e1026]:
+              - generic [ref=e1027] [cursor=pointer]:
+                - generic [ref=e1028]: Round 1
+                - generic [ref=e1029]: ⚡ 99 vs 186 — Barraskewda first
+                - 'generic "P2 Move Selection: 100.0% P2 No Crit: 95.8% P2 Move Hits: 100.0%" [ref=e1030]': 📊 95.8%
+                - button "⚔ Crit" [ref=e1031]
+                - button "🔀" [ref=e1032]
+                - button "×" [ref=e1033]
+              - generic [ref=e1034]:
+                - generic [ref=e1035]:
+                  - generic [ref=e1037]:
+                    - generic [ref=e1038]:
+                      - text: Bewear
+                      - generic [ref=e1039]: 2nd
+                    - generic [ref=e1040]:
+                      - generic "This Pokemon takes 1/2 damage from contact moves, 2x damage from Fire moves." [ref=e1042]: Fluffy
+                      - generic [ref=e1043]: Atk-1 Def-1
+                    - text: 212 HP (87%)
+                  - generic [ref=e1046]:
+                    - generic [ref=e1047]:
+                      - img "Fighting" [ref=e1048]
+                      - img "Physical" [ref=e1049]
+                      - text: Superpower
+                    - generic [ref=e1050]: "BP: 120 · Acc: 100 · PP: 5"
+                  - generic [ref=e1052]: "User: Atk-1/Def-1"
+                  - generic [ref=e1054]: "Dmg: 169-201"
+                  - generic [ref=e1059]: 110 HP (45%) -102 (110–126)
+                  - button "🎯 Bait" [ref=e1060] [cursor=pointer]
+                - generic [ref=e1061]: VS
+                - generic [ref=e1062]:
+                  - generic [ref=e1064]:
+                    - generic [ref=e1065]:
+                      - text: Barraskewda
+                      - generic [ref=e1066]: 1st
+                    - generic [ref=e1067]:
+                      - generic "Holder's Water-type attacks have 1.2x power." [ref=e1068]: Mystic Water
+                      - generic "If Rain Dance is active, this Pokemon's Speed is doubled." [ref=e1069]: Swift Swim
+                      - generic [ref=e1070]: Def-1 SpD-1
+                    - text: 161 HP (100%)
+                  - generic [ref=e1073]:
+                    - generic [ref=e1074]:
+                      - img "Fighting" [ref=e1075]
+                      - img "Physical" [ref=e1076]
+                      - text: Close Combat
+                    - generic [ref=e1077]: "BP: 120 · Acc: 100 · PP: 5"
+                  - generic [ref=e1079]: "User: Def-1/SpD-1"
+                  - generic [ref=e1080]:
+                    - generic [ref=e1081]: "Dmg: 86-102"
+                    - generic [ref=e1082]: "⚔ Crit: 130-153"
+                  - generic [ref=e1085]: 0 HP (0%) -161
+              - generic [ref=e1086]:
+                - generic [ref=e1087]: "🔮 AI sends:"
+                - generic [ref=e1088]: Roserade
+                - generic [ref=e1089]: (+5 — Faster + OHKO)
+          - generic [ref=e1090]:
+            - generic [ref=e1091]:
+              - generic [ref=e1092]: Line B → B1
+              - button "×" [ref=e1093] [cursor=pointer]
+            - generic [ref=e1094]:
+              - generic [ref=e1095] [cursor=pointer]:
+                - generic [ref=e1096]: Round 1
+                - generic [ref=e1097]: ⚡ 99 vs 186 — Barraskewda first
+                - generic [ref=e1098]: P2 CRIT
+                - 'generic "P2 Move Selection: 100.0% P2 Critical Hit: 4.2% P2 Move Hits: 100.0%" [ref=e1099]': 📊 4.2%
+                - button "⚔ Crit" [ref=e1100]
+                - button "🔀" [ref=e1101]
+                - button "×" [ref=e1102]
+              - generic [ref=e1103]:
+                - generic [ref=e1104]:
+                  - generic [ref=e1106]:
+                    - generic [ref=e1107]:
+                      - text: Bewear
+                      - generic [ref=e1108]: 2nd
+                    - generic [ref=e1109]:
+                      - generic "This Pokemon takes 1/2 damage from contact moves, 2x damage from Fire moves." [ref=e1111]: Fluffy
+                      - generic [ref=e1112]: Atk-1 Def-1
+                    - text: 212 HP (87%)
+                  - generic [ref=e1115]:
+                    - generic [ref=e1116]:
+                      - img "Fighting" [ref=e1117]
+                      - img "Physical" [ref=e1118]
+                      - text: Superpower
+                    - generic [ref=e1119]: "BP: 120 · Acc: 100 · PP: 5"
+                  - generic [ref=e1121]: "User: Atk-1/Def-1"
+                  - generic [ref=e1123]: "Dmg: 169-201"
+                  - generic [ref=e1128]: 59 HP (24%) -153 (59–126)
+                  - button "🎯 Bait" [ref=e1129] [cursor=pointer]
+                - generic [ref=e1130]: VS
+                - generic [ref=e1131]:
+                  - generic [ref=e1133]:
+                    - generic [ref=e1134]:
+                      - text: Barraskewda
+                      - generic [ref=e1135]: 1st
+                    - generic [ref=e1136]:
+                      - generic "Holder's Water-type attacks have 1.2x power." [ref=e1137]: Mystic Water
+                      - generic "If Rain Dance is active, this Pokemon's Speed is doubled." [ref=e1138]: Swift Swim
+                      - generic [ref=e1139]: Def-1 SpD-1
+                    - text: 161 HP (100%)
+                  - generic [ref=e1142]:
+                    - generic [ref=e1143]:
+                      - img "Fighting" [ref=e1144]
+                      - img "Physical" [ref=e1145]
+                      - text: Close Combat
+                    - generic [ref=e1146]: "BP: 120 · Acc: 100 · PP: 5"
+                  - generic [ref=e1148]: "User: Def-1/SpD-1"
+                  - generic [ref=e1149]:
+                    - generic [ref=e1150]: "Dmg: 86-102"
+                    - generic [ref=e1151]: "⚔ Crit: 130-153"
+                  - generic [ref=e1154]: 0 HP (0%) -161
+              - generic [ref=e1155]:
+                - generic [ref=e1156]: "🔮 AI sends:"
+                - generic [ref=e1157]: Roserade
+                - generic [ref=e1158]: (+5 — Faster + OHKO)
+            - generic [ref=e1159]:
+              - generic [ref=e1160] [cursor=pointer]:
+                - generic [ref=e1161]: Round 2
+                - generic [ref=e1162]: ⚡ 153 vs 144 — Garchomp first
+                - generic [ref=e1163]: ⇄ SWITCH
+                - generic [ref=e1164]: P2 CRIT
+                - 'generic "P2 Move Selection: 60.0% P2 Critical Hit: 4.2% P2 Effect Applied: 100.0% P2 Move Hits: 100.0%" [ref=e1165]': 📊 2.5%
+                - button "⚔ Crit" [ref=e1166]
+                - button "🔀" [ref=e1167]
+                - button "×" [ref=e1168]
+              - generic [ref=e1169]:
+                - generic [ref=e1170]:
+                  - generic [ref=e1172]:
+                    - generic [ref=e1173]:
+                      - text: Garchomp
+                      - generic [ref=e1174]: 1st
+                    - generic [ref=e1175]:
+                      - generic "Holder's Ground-type attacks have 1.2x power." [ref=e1176]: Soft Sand
+                      - generic "Pokemon making contact with this Pokemon lose 1/8 of their max HP." [ref=e1177]: Rough Skin
+                    - text: 225 HP (100%)
+                  - generic [ref=e1180]: — No Move
+                  - generic [ref=e1185]: 89 HP (40%) -136 (89–149)
+                  - button "🎯 Bait" [ref=e1186] [cursor=pointer]
+                - generic [ref=e1187]: VS
+                - generic [ref=e1188]:
+                  - generic [ref=e1190]:
+                    - generic [ref=e1191]:
+                      - text: Roserade
+                      - generic [ref=e1192]: 2nd
+                    - generic [ref=e1193]:
+                      - generic "Each turn, if holder is a Poison type, restores 1/16 max HP; loses 1/8 if not." [ref=e1194]: Black Sludge
+                      - generic "This Pokemon's moves of 60 power or less have 1.5x power, including Struggle." [ref=e1195]: Technician
+                    - text: 160 HP (100%)
+                  - generic [ref=e1198]:
+                    - generic [ref=e1199]:
+                      - img "Grass" [ref=e1200]
+                      - img "Special" [ref=e1201]
+                      - text: Grass Knot
+                    - generic [ref=e1202]: "Acc: 100 · PP: 20"
+                  - generic [ref=e1203]:
+                    - generic [ref=e1204]: "Dmg: 76-91"
+                    - generic [ref=e1205]: "⚔ Crit: 115-136"
+                  - generic [ref=e1207]: "Rough Skin: -20"
+                  - generic [ref=e1209]: "Black Sludge: +10"
+                  - generic [ref=e1213]: 150 HP (94%) -10
+              - generic [ref=e1214]: "💬 Switch in: Garchomp"
+            - generic [ref=e1215]:
+              - generic [ref=e1216]: ⟳ P2 Fainted — Select who comes in
+              - generic [ref=e1217]:
+                - generic [ref=e1218]:
+                  - generic [ref=e1219]: 🔮 Roserade
+                  - generic [ref=e1220]: Sludge Bomb 33%, Grass Knot 33%, Weather Ball 33%
+                - combobox [ref=e1221]:
+                  - option "— P2 sends... —"
+                  - option "Roserade (150/160)" [selected]
+                  - option "Rotom-Wash (148/148)"
+                  - option "Jynx (169/169)"
+                  - option "Goodra (196/196)"
+                - button "Confirm →" [ref=e1222] [cursor=pointer]
+      - generic [ref=e1224] [cursor=pointer]:
+        - generic [ref=e1225]: 📋 Field State
+        - generic [ref=e1226]: ▾
+  - button "Click for Light Theme" [ref=e1228]
