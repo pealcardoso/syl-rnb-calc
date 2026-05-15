@@ -6704,11 +6704,72 @@
 
         // ════════════ P2 FORK VARS ════════════
 
-        // 1. P2 damage roll range — show when roll crosses KO boundary OR bait changes (set during fight analysis)
+        // 1. P2 damage roll range — show when roll crosses KO boundary OR bait changes
         if (!p2KOdBeforeAttack && rd.p2.damage && rd.p2.damage.minDmg !== rd.p2.damage.maxDmg && !rd.p2.flinched) {
             var rollKOBoundary = rd.p2.damage.maxDmg >= p1HP && rd.p2.damage.minDmg < p1HP;
             var rollMinHP = Math.max(0, p1HP - rd.p2.damage.maxDmg);
             var rollMaxHP = Math.max(0, p1HP - rd.p2.damage.minDmg);
+            // Lazily compute bait change flag if not yet set by fight analysis
+            if (!rollKOBoundary && !rd._rollChangesBait && rd.p2.hpAfter.current <= 0 && rollMinHP !== rollMaxHP) {
+                try {
+                    var _bLine = curLine();
+                    var _bRounds = getBranchRounds(_bLine, _bLine.activeBranchIdx || -1);
+                    var _bRdIdx = -1;
+                    for (var _bi = 0; _bi < _bRounds.length; _bi++) {
+                        if (_bRounds[_bi] === rd) { _bRdIdx = _bi; break; }
+                    }
+                    if (_bRdIdx >= 0) {
+                        var _p1BaitE = null;
+                        for (var _bpi = 0; _bpi < _bLine.teams.p1.roster.length; _bpi++) {
+                            if (_bLine.teams.p1.roster[_bpi].name === rd.p1.name) {
+                                _p1BaitE = $.extend(true, {}, _bLine.teams.p1.roster[_bpi]); break;
+                            }
+                        }
+                        if (_p1BaitE) {
+                            _p1BaitE.item = rd.p1.item; _p1BaitE.ability = rd.p1.ability;
+                            _p1BaitE.status = rd.p1.status; _p1BaitE.currentHP = p1Max || _p1BaitE.maxHP;
+                            try { _p1BaitE._speedOverride = computeEntrySpeed(_p1BaitE); } catch (e) {}
+                            // Save/restore P2 state for correct bait analysis
+                            var _p2T = _bLine.teams.p2;
+                            var _p2Snap = [], _p2sIdx = _p2T.activeIdx;
+                            for (var _si = 0; _si < _p2T.roster.length; _si++) {
+                                var _se = _p2T.roster[_si];
+                                _p2Snap.push({ hp: _se.currentHP, bc: _se.bestCaseHP, st: _se.status || '', it: _se.item });
+                                _se.currentHP = _se.maxHP; _se.bestCaseHP = _se.maxHP; _se.status = '';
+                            }
+                            _p2T.activeIdx = 0;
+                            for (var _ri2 = 0; _ri2 <= _bRdIdx && _ri2 < _bRounds.length; _ri2++) {
+                                var _rr = _bRounds[_ri2];
+                                if (!_rr.p2) continue;
+                                var _rri = findInRoster(_p2T, _rr.p2.name);
+                                if (_rri < 0) continue;
+                                _p2T.roster[_rri].currentHP = _rr.p2.hpAfter.current;
+                                if (_rr.p2.status) _p2T.roster[_rri].status = _rr.p2.status;
+                                _p2T.activeIdx = _rri;
+                            }
+                            var _bbands = computeBaitAnalysis(_p1BaitE);
+                            for (var _si = 0; _si < _p2T.roster.length; _si++) {
+                                _p2T.roster[_si].currentHP = _p2Snap[_si].hp;
+                                _p2T.roster[_si].bestCaseHP = _p2Snap[_si].bc;
+                                _p2T.roster[_si].status = _p2Snap[_si].st;
+                                if (_p2Snap[_si].it !== undefined) _p2T.roster[_si].item = _p2Snap[_si].it;
+                            }
+                            _p2T.activeIdx = _p2sIdx;
+                            if (_bbands && _bbands.length) {
+                                var _bLookup = function (hp) {
+                                    for (var _bi2 = 0; _bi2 < _bbands.length; _bi2++) {
+                                        if (hp >= _bbands[_bi2].hpLower && hp <= _bbands[_bi2].hpUpper) return _bi2;
+                                    }
+                                    return -1;
+                                };
+                                if (_bLookup(rollMinHP) !== _bLookup(rollMaxHP)) {
+                                    rd._rollChangesBait = true;
+                                }
+                            }
+                        }
+                    }
+                } catch (e) { /* bait check failed silently */ }
+            }
             if (rollKOBoundary || rd._rollChangesBait) {
                 forks.push({
                     icon: '🎰', label: 'P2 Roll',
