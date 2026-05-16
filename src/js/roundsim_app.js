@@ -1108,7 +1108,7 @@
      *   [{ hpUpper, hpLower, pctUpper, pctLower, baitName, baitSprite,
      *      reason, score, faster, moves: [{move, rate}] }, ...]
      */
-    function computeBaitAnalysis(p1Entry, lockMoveIdx) {
+    function computeBaitAnalysis(p1Entry) {
         var line = curLine();
         var team = line.teams.p2;
         if (!p1Entry || team.roster.length < 2) return [];
@@ -1236,13 +1236,9 @@
                     if (pct > bestAiPct) bestAiPct = pct;
                 }
                 var bestPlPct = 0;
-                if (lockMoveIdx != null && lockMoveIdx >= 0 && lockMoveIdx < pc.plDmgs.length) {
-                    bestPlPct = pc.plDmgs[lockMoveIdx] / pc.p2hp * 100;
-                } else {
-                    for (var m = 0; m < pc.plDmgs.length; m++) {
-                        var pct = pc.plDmgs[m] / pc.p2hp * 100;
-                        if (pct > bestPlPct) bestPlPct = pct;
-                    }
+                for (var m = 0; m < pc.plDmgs.length; m++) {
+                    var pct = pc.plDmgs[m] / pc.p2hp * 100;
+                    if (pct > bestPlPct) bestPlPct = pct;
                 }
                 var aiOHKO = bestAiPct >= 100;
                 var plOHKO = bestPlPct >= 100;
@@ -1362,6 +1358,8 @@
         for (var ei = 0; ei < engagement.length; ei++) {
             var eRd = rounds[engagement[ei]];
             var eP2Move = eRd.p2.move && eRd.p2.move !== '—' ? eRd.p2.move : null;
+            // Override P2 move for variant analysis (only when P2 actually attacked)
+            if (eP2Move && opts.overrideP2Move) eP2Move = opts.overrideP2Move;
             if (!eP2Move) {
                 roundDmgs.push({ roundNum: eRd.roundNum || (engagement[ei] + 1), move: null,
                     minNorm: 0, maxNorm: 0, minCrit: 0, maxCrit: 0 });
@@ -1528,7 +1526,7 @@
             }
             tabsHtml += '</div>';
             return '<div class="rsa-bait-tabbed">' +
-                '<div class="rsa-bait-title">🎯 Bait Analysis — Per-Move Breakdown</div>' +
+                '<div class="rsa-bait-title">🎯 Bait Analysis — P2 Move Variants</div>' +
                 tabsHtml + contentHtml + '</div>';
         }
         return renderBaitContent(bands, p1Entry, currentHP, maxHP, predamage);
@@ -9346,15 +9344,8 @@
                         }
                     }
                 }
-                // ── Compute per-move bait analyses ──
-                var p1Moves = fakeP1.moves || [];
-                var moveAnalyses = [];
-                for (var _mi = 0; _mi < Math.min(4, p1Moves.length); _mi++) {
-                    var _moveName = p1Moves[_mi];
-                    if (!_moveName || _moveName === '(No Move)') continue;
-                    var moveBands = computeBaitAnalysis(fakeP1, _mi);
-                    moveAnalyses.push({ moveName: _moveName, moveIdx: _mi, bands: moveBands, predamage: null });
-                }
+                // ── Compute bait bands (once, shared across P2 move variants) ──
+                var bands = computeBaitAnalysis(fakeP1);
                 // ── Restore P2 roster state ──
                 for (var si = 0; si < p2Team.roster.length; si++) {
                     p2Team.roster[si].currentHP = saved[si].currentHP;
@@ -9365,44 +9356,78 @@
                 }
                 p2Team.activeIdx = savedActiveIdx;
 
-                // ── Compute predamage for each move analysis ──
+                // ── Compute predamage per P2 move variant ──
                 var _p2SetId = null;
+                var _p2RosterEntry = null;
                 if (rd.p2) {
                     for (var pi = 0; pi < _baitLine.teams.p2.roster.length; pi++) {
                         if (_baitLine.teams.p2.roster[pi].name === rd.p2.name) {
-                            _p2SetId = _baitLine.teams.p2.roster[pi].setId; break;
+                            _p2SetId = _baitLine.teams.p2.roster[pi].setId;
+                            _p2RosterEntry = _baitLine.teams.p2.roster[pi];
+                            break;
                         }
                     }
                 }
-                for (var _mai = 0; _mai < moveAnalyses.length; _mai++) {
-                    if (moveAnalyses[_mai].bands && moveAnalyses[_mai].bands.length && rd.p2 && _p2SetId) {
-                        moveAnalyses[_mai].predamage = computePredamage({
+
+                var moveAnalyses = [];
+                if (bands && bands.length && rd.p2 && _p2SetId && _p2RosterEntry) {
+                    // Get P2's possible moves
+                    var p2Moves = _p2RosterEntry.moves || [];
+                    for (var _pmi = 0; _pmi < p2Moves.length; _pmi++) {
+                        var _p2MoveName = p2Moves[_pmi];
+                        if (!_p2MoveName || _p2MoveName === '(No Move)') continue;
+                        // Skip status moves (no damage)
+                        var _mvData = lookupMoveData ? lookupMoveData(_p2MoveName) : null;
+                        if (_mvData && _mvData.category === 'Status') continue;
+                        var pd = computePredamage({
                             p1SetId: fakeP1.setId,
                             p2SetId: _p2SetId,
                             p1MaxHP: rd.p1.hpAfter.max,
                             p1Item: rd.p1.item || '',
-                            bands: moveAnalyses[_mai].bands,
+                            bands: bands,
                             rounds: _baitRounds,
                             roundIdx: _baitRdIdx,
                             p1Name: rd.p1.name,
-                            p2Name: rd.p2.name
+                            p2Name: rd.p2.name,
+                            overrideP2Move: _p2MoveName
                         });
+                        moveAnalyses.push({ moveName: _p2MoveName, bands: bands, predamage: pd });
                     }
                 }
 
-                // Use first move analysis as fallback for single-analysis render
-                var firstBands = moveAnalyses.length ? moveAnalyses[0].bands : [];
-                var firstPd = moveAnalyses.length ? moveAnalyses[0].predamage : null;
+                // Fallback: single panel with no override (uses logged moves)
+                var defaultPd = null;
+                if (bands && bands.length && rd.p2 && _p2SetId) {
+                    defaultPd = computePredamage({
+                        p1SetId: fakeP1.setId,
+                        p2SetId: _p2SetId,
+                        p1MaxHP: rd.p1.hpAfter.max,
+                        p1Item: rd.p1.item || '',
+                        bands: bands,
+                        rounds: _baitRounds,
+                        roundIdx: _baitRdIdx,
+                        p1Name: rd.p1.name,
+                        p2Name: rd.p2.name
+                    });
+                }
 
-                $panel.html(renderBaitPanel(firstBands, fakeP1, rd.p1.hpAfter.current, rd.p1.hpAfter.max, firstPd, moveAnalyses));
+                $panel.html(renderBaitPanel(bands, fakeP1, rd.p1.hpAfter.current, rd.p1.hpAfter.max, defaultPd, moveAnalyses));
                 // Store contexts for predamage option click handler (per tab)
-                $panel.data('rsa-pd-contexts', moveAnalyses.map(function (ma) {
-                    return { predamage: ma.predamage, line: _baitLine, rounds: _baitRounds };
-                }));
-                // Set initial active context (first tab)
-                if (moveAnalyses.length > 0 && moveAnalyses[0].predamage) {
+                if (moveAnalyses.length > 1) {
+                    $panel.data('rsa-pd-contexts', moveAnalyses.map(function (ma) {
+                        return { predamage: ma.predamage, line: _baitLine, rounds: _baitRounds };
+                    }));
+                    // Set initial active context (first tab)
+                    if (moveAnalyses[0].predamage) {
+                        $panel.data('rsa-pd-context', {
+                            predamage: moveAnalyses[0].predamage,
+                            line: _baitLine,
+                            rounds: _baitRounds
+                        });
+                    }
+                } else if (defaultPd) {
                     $panel.data('rsa-pd-context', {
-                        predamage: moveAnalyses[0].predamage,
+                        predamage: defaultPd,
                         line: _baitLine,
                         rounds: _baitRounds
                     });
