@@ -1358,8 +1358,10 @@
         for (var ei = 0; ei < engagement.length; ei++) {
             var eRd = rounds[engagement[ei]];
             var eP2Move = eRd.p2.move && eRd.p2.move !== '—' ? eRd.p2.move : null;
-            // Override P2 move for variant analysis (only when P2 actually attacked)
-            if (eP2Move && opts.overrideP2Move) eP2Move = opts.overrideP2Move;
+            // Per-round override: opts.overrideP2Moves[ei] overrides the move for round ei
+            if (eP2Move && opts.overrideP2Moves && opts.overrideP2Moves[ei]) {
+                eP2Move = opts.overrideP2Moves[ei];
+            }
             if (!eP2Move) {
                 roundDmgs.push({ roundNum: eRd.roundNum || (engagement[ei] + 1), move: null,
                     minNorm: 0, maxNorm: 0, minCrit: 0, maxCrit: 0 });
@@ -1377,8 +1379,12 @@
                 if (eRd.p2.ability) atk.ability = eRd.p2.ability;
                 if (eRd.p1.item !== undefined) def.item = eRd.p1.item;
                 if (eRd.p1.ability) def.ability = eRd.p1.ability;
+                // Use per-round field state (weather/terrain from the round, not current form)
                 var field = createField();
-                field = new calc.Field({ ...field, gameType: 'Doubles' });
+                var fieldWeather = eRd.weather || field.weather || '';
+                var fieldTerrain = eRd.terrain || field.terrain || '';
+                field = new calc.Field({ ...field, gameType: 'Doubles',
+                    weather: fieldWeather, terrain: fieldTerrain });
 
                 var mvNorm = new calc.Move(gen || 9, eP2Move, { ability: atk.ability, item: atk.item, isCrit: false });
                 var resNorm = calc.calculate(gen || 9, atk, def, mvNorm, field);
@@ -9358,27 +9364,96 @@
 
                 // ── Compute predamage per P2 move variant ──
                 var _p2SetId = null;
-                var _p2RosterEntry = null;
                 if (rd.p2) {
                     for (var pi = 0; pi < _baitLine.teams.p2.roster.length; pi++) {
                         if (_baitLine.teams.p2.roster[pi].name === rd.p2.name) {
                             _p2SetId = _baitLine.teams.p2.roster[pi].setId;
-                            _p2RosterEntry = _baitLine.teams.p2.roster[pi];
                             break;
                         }
                     }
                 }
 
                 var moveAnalyses = [];
-                if (bands && bands.length && rd.p2 && _p2SetId && _p2RosterEntry) {
-                    // Get P2's possible moves
-                    var p2Moves = _p2RosterEntry.moves || [];
-                    for (var _pmi = 0; _pmi < p2Moves.length; _pmi++) {
-                        var _p2MoveName = p2Moves[_pmi];
-                        if (!_p2MoveName || _p2MoveName === '(No Move)') continue;
-                        // Skip status moves (no damage)
-                        var _mvData = lookupMoveData ? lookupMoveData(_p2MoveName) : null;
-                        if (_mvData && _mvData.category === 'Status') continue;
+                if (bands && bands.length && rd.p2 && _p2SetId) {
+                    // ── Collect engagement rounds (same logic as computePredamage) ──
+                    var _engIdxs = [];
+                    for (var _ei = _baitRdIdx; _ei >= 0; _ei--) {
+                        var _er = _baitRounds[_ei];
+                        if (!_er || _er.isP2Switch) break;
+                        if (!_er.p1 || _er.p1.name !== rd.p1.name) break;
+                        if (!_er.p2 || _er.p2.name !== rd.p2.name) break;
+                        _engIdxs.unshift(_ei);
+                    }
+
+                    // ── For each engagement round, get P2's possible damaging moves ──
+                    var _perRoundMoves = []; // perRoundMoves[ei] = [{name, pct}] or null if P2 didn't attack
+                    for (var _eii = 0; _eii < _engIdxs.length; _eii++) {
+                        var _eRd = _baitRounds[_engIdxs[_eii]];
+                        var _attacked = _eRd.p2.move && _eRd.p2.move !== '—';
+                        if (!_attacked) {
+                            _perRoundMoves.push(null); // P2 didn't attack
+                            continue;
+                        }
+                        var _rdMoves = _eRd.p2.allMoves || [];
+                        var _rdPcts = _eRd.p2.aiPcts || [];
+                        var _dmgMoves = [];
+                        for (var _rmi = 0; _rmi < _rdMoves.length; _rmi++) {
+                            var _rmName = _rdMoves[_rmi];
+                            if (!_rmName || _rmName === '(No Move)') continue;
+                            var _rmPct = parseFloat((_rdPcts[_rmi] || '0').replace('%', ''));
+                            if (_rmPct < 0.5) continue; // skip moves with ~0% prediction
+                            var _rmData = lookupMoveData(_rmName);
+                            if (_rmData && _rmData.category === 'Status') continue;
+                            _dmgMoves.push({ name: _rmName, pct: _rmPct });
+                        }
+                        if (_dmgMoves.length === 0) _dmgMoves.push({ name: _eRd.p2.move, pct: 100 });
+                        _perRoundMoves.push(_dmgMoves);
+                    }
+
+                    // ── Build cartesian product of per-round move choices ──
+                    // Count rounds with multiple move choices for label format
+                    var _multiChoiceRounds = 0;
+                    for (var _mcr = 0; _mcr < _perRoundMoves.length; _mcr++) {
+                        if (_perRoundMoves[_mcr] && _perRoundMoves[_mcr].length > 1) _multiChoiceRounds++;
+                    }
+                    var _needRoundPrefix = _multiChoiceRounds > 1;
+                    var _combos = [{ moves: [], label: '' }];
+                    for (var _cri = 0; _cri < _perRoundMoves.length; _cri++) {
+                        var _roundChoices = _perRoundMoves[_cri];
+                        if (!_roundChoices) {
+                            // P2 didn't attack — add null for this round
+                            for (var _ci = 0; _ci < _combos.length; _ci++) {
+                                _combos[_ci].moves.push(null);
+                            }
+                            continue;
+                        }
+                        if (_roundChoices.length === 1) {
+                            // Only one choice — append to all existing combos
+                            for (var _ci = 0; _ci < _combos.length; _ci++) {
+                                _combos[_ci].moves.push(_roundChoices[0].name);
+                                if (_combos[_ci].label) _combos[_ci].label += ' + ';
+                                _combos[_ci].label += _roundChoices[0].name;
+                            }
+                        } else {
+                            // Multiple choices — expand combos
+                            var _newCombos = [];
+                            var _rdNum = _baitRounds[_engIdxs[_cri]].roundNum;
+                            for (var _ci = 0; _ci < _combos.length; _ci++) {
+                                for (var _mi = 0; _mi < _roundChoices.length; _mi++) {
+                                    var _nc = { moves: _combos[_ci].moves.slice(), label: _combos[_ci].label };
+                                    _nc.moves.push(_roundChoices[_mi].name);
+                                    if (_nc.label) _nc.label += ' + ';
+                                    _nc.label += (_needRoundPrefix ? 'R' + _rdNum + ':' : '') + _roundChoices[_mi].name;
+                                    _newCombos.push(_nc);
+                                }
+                            }
+                            _combos = _newCombos;
+                        }
+                    }
+
+                    // ── Compute predamage for each combination ──
+                    for (var _cbi = 0; _cbi < _combos.length; _cbi++) {
+                        var _combo = _combos[_cbi];
                         var pd = computePredamage({
                             p1SetId: fakeP1.setId,
                             p2SetId: _p2SetId,
@@ -9389,27 +9464,14 @@
                             roundIdx: _baitRdIdx,
                             p1Name: rd.p1.name,
                             p2Name: rd.p2.name,
-                            overrideP2Move: _p2MoveName
+                            overrideP2Moves: _combo.moves
                         });
-                        moveAnalyses.push({ moveName: _p2MoveName, bands: bands, predamage: pd });
+                        moveAnalyses.push({ moveName: _combo.label, bands: bands, predamage: pd });
                     }
                 }
 
-                // Fallback: single panel with no override (uses logged moves)
-                var defaultPd = null;
-                if (bands && bands.length && rd.p2 && _p2SetId) {
-                    defaultPd = computePredamage({
-                        p1SetId: fakeP1.setId,
-                        p2SetId: _p2SetId,
-                        p1MaxHP: rd.p1.hpAfter.max,
-                        p1Item: rd.p1.item || '',
-                        bands: bands,
-                        rounds: _baitRounds,
-                        roundIdx: _baitRdIdx,
-                        p1Name: rd.p1.name,
-                        p2Name: rd.p2.name
-                    });
-                }
+                // Use first analysis as default
+                var defaultPd = moveAnalyses.length ? moveAnalyses[0].predamage : null;
 
                 $panel.html(renderBaitPanel(bands, fakeP1, rd.p1.hpAfter.current, rd.p1.hpAfter.max, defaultPd, moveAnalyses));
                 // Store contexts for predamage option click handler (per tab)
