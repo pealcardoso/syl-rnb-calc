@@ -2120,6 +2120,97 @@ fieldset {
 }
 .rsa-fan-bait-inline b { color: #e2e8f0; }
 
+/* ── Predamage in bait panel ── */
+.rsa-bait-engagement {
+    display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
+    margin: 6px 0 2px; padding: 4px 8px;
+    background: #1a202c; border-radius: 4px;
+}
+.rsa-bait-eng-label {
+    font-size: 0.8em; font-weight: 600; color: #a0aec0;
+}
+.rsa-bait-eng-rd {
+    font-size: 0.75em; color: #a0aec0; background: #2d3748;
+    padding: 1px 6px; border-radius: 4px;
+}
+.rsa-bait-predmg {
+    margin-top: 4px; padding: 4px 8px; border-radius: 4px;
+    font-size: 0.8em;
+}
+.rsa-bait-predmg-ok {
+    background: rgba(66,153,225,0.1); border-left: 3px solid #4299e1;
+}
+.rsa-bait-predmg-imp {
+    background: rgba(160,174,192,0.08); border-left: 3px solid #4a5568;
+    color: #718096;
+}
+.rsa-bait-predmg-tag {
+    font-weight: 600; margin-right: 6px;
+}
+.rsa-bait-predmg-ok .rsa-bait-predmg-tag { color: #68d391; }
+.rsa-bait-predmg-imp .rsa-bait-predmg-tag { color: #fc8181; }
+.rsa-bait-predmg-reason { color: #718096; }
+.rsa-bait-predmg-vals { color: #cbd5e0; }
+.rsa-bait-predmg-vals b { color: #63b3ed; }
+.rsa-bait-predmg-crit {
+    font-size: 0.9em; margin-top: 2px; padding-left: 4px;
+}
+.rsa-bait-predmg-crit-ok { color: #68d391; }
+.rsa-bait-predmg-crit-ok b { color: #63b3ed; }
+.rsa-bait-predmg-crit-no { color: #a0aec0; }
+.rsa-bait-predmg-berry {
+    font-size: 0.9em; color: #a0aec0; margin-top: 2px; padding-left: 4px;
+}
+.rsa-bait-predmg-berry b { color: #68d391; }
+.rsa-bait-predmg-option {
+    cursor: pointer; border-radius: 3px; padding: 1px 4px; margin: 1px -4px;
+    transition: background 0.15s;
+}
+.rsa-bait-predmg-option:hover {
+    background: rgba(99,179,237,0.18);
+}
+
+/* ── Predamage Reminders ── */
+.rsa-pd-reminders {
+    margin: 12px 0 4px; display: flex; flex-direction: column; gap: 8px;
+}
+.rsa-pd-reminder {
+    display: flex; align-items: center; gap: 10px;
+    background: rgba(237,137,54,0.12); border: 2px solid #ed8936;
+    border-radius: 8px; padding: 10px 14px;
+    animation: rsa-pd-pulse 2s ease-in-out 2;
+}
+@keyframes rsa-pd-pulse {
+    0%, 100% { border-color: #ed8936; }
+    50% { border-color: #f6ad55; box-shadow: 0 0 8px rgba(246,173,85,0.4); }
+}
+.rsa-pd-reminder-sprite {
+    width: 40px; height: 40px; image-rendering: pixelated; flex-shrink: 0;
+}
+.rsa-pd-reminder-body { flex: 1; min-width: 0; }
+.rsa-pd-reminder-title {
+    font-weight: 700; font-size: 0.95em; color: #ed8936; margin-bottom: 2px;
+}
+.rsa-pd-reminder-detail {
+    font-size: 0.85em; color: #cbd5e0; line-height: 1.4;
+}
+.rsa-pd-reminder-detail b { color: #f6ad55; }
+.rsa-pd-reminder-dismiss {
+    background: none; border: none; color: #a0aec0; font-size: 1.3em;
+    cursor: pointer; padding: 4px 8px; line-height: 1; flex-shrink: 0;
+}
+.rsa-pd-reminder-dismiss:hover { color: #fc8181; }
+
+/* ── Fight Notes panel ── */
+.rsa-fight-notes {
+    background: #1a202c; border: 1px solid #2d3748; border-radius: 8px;
+    padding: 10px 14px; margin: 10px 0;
+}
+.rsa-fight-notes-title {
+    font-weight: 700; font-size: 0.95em; color: #e2e8f0; margin-bottom: 6px;
+}
+.rsa-fight-notes .rsa-pd-reminders { margin: 0; }
+
 /* ── Fork var badges ── */
 .rsa-fan-vars {
     display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px;

@@ -1319,10 +1319,197 @@
     }
 
     /**
+     * Compute predamage analysis for bait panel.
+     * For each bait band, determine if P1 can be pre-damaged so that ALL P2 logged
+     * moves' roll+crit outcomes land in that band across the entire 1v1 engagement.
+     *
+     * @param {Object} opts
+     *   p1SetId, p2SetId    — set IDs for calc
+     *   p1MaxHP              — P1 max HP
+     *   p1Item               — P1 item ('' = no item)
+     *   bands                — bait bands from computeBaitAnalysis
+     *   rounds               — full round array
+     *   roundIdx             — index of the clicked round
+     *   p1Name, p2Name       — names to identify engagement rounds
+     */
+    function computePredamage(opts) {
+        var bands = opts.bands;
+        if (!bands || !bands.length) return null;
+
+        var p1SetId = opts.p1SetId, p2SetId = opts.p2SetId;
+        var maxHP = opts.p1MaxHP;
+        var rounds = opts.rounds;
+        var roundIdx = opts.roundIdx;
+        if (!p1SetId || !p2SetId || !maxHP || maxHP <= 0) return null;
+
+        // ── Collect all rounds of this 1v1 engagement (same P1 vs same P2) ──
+        var engagement = [];
+        for (var i = roundIdx; i >= 0; i--) {
+            var r = rounds[i];
+            if (!r || r.isP2Switch) break;
+            if (!r.p1 || r.p1.name !== opts.p1Name) break;
+            if (!r.p2 || r.p2.name !== opts.p2Name) break;
+            engagement.unshift(i);
+        }
+
+        // ── Compute damage ranges per engagement round ──
+        var roundDmgs = [];
+        var totalMinNorm = 0, totalMaxNorm = 0, totalMinCrit = 0, totalMaxCrit = 0;
+        for (var ei = 0; ei < engagement.length; ei++) {
+            var eRd = rounds[engagement[ei]];
+            var eP2Move = eRd.p2.move && eRd.p2.move !== '—' ? eRd.p2.move : null;
+            if (!eP2Move) {
+                roundDmgs.push({ roundNum: eRd.roundNum || (engagement[ei] + 1), move: null,
+                    minNorm: 0, maxNorm: 0, minCrit: 0, maxCrit: 0 });
+                continue;
+            }
+
+            // Compute normal + crit rolls for this move
+            var normRolls = null, critRolls = null;
+            try {
+                var atk = createPokemon(p2SetId);
+                var def = createPokemon(p1SetId);
+                atk.originalCurHP = Math.min(eRd.p2.hpBefore.current, atk.rawStats.hp);
+                def.originalCurHP = def.rawStats.hp; // full HP for predamage calc
+                if (eRd.p2.item !== undefined) atk.item = eRd.p2.item;
+                if (eRd.p2.ability) atk.ability = eRd.p2.ability;
+                if (eRd.p1.item !== undefined) def.item = eRd.p1.item;
+                if (eRd.p1.ability) def.ability = eRd.p1.ability;
+                var field = createField();
+                field = new calc.Field({ ...field, gameType: 'Doubles' });
+
+                var mvNorm = new calc.Move(gen || 9, eP2Move, { ability: atk.ability, item: atk.item, isCrit: false });
+                var resNorm = calc.calculate(gen || 9, atk, def, mvNorm, field);
+                var dN = resNorm.damage;
+                normRolls = (Array.isArray(dN) && dN.length) ? dN : null;
+
+                var mvCrit = new calc.Move(gen || 9, eP2Move, { ability: atk.ability, item: atk.item, isCrit: true });
+                var resCrit = calc.calculate(gen || 9, atk, def, mvCrit, field);
+                var dC = resCrit.damage;
+                critRolls = (Array.isArray(dC) && dC.length) ? dC : null;
+            } catch (e) { /* skip */ }
+
+            var mNorm = normRolls ? normRolls[0] : 0;
+            var xNorm = normRolls ? normRolls[normRolls.length - 1] : 0;
+            var mCrit = critRolls ? critRolls[0] : mNorm;
+            var xCrit = critRolls ? critRolls[critRolls.length - 1] : xNorm;
+
+            roundDmgs.push({ roundNum: eRd.roundNum || (engagement[ei] + 1), move: eP2Move,
+                minNorm: mNorm, maxNorm: xNorm, minCrit: mCrit, maxCrit: xCrit });
+            totalMinNorm += mNorm;
+            totalMaxNorm += xNorm;
+            totalMinCrit += mCrit;
+            totalMaxCrit += xCrit;
+        }
+
+        var p1Item = opts.p1Item || '';
+        var p1HasItem = !!p1Item;
+        var sitrusHeal = Math.max(1, Math.floor(maxHP / 4));
+        var oranHeal = 10;
+        var berryThreshold = Math.floor(maxHP / 2);
+
+        // ── Helper: entry HP range where all rolls land in [bandLower, bandUpper] ──
+        function targetRange(bL, bU, minDmg, maxDmg) {
+            var hMin = bL + maxDmg;
+            var hMax = bU + minDmg;
+            if (hMin > maxHP || hMax < 1 || hMin > hMax) return null;
+            hMin = Math.max(1, hMin);
+            hMax = Math.min(maxHP, hMax);
+            return { hpMin: hMin, hpMax: hMax,
+                     predmgMin: maxHP - hMax, predmgMax: maxHP - hMin };
+        }
+
+        // ── Helper: entry HP range with berry heal factored in ──
+        function targetRangeWithBerry(bL, bU, minDmg, maxDmg, heal) {
+            var hMin = Math.max(maxDmg + 1, bL + maxDmg - heal);
+            var hMax = Math.min(bU + minDmg - heal, berryThreshold + minDmg);
+            if (hMin > maxHP || hMax < 1 || hMin > hMax) return null;
+            hMin = Math.max(1, hMin);
+            hMax = Math.min(maxHP, hMax);
+            return { hpMin: hMin, hpMax: hMax,
+                     predmgMin: maxHP - hMax, predmgMax: maxHP - hMin };
+        }
+
+        // ── Build targets for each band ──
+        var targets = [];
+        for (var bi = 0; bi < bands.length; bi++) {
+            var band = bands[bi];
+            var bL = band.hpLower, bU = band.hpUpper;
+
+            var t = { band: band, possible: false, norm: null, crit: null,
+                      critResilient: false, sitrus: null, oran: null,
+                      sitrusCrit: null, oranCrit: null, reason: '' };
+
+            var allMin = Math.min(totalMinNorm, totalMinCrit);
+            var allMax = Math.max(totalMaxNorm, totalMaxCrit);
+
+            // Non-crit: all normal rolls stay in band
+            var normTarget = targetRange(bL, bU, totalMinNorm, totalMaxNorm);
+            if (normTarget) {
+                t.possible = true;
+                t.norm = normTarget;
+            }
+
+            // Crit-inclusive: all rolls including crits stay in band
+            var critTarget = targetRange(bL, bU, allMin, allMax);
+            if (critTarget) {
+                t.possible = true;
+                t.crit = critTarget;
+                t.critResilient = true;
+            }
+
+            // Berry suggestions when P1 has no item
+            if (!p1HasItem) {
+                // Berry without crit
+                var sitrus = targetRangeWithBerry(bL, bU, totalMinNorm, totalMaxNorm, sitrusHeal);
+                if (sitrus) { t.sitrus = sitrus; t.possible = true; }
+                var oran = targetRangeWithBerry(bL, bU, totalMinNorm, totalMaxNorm, oranHeal);
+                if (oran) { t.oran = oran; t.possible = true; }
+                // Berry + crit resilience
+                var sitrusC = targetRangeWithBerry(bL, bU, allMin, allMax, sitrusHeal);
+                if (sitrusC) { t.sitrusCrit = sitrusC; t.possible = true; }
+                var oranC = targetRangeWithBerry(bL, bU, allMin, allMax, oranHeal);
+                if (oranC) { t.oranCrit = oranC; t.possible = true; }
+            }
+
+            // Determine reason if nothing is possible
+            if (!t.possible) {
+                var bandWidth = bU - bL;
+                var rollSpread = totalMaxNorm - totalMinNorm;
+                if (bL + totalMinNorm > maxHP) {
+                    t.reason = 'min damage already exceeds reachable HP';
+                } else if (rollSpread > bandWidth) {
+                    t.reason = 'roll spread (' + rollSpread + ') wider than band (' + bandWidth + ' HP)';
+                } else {
+                    t.reason = 'entry HP would need to exceed max HP';
+                }
+            }
+
+            targets.push(t);
+        }
+
+        var engagementRoundNums = [];
+        for (var _eri = 0; _eri < engagement.length; _eri++) {
+            engagementRoundNums.push(rounds[engagement[_eri]].roundNum);
+        }
+
+        return {
+            targets: targets,
+            engagement: roundDmgs,
+            engagementRoundNums: engagementRoundNums,
+            p1HasItem: p1HasItem,
+            p1Item: p1Item,
+            p1Name: opts.p1Name,
+            maxHP: maxHP,
+            multiRound: engagement.length > 1
+        };
+    }
+
+    /**
      * Render the bait analysis panel HTML from computed bands.
      * currentHP/maxHP are P1's HP at time of analysis (for the position marker).
      */
-    function renderBaitPanel(bands, p1Entry, currentHP, maxHP) {
+    function renderBaitPanel(bands, p1Entry, currentHP, maxHP, predamage) {
         if (!bands || bands.length === 0) {
             return '<div class="rsa-bait-empty">No bait data — need at least 2 alive P2 mons.</div>';
         }
@@ -1392,6 +1579,89 @@
                 ? b.pctUpper + '%'
                 : b.pctLower + '–' + b.pctUpper + '%';
 
+            // ── Predamage info for this band ──
+            var pdHtml = '';
+            if (predamage && predamage.targets) {
+                var pt = predamage.targets[i];
+                if (pt) {
+                    if (!pt.possible) {
+                        pdHtml = '<div class="rsa-bait-predmg rsa-bait-predmg-imp">' +
+                            '<span class="rsa-bait-predmg-tag">✗ Impossible</span>' +
+                            '<span class="rsa-bait-predmg-reason">' + esc(pt.reason) + '</span>' +
+                        '</div>';
+                    } else {
+                        // Base predamage line (only when norm target exists)
+                        var pdNormHtml = '';
+                        if (pt.norm) {
+                            var n = pt.norm;
+                            var pdVals = '';
+                            if (n.predmgMin === 0 && n.predmgMax === 0) {
+                                pdVals = 'Enter at full HP (' + predamage.maxHP + ')';
+                            } else if (n.predmgMin === n.predmgMax) {
+                                pdVals = 'Predmg exactly <b>' + n.predmgMin + '</b> → enter at ' + n.hpMin + ' HP';
+                            } else {
+                                pdVals = 'Predmg <b>' + n.predmgMin + '–' + n.predmgMax + '</b>' +
+                                    ' → enter at ' + n.hpMin + '–' + n.hpMax + ' HP';
+                            }
+                            pdVals += ' (' + Math.round(n.hpMin / predamage.maxHP * 100) + '–' +
+                                Math.round(n.hpMax / predamage.maxHP * 100) + '%)';
+                            pdNormHtml = '<div class="rsa-bait-predmg-option rsa-bait-predmg-vals" ' +
+                                'data-hp-min="' + n.hpMin + '" data-hp-max="' + n.hpMax + '" data-item="">' +
+                                pdVals + '</div>';
+                        }
+
+                        // Crit resilience
+                        var critHtml = '';
+                        if (pt.crit) {
+                            var c = pt.crit;
+                            var cv = '';
+                            if (c.predmgMin === c.predmgMax) {
+                                cv = 'predmg <b>' + c.predmgMin + '</b> → ' + c.hpMin + ' HP';
+                            } else {
+                                cv = 'predmg <b>' + c.predmgMin + '–' + c.predmgMax + '</b> → ' + c.hpMin + '–' + c.hpMax + ' HP';
+                            }
+                            critHtml = '<div class="rsa-bait-predmg-option rsa-bait-predmg-crit rsa-bait-predmg-crit-ok" ' +
+                                'data-hp-min="' + c.hpMin + '" data-hp-max="' + c.hpMax + '" data-item="">' +
+                                '⚡ Crit-resilient: ' + cv + '</div>';
+                        } else if (pt.norm) {
+                            critHtml = '<div class="rsa-bait-predmg-crit rsa-bait-predmg-crit-no">⚡ Not crit-resilient</div>';
+                        }
+
+                        // Berry suggestions
+                        var berryHtml = '';
+                        if (pt.sitrus) {
+                            berryHtml += '<div class="rsa-bait-predmg-option rsa-bait-predmg-berry" ' +
+                                'data-hp-min="' + pt.sitrus.hpMin + '" data-hp-max="' + pt.sitrus.hpMax + '" data-item="Sitrus Berry">' +
+                                '🍇 Sitrus: predmg <b>' + pt.sitrus.predmgMin + '–' + pt.sitrus.predmgMax + '</b> → ' +
+                                pt.sitrus.hpMin + '–' + pt.sitrus.hpMax + ' HP</div>';
+                        }
+                        if (pt.oran) {
+                            berryHtml += '<div class="rsa-bait-predmg-option rsa-bait-predmg-berry" ' +
+                                'data-hp-min="' + pt.oran.hpMin + '" data-hp-max="' + pt.oran.hpMax + '" data-item="Oran Berry">' +
+                                '🍊 Oran: predmg <b>' + pt.oran.predmgMin + '–' + pt.oran.predmgMax + '</b> → ' +
+                                pt.oran.hpMin + '–' + pt.oran.hpMax + ' HP</div>';
+                        }
+                        if (pt.sitrusCrit) {
+                            berryHtml += '<div class="rsa-bait-predmg-option rsa-bait-predmg-berry" ' +
+                                'data-hp-min="' + pt.sitrusCrit.hpMin + '" data-hp-max="' + pt.sitrusCrit.hpMax + '" data-item="Sitrus Berry">' +
+                                '🍇⚡ Sitrus + crit: predmg <b>' + pt.sitrusCrit.predmgMin + '–' + pt.sitrusCrit.predmgMax + '</b></div>';
+                        }
+                        if (pt.oranCrit) {
+                            berryHtml += '<div class="rsa-bait-predmg-option rsa-bait-predmg-berry" ' +
+                                'data-hp-min="' + pt.oranCrit.hpMin + '" data-hp-max="' + pt.oranCrit.hpMax + '" data-item="Oran Berry">' +
+                                '🍊⚡ Oran + crit: predmg <b>' + pt.oranCrit.predmgMin + '–' + pt.oranCrit.predmgMax + '</b></div>';
+                        }
+
+                        var tagLabel = pt.norm ? '✓ Possible' : '✓ Possible (with item)';
+
+                        pdHtml = '<div class="rsa-bait-predmg rsa-bait-predmg-ok">' +
+                            '<span class="rsa-bait-predmg-tag">' + tagLabel + '</span>' +
+                            pdNormHtml + critHtml + berryHtml +
+                        '</div>';
+                    }
+                }
+            }
+
             detailHtml += '<div class="rsa-bait-band">' +
                 '<div class="rsa-bait-band-header">' +
                     '<span class="rsa-bait-swatch" style="background:' + col + '"></span>' +
@@ -1401,12 +1671,27 @@
                     '<span class="rsa-bait-speed">' + spdIcon + ' ' + spdLabel + '</span>' +
                 '</div>' +
                 '<div class="rsa-bait-moves">' + moveHtml + '</div>' +
+                pdHtml +
             '</div>';
+        }
+
+        // Multi-round engagement header
+        var engHtml = '';
+        if (predamage && predamage.multiRound) {
+            engHtml = '<div class="rsa-bait-engagement">';
+            engHtml += '<span class="rsa-bait-eng-label">📐 Predamage (' + predamage.engagement.length + '-round 1v1):</span>';
+            for (var ei = 0; ei < predamage.engagement.length; ei++) {
+                var erd = predamage.engagement[ei];
+                if (!erd.move) continue;
+                engHtml += '<span class="rsa-bait-eng-rd">R' + erd.roundNum + ' ' + esc(erd.move) +
+                    ': ' + erd.minNorm + '–' + erd.maxNorm + '</span>';
+            }
+            engHtml += '</div>';
         }
 
         return '<div class="rsa-bait-content">' +
             '<div class="rsa-bait-title">🎯 Bait Analysis — HP Thresholds</div>' +
-            barHtml +
+            barHtml + engHtml +
             '<div class="rsa-bait-bands">' + detailHtml + '</div>' +
         '</div>';
     }
@@ -6363,6 +6648,46 @@
         $('#rsa-line-tabs').html(html);
     }
 
+    // ── Predamage Reminders ──────────────────────────────────
+    function renderPdReminders(line) {
+        if (!line.pdReminders || !line.pdReminders.length) return '';
+        var html = '';
+        for (var i = 0; i < line.pdReminders.length; i++) {
+            var r = line.pdReminders[i];
+            var pct = r.maxHP > 0 ? Math.round(r.targetHP / r.maxHP * 100) : 100;
+            var hpText = r.predmg > 0
+                ? 'Predamage to <b>' + r.targetHP + '/' + r.maxHP + ' HP</b> (' + pct + '%) — take <b>' + r.predmg + '</b> dmg before entering'
+                : 'Enter at <b>full HP (' + r.maxHP + ')</b>';
+            var itemText = r.item ? ' — equip <b>' + esc(r.item) + '</b>' : '';
+            var spriteHtml = r.sprite
+                ? '<img class="rsa-pd-reminder-sprite" src="' + esc(r.sprite) + '" alt="" onerror="this.style.display=\'none\'">'
+                : '';
+            html += '<div class="rsa-pd-reminder">' +
+                spriteHtml +
+                '<div class="rsa-pd-reminder-body">' +
+                    '<div class="rsa-pd-reminder-title">⚠ Don\'t forget: ' + esc(r.name) + '</div>' +
+                    '<div class="rsa-pd-reminder-detail">' + hpText + itemText + '</div>' +
+                '</div>' +
+                '<button class="rsa-pd-reminder-dismiss" data-pd-name="' + esc(r.name) + '" title="Dismiss">&times;</button>' +
+            '</div>';
+        }
+        return '<div class="rsa-pd-reminders">' + html + '</div>';
+    }
+
+    // ── Fight Notes (predamage reminders panel above round log) ──
+    function renderFightNotes() {
+        var $notes = $('#rsa-fight-notes');
+        if (!$notes.length) return;
+        var line = curLine();
+        if (!line.pdReminders || !line.pdReminders.length) {
+            $notes.hide().html('');
+            return;
+        }
+        var html = '<div class="rsa-fight-notes-title">📋 Fight Notes</div>';
+        html += renderPdReminders(line);
+        $notes.html(html).show();
+    }
+
     // ── Round Log ────────────────────────────────────────────
     function renderRoundLog() {
         var line = curLine();
@@ -6381,6 +6706,7 @@
                 var rd = line.rounds[i];
                 html += rd.isDoubles ? renderDoublesRoundCard(rd) : renderRoundCard(rd, -1);
             }
+            html += renderPdReminders(line);
             if (!isDoubles()) html += renderInlineControls();
             $log.html(html);
             $('#rsa-round-count').text(line.rounds.length);
@@ -6442,6 +6768,7 @@
 
             // Inline controls for this column (only for active branch)
             if (isActive && !isDoubles()) {
+                html += renderPdReminders(line);
                 html += renderInlineControls();
             }
 
@@ -7267,6 +7594,7 @@
         renderTeamPanel('p2');
         renderBox('p1');
         renderRoundLog(); // rebuilds branch teams at end, leaving active branch state
+        renderFightNotes(); // update fight notes panel (predamage reminders)
         // Re-render team panels now that renderRoundLog has set the correct branch HP
         var _rl = curLine();
         if (_rl.branches && _rl.branches.length > 0) {
@@ -9004,8 +9332,188 @@
                     if (saved[si].boosts) p2Team.roster[si].boosts = saved[si].boosts;
                 }
                 p2Team.activeIdx = savedActiveIdx;
-                $panel.html(renderBaitPanel(bands, fakeP1, rd.p1.hpAfter.current, rd.p1.hpAfter.max));
+
+                // ── Compute predamage analysis ──
+                var predamage = null;
+                if (bands && bands.length && rd.p2) {
+                    var _p2SetId = null;
+                    for (var pi = 0; pi < _baitLine.teams.p2.roster.length; pi++) {
+                        if (_baitLine.teams.p2.roster[pi].name === rd.p2.name) {
+                            _p2SetId = _baitLine.teams.p2.roster[pi].setId; break;
+                        }
+                    }
+                    predamage = computePredamage({
+                        p1SetId: fakeP1.setId,
+                        p2SetId: _p2SetId,
+                        p1MaxHP: rd.p1.hpAfter.max,
+                        p1Item: rd.p1.item || '',
+                        bands: bands,
+                        rounds: _baitRounds,
+                        roundIdx: _baitRdIdx,
+                        p1Name: rd.p1.name,
+                        p2Name: rd.p2.name
+                    });
+                }
+
+                $panel.html(renderBaitPanel(bands, fakeP1, rd.p1.hpAfter.current, rd.p1.hpAfter.max, predamage));
+                // Store context for predamage option click handler
+                if (predamage) {
+                    $panel.data('rsa-pd-context', {
+                        predamage: predamage,
+                        line: _baitLine,
+                        rounds: _baitRounds
+                    });
+                }
             }, 20);
+        });
+
+        // ── Predamage option click: relog engagement rounds with chosen predamage/item ──
+        $(document).on('click', '.rsa-bait-predmg-option', function (e) {
+            e.stopPropagation();
+            var $el = $(this);
+            var $panel = $el.closest('.rsa-bait-panel');
+            var ctx = $panel.data('rsa-pd-context');
+            if (!ctx || !ctx.predamage) return;
+
+            var hpMin = parseInt($el.data('hp-min'));
+            var hpMax = parseInt($el.data('hp-max'));
+            var item = $el.data('item') || '';
+            if (isNaN(hpMin) || isNaN(hpMax)) return;
+
+            var pd = ctx.predamage;
+            var maxHP = pd.maxHP;
+            var p1Name = pd.p1Name;
+            var engNums = pd.engagementRoundNums;
+            var rounds = ctx.rounds;
+            var line = ctx.line;
+
+            // Use highest HP value (lowest predamage) for the safest entry
+            var targetHP = hpMax;
+
+            // Find engagement round objects in order
+            var engRounds = [];
+            for (var ri = 0; ri < rounds.length; ri++) {
+                if (engNums.indexOf(rounds[ri].roundNum) !== -1) {
+                    engRounds.push(rounds[ri]);
+                }
+            }
+            if (!engRounds.length) return;
+
+            // ── Set preDamageHP on the P1 roster entry so it survives round deletion ──
+            var p1Roster = line.teams.p1.roster;
+            for (var ri = 0; ri < p1Roster.length; ri++) {
+                if (p1Roster[ri].name === p1Name) {
+                    p1Roster[ri].preDamageHP = targetHP;
+                    break;
+                }
+            }
+
+            // Capture the original P1 item from the first engagement round (before any mutation)
+            var origP1Item = engRounds[0].p1.item || '';
+
+            // ── Walk engagement rounds: recompute P1 HP trajectory ──
+            // NOTE: Only HP values are mutated. Items, EOT, and other round data
+            // are NOT changed — mutating items would corrupt rebuild/calc state.
+            var curHP = targetHP;
+            var bestHP = targetHP;
+
+            for (var ei = 0; ei < engRounds.length; ei++) {
+                var rd = engRounds[ei];
+                // Original deltas (include hazards, attack, EOT, recoil, healing — everything)
+                var origDelta = rd.p1.hpBefore.current - rd.p1.hpAfter.current;
+                var bBefore = rd.p1.hpBefore.bestCase != null ? rd.p1.hpBefore.bestCase : rd.p1.hpBefore.current;
+                var bAfter = rd.p1.hpAfter.bestCase != null ? rd.p1.hpAfter.bestCase : rd.p1.hpAfter.current;
+                var bestDelta = bBefore - bAfter;
+
+                // Update hpBefore
+                rd.p1.hpBefore.current = curHP;
+                rd.p1.hpBefore.bestCase = bestHP;
+
+                // Apply same delta
+                curHP = Math.max(0, curHP - origDelta);
+                bestHP = Math.max(0, bestHP - bestDelta);
+
+                // Update hpAfter
+                rd.p1.hpAfter.current = curHP;
+                rd.p1.hpAfter.bestCase = bestHP;
+            }
+
+            // ── Update p1PreDmg on first engagement round for display ──
+            var predmg = maxHP - targetHP;
+            if (predmg > 0) {
+                engRounds[0].p1PreDmg = predmg;
+                engRounds[0].comment = (engRounds[0].comment ? engRounds[0].comment + ' | ' : '') +
+                    'Predmg ' + predmg + (item ? ' + ' + item : '');
+            } else if (item) {
+                engRounds[0].comment = (engRounds[0].comment ? engRounds[0].comment + ' | ' : '') + item;
+            }
+
+            // ── Store predamage reminder on the line ──
+            if (!line.pdReminders) line.pdReminders = [];
+            // Remove any existing reminder for the same P1 mon
+            line.pdReminders = line.pdReminders.filter(function (r) { return r.name !== p1Name; });
+            // Item for reminder: berry from the clicked option, or the original damage item
+            var reminderItem = item || origP1Item;
+            line.pdReminders.push({
+                name: p1Name,
+                sprite: engRounds[0].p1.sprite || '',
+                targetHP: targetHP,
+                maxHP: maxHP,
+                predmg: predmg,
+                item: reminderItem
+            });
+
+            // ── Cascade HP shift to all subsequent rounds involving same P1 ──
+            var lastEngNum = engNums[engNums.length - 1];
+            var lastEngAfter = engRounds[engRounds.length - 1].p1.hpAfter.current;
+            var pastEng = false;
+            for (var ri = 0; ri < rounds.length; ri++) {
+                if (rounds[ri].roundNum === lastEngNum) { pastEng = true; continue; }
+                if (!pastEng) continue;
+                var rd = rounds[ri];
+                if (!rd.p1 || rd.p1.name !== p1Name) continue;
+                // Compute shift from end of engagement
+                var origBefore = rd.p1.hpBefore.current;
+                var origAfter = rd.p1.hpAfter.current;
+                var delta2 = origBefore - origAfter;
+                var bBefore2 = rd.p1.hpBefore.bestCase != null ? rd.p1.hpBefore.bestCase : origBefore;
+                var bAfter2 = rd.p1.hpAfter.bestCase != null ? rd.p1.hpAfter.bestCase : origAfter;
+                var bestDelta2 = bBefore2 - bAfter2;
+
+                rd.p1.hpBefore.current = curHP;
+                rd.p1.hpBefore.bestCase = bestHP;
+                curHP = Math.max(0, curHP - delta2);
+                bestHP = Math.max(0, bestHP - bestDelta2);
+                rd.p1.hpAfter.current = curHP;
+                rd.p1.hpAfter.bestCase = bestHP;
+            }
+
+            // ── Rebuild and render ──
+            suppressP2Sync = true;
+            if (line.activeBranchIdx >= 0) {
+                rebuildBranchTeams(line, line.activeBranchIdx);
+            } else {
+                rebuildLineTeams(line);
+            }
+            syncActiveStateToForm();
+            renderAll();
+            autoSave();
+            setTimeout(function () { suppressP2Sync = false; }, 500);
+
+            // Close bait panel
+            $panel.removeClass('rsa-bait-open').html('');
+        });
+
+        // ── Dismiss predamage reminder ──
+        $(document).on('click', '.rsa-pd-reminder-dismiss', function (e) {
+            e.stopPropagation();
+            var name = $(this).data('pd-name');
+            var line = curLine();
+            if (line.pdReminders) {
+                line.pdReminders = line.pdReminders.filter(function (r) { return r.name !== name; });
+            }
+            renderAll();
+            autoSave();
         });
 
         // ── Branch from round (🔀 button) ──
