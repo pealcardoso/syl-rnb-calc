@@ -1108,7 +1108,7 @@
      *   [{ hpUpper, hpLower, pctUpper, pctLower, baitName, baitSprite,
      *      reason, score, faster, moves: [{move, rate}] }, ...]
      */
-    function computeBaitAnalysis(p1Entry) {
+    function computeBaitAnalysis(p1Entry, lockMoveIdx) {
         var line = curLine();
         var team = line.teams.p2;
         if (!p1Entry || team.roster.length < 2) return [];
@@ -1236,9 +1236,13 @@
                     if (pct > bestAiPct) bestAiPct = pct;
                 }
                 var bestPlPct = 0;
-                for (var m = 0; m < pc.plDmgs.length; m++) {
-                    var pct = pc.plDmgs[m] / pc.p2hp * 100;
-                    if (pct > bestPlPct) bestPlPct = pct;
+                if (lockMoveIdx != null && lockMoveIdx >= 0 && lockMoveIdx < pc.plDmgs.length) {
+                    bestPlPct = pc.plDmgs[lockMoveIdx] / pc.p2hp * 100;
+                } else {
+                    for (var m = 0; m < pc.plDmgs.length; m++) {
+                        var pct = pc.plDmgs[m] / pc.p2hp * 100;
+                        if (pct > bestPlPct) bestPlPct = pct;
+                    }
                 }
                 var aiOHKO = bestAiPct >= 100;
                 var plOHKO = bestPlPct >= 100;
@@ -1509,7 +1513,28 @@
      * Render the bait analysis panel HTML from computed bands.
      * currentHP/maxHP are P1's HP at time of analysis (for the position marker).
      */
-    function renderBaitPanel(bands, p1Entry, currentHP, maxHP, predamage) {
+    function renderBaitPanel(bands, p1Entry, currentHP, maxHP, predamage, moveAnalyses) {
+        // If multiple move analyses are provided, render tabbed view
+        if (moveAnalyses && moveAnalyses.length > 1) {
+            var tabsHtml = '<div class="rsa-bait-tabs">';
+            var contentHtml = '';
+            for (var ti = 0; ti < moveAnalyses.length; ti++) {
+                var ma = moveAnalyses[ti];
+                var active = ti === 0 ? ' rsa-bait-tab-active' : '';
+                tabsHtml += '<button class="rsa-bait-tab' + active + '" data-move-tab="' + ti + '">' + esc(ma.moveName) + '</button>';
+                var display = ti === 0 ? '' : ' style="display:none"';
+                contentHtml += '<div class="rsa-bait-tab-pane" data-move-tab="' + ti + '"' + display + '>' +
+                    renderBaitContent(ma.bands, p1Entry, currentHP, maxHP, ma.predamage) + '</div>';
+            }
+            tabsHtml += '</div>';
+            return '<div class="rsa-bait-tabbed">' +
+                '<div class="rsa-bait-title">🎯 Bait Analysis — Per-Move Breakdown</div>' +
+                tabsHtml + contentHtml + '</div>';
+        }
+        return renderBaitContent(bands, p1Entry, currentHP, maxHP, predamage);
+    }
+
+    function renderBaitContent(bands, p1Entry, currentHP, maxHP, predamage) {
         if (!bands || bands.length === 0) {
             return '<div class="rsa-bait-empty">No bait data — need at least 2 alive P2 mons.</div>';
         }
@@ -7577,7 +7602,7 @@
                 '</div>' +
             '</div>' +
             moveHtml + extrasHtml + eotHtml + hpSim +
-            (side === 'p1' ? '<button class="rsa-bait-toggle" data-round="' + rd.roundNum + '" title="Analyze bait thresholds at this HP">🎯 Bait</button><div class="rsa-bait-panel" data-round="' + rd.roundNum + '"></div>' : '') +
+            (side === 'p1' && rd.p2 && rd.p2.hpAfter && rd.p2.hpAfter.current <= 0 ? '<button class="rsa-bait-toggle" data-round="' + rd.roundNum + '" title="Analyze bait thresholds at this HP">🎯 Bait</button><div class="rsa-bait-panel" data-round="' + rd.roundNum + '"></div>' : '') +
             (actor.sashed ? '<span class=\"rsa-tag rsa-sash-tag\">Focus Sash!</span>' : '') +
             (actor.sturdied ? '<span class=\"rsa-tag rsa-sash-tag\">Sturdy!</span>' : '') +
             (actor.custap ? '<span class=\"rsa-tag rsa-sash-tag\">Custap Berry!</span>' : '') +
@@ -9321,8 +9346,15 @@
                         }
                     }
                 }
-                // ── Compute bait with round-indexed state ──
-                var bands = computeBaitAnalysis(fakeP1);
+                // ── Compute per-move bait analyses ──
+                var p1Moves = fakeP1.moves || [];
+                var moveAnalyses = [];
+                for (var _mi = 0; _mi < Math.min(4, p1Moves.length); _mi++) {
+                    var _moveName = p1Moves[_mi];
+                    if (!_moveName || _moveName === '(No Move)') continue;
+                    var moveBands = computeBaitAnalysis(fakeP1, _mi);
+                    moveAnalyses.push({ moveName: _moveName, moveIdx: _mi, bands: moveBands, predamage: null });
+                }
                 // ── Restore P2 roster state ──
                 for (var si = 0; si < p2Team.roster.length; si++) {
                     p2Team.roster[si].currentHP = saved[si].currentHP;
@@ -9333,38 +9365,68 @@
                 }
                 p2Team.activeIdx = savedActiveIdx;
 
-                // ── Compute predamage analysis ──
-                var predamage = null;
-                if (bands && bands.length && rd.p2) {
-                    var _p2SetId = null;
+                // ── Compute predamage for each move analysis ──
+                var _p2SetId = null;
+                if (rd.p2) {
                     for (var pi = 0; pi < _baitLine.teams.p2.roster.length; pi++) {
                         if (_baitLine.teams.p2.roster[pi].name === rd.p2.name) {
                             _p2SetId = _baitLine.teams.p2.roster[pi].setId; break;
                         }
                     }
-                    predamage = computePredamage({
-                        p1SetId: fakeP1.setId,
-                        p2SetId: _p2SetId,
-                        p1MaxHP: rd.p1.hpAfter.max,
-                        p1Item: rd.p1.item || '',
-                        bands: bands,
-                        rounds: _baitRounds,
-                        roundIdx: _baitRdIdx,
-                        p1Name: rd.p1.name,
-                        p2Name: rd.p2.name
-                    });
+                }
+                for (var _mai = 0; _mai < moveAnalyses.length; _mai++) {
+                    if (moveAnalyses[_mai].bands && moveAnalyses[_mai].bands.length && rd.p2 && _p2SetId) {
+                        moveAnalyses[_mai].predamage = computePredamage({
+                            p1SetId: fakeP1.setId,
+                            p2SetId: _p2SetId,
+                            p1MaxHP: rd.p1.hpAfter.max,
+                            p1Item: rd.p1.item || '',
+                            bands: moveAnalyses[_mai].bands,
+                            rounds: _baitRounds,
+                            roundIdx: _baitRdIdx,
+                            p1Name: rd.p1.name,
+                            p2Name: rd.p2.name
+                        });
+                    }
                 }
 
-                $panel.html(renderBaitPanel(bands, fakeP1, rd.p1.hpAfter.current, rd.p1.hpAfter.max, predamage));
-                // Store context for predamage option click handler
-                if (predamage) {
+                // Use first move analysis as fallback for single-analysis render
+                var firstBands = moveAnalyses.length ? moveAnalyses[0].bands : [];
+                var firstPd = moveAnalyses.length ? moveAnalyses[0].predamage : null;
+
+                $panel.html(renderBaitPanel(firstBands, fakeP1, rd.p1.hpAfter.current, rd.p1.hpAfter.max, firstPd, moveAnalyses));
+                // Store contexts for predamage option click handler (per tab)
+                $panel.data('rsa-pd-contexts', moveAnalyses.map(function (ma) {
+                    return { predamage: ma.predamage, line: _baitLine, rounds: _baitRounds };
+                }));
+                // Set initial active context (first tab)
+                if (moveAnalyses.length > 0 && moveAnalyses[0].predamage) {
                     $panel.data('rsa-pd-context', {
-                        predamage: predamage,
+                        predamage: moveAnalyses[0].predamage,
                         line: _baitLine,
                         rounds: _baitRounds
                     });
                 }
             }, 20);
+        });
+
+        // ── Bait move tab switching ──
+        $(document).on('click', '.rsa-bait-tab', function (e) {
+            e.stopPropagation();
+            var $tab = $(this);
+            var tabIdx = ~~$tab.data('move-tab');
+            var $panel = $tab.closest('.rsa-bait-panel');
+            // Toggle active tab
+            $tab.siblings('.rsa-bait-tab').removeClass('rsa-bait-tab-active');
+            $tab.addClass('rsa-bait-tab-active');
+            // Toggle tab panes
+            $tab.closest('.rsa-bait-tabbed').find('.rsa-bait-tab-pane').hide();
+            $tab.closest('.rsa-bait-tabbed').find('.rsa-bait-tab-pane[data-move-tab="' + tabIdx + '"]').show();
+            // Update predamage context for click handler
+            var contexts = $panel.data('rsa-pd-contexts');
+            if (contexts && contexts[tabIdx]) {
+                $panel.data('rsa-pd-context', contexts[tabIdx]);
+            }
         });
 
         // ── Predamage option click: relog engagement rounds with chosen predamage/item ──

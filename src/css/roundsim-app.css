@@ -2170,6 +2170,25 @@ fieldset {
     background: rgba(99,179,237,0.18);
 }
 
+/* ── Bait Move Tabs ── */
+.rsa-bait-tabbed { }
+.rsa-bait-tabbed > .rsa-bait-title { margin-bottom: 6px; }
+.rsa-bait-tabs {
+    display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 8px;
+}
+.rsa-bait-tab {
+    padding: 4px 10px; border: 1px solid #4a5568; border-radius: 4px 4px 0 0;
+    background: rgba(45,55,72,0.6); color: #a0aec0; cursor: pointer;
+    font-size: 0.85em; font-weight: 600; transition: background 0.15s, color 0.15s;
+    border-bottom: 2px solid transparent;
+}
+.rsa-bait-tab:hover { background: rgba(45,55,72,0.9); color: #e2e8f0; }
+.rsa-bait-tab-active {
+    background: rgba(99,179,237,0.15); color: #63b3ed;
+    border-bottom: 2px solid #63b3ed;
+}
+.rsa-bait-tab-pane { }
+
 /* ── Predamage Reminders ── */
 .rsa-pd-reminders {
     margin: 12px 0 4px; display: flex; flex-direction: column; gap: 8px;
