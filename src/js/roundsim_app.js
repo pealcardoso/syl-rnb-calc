@@ -1357,7 +1357,12 @@
         var totalMinNorm = 0, totalMaxNorm = 0, totalMinCrit = 0, totalMaxCrit = 0;
         for (var ei = 0; ei < engagement.length; ei++) {
             var eRd = rounds[engagement[ei]];
-            var eP2Move = eRd.p2.move && eRd.p2.move !== '—' ? eRd.p2.move : null;
+            // Detect if P2 was KO'd before attacking (P1 faster and KO'd P2)
+            var _p1Faster = eRd.speed && (eRd.speed.faster === 'p1' || eRd.speed.faster === 'tie');
+            var _p1Attacked = eRd.p1.move && eRd.p1.move !== '—';
+            var _p2KOd = eRd.p2.hpAfter && eRd.p2.hpAfter.current <= 0;
+            var _p2KOdBeforeAttack = _p1Faster && _p1Attacked && _p2KOd;
+            var eP2Move = (!_p2KOdBeforeAttack && eRd.p2.move && eRd.p2.move !== '—') ? eRd.p2.move : null;
             // Per-round override: opts.overrideP2Moves[ei] overrides the move for round ei
             if (eP2Move && opts.overrideP2Moves && opts.overrideP2Moves[ei]) {
                 eP2Move = opts.overrideP2Moves[ei];
@@ -9389,7 +9394,12 @@
                     var _perRoundMoves = []; // perRoundMoves[ei] = [{name, pct}] or null if P2 didn't attack
                     for (var _eii = 0; _eii < _engIdxs.length; _eii++) {
                         var _eRd = _baitRounds[_engIdxs[_eii]];
-                        var _attacked = _eRd.p2.move && _eRd.p2.move !== '—';
+                        // Detect if P2 was KO'd before attacking
+                        var _eP1Faster = _eRd.speed && (_eRd.speed.faster === 'p1' || _eRd.speed.faster === 'tie');
+                        var _eP1Attacked = _eRd.p1.move && _eRd.p1.move !== '—';
+                        var _eP2KOd = _eRd.p2.hpAfter && _eRd.p2.hpAfter.current <= 0;
+                        var _eP2KOdBefore = _eP1Faster && _eP1Attacked && _eP2KOd;
+                        var _attacked = !_eP2KOdBefore && _eRd.p2.move && _eRd.p2.move !== '—';
                         if (!_attacked) {
                             _perRoundMoves.push(null); // P2 didn't attack
                             continue;
