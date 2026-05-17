@@ -1490,11 +1490,11 @@
                 var bandWidth = bU - bL;
                 var rollSpread = totalMaxNorm - totalMinNorm;
                 if (bL + totalMinNorm > maxHP) {
-                    t.reason = 'min damage already exceeds reachable HP';
+                    t.reason = 'even at full HP, min damage already pushes P1 past this band';
                 } else if (rollSpread > bandWidth) {
-                    t.reason = 'roll spread (' + rollSpread + ') wider than band (' + bandWidth + ' HP)';
+                    t.reason = 'P2\u2019s damage roll spread (' + rollSpread + ' HP) is wider than this band (' + bandWidth + ' HP) \u2014 any entry HP risks landing outside it';
                 } else {
-                    t.reason = 'entry HP would need to exceed max HP';
+                    t.reason = 'entry HP required would exceed max HP';
                 }
             }
 
@@ -1620,7 +1620,7 @@
                 if (pt) {
                     if (!pt.possible) {
                         pdHtml = '<div class="rsa-bait-predmg rsa-bait-predmg-imp">' +
-                            '<span class="rsa-bait-predmg-tag">✗ Impossible</span>' +
+                            '<span class="rsa-bait-predmg-tag">✗ Cannot guarantee</span>' +
                             '<span class="rsa-bait-predmg-reason">' + esc(pt.reason) + '</span>' +
                         '</div>';
                     } else {
@@ -9411,7 +9411,7 @@
                             var _rmName = _rdMoves[_rmi];
                             if (!_rmName || _rmName === '(No Move)') continue;
                             var _rmPct = parseFloat((_rdPcts[_rmi] || '0').replace('%', ''));
-                            if (_rmPct < 0.5) continue; // skip moves with ~0% prediction
+                            if (isNaN(_rmPct)) _rmPct = 0;
                             var _rmData = lookupMoveData(_rmName);
                             if (_rmData && _rmData.category === 'Status') continue;
                             _dmgMoves.push({ name: _rmName, pct: _rmPct });
