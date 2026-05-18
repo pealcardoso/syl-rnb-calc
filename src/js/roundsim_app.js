@@ -6708,11 +6708,183 @@
         return '<div class="rsa-pd-reminders">' + html + '</div>';
     }
 
+    // ── Auto-generate berry reminders for P1 mons with berries ──
+    function _autoGenerateBerryReminders(line) {
+        if (!line || !line.teams || !line.teams.p1 || !line.teams.p2) return;
+        var branchIdx = line.activeBranchIdx != null ? line.activeBranchIdx : -1;
+        var rounds = getBranchRounds(line, branchIdx);
+        if (!rounds || !rounds.length) return;
+
+        // Cache: only recompute when rounds change
+        var cacheKey = rounds.length + '|' + branchIdx;
+        if (line._autoBerryCache === cacheKey) return;
+        line._autoBerryCache = cacheKey;
+
+        if (!line.pdReminders) line.pdReminders = [];
+        if (!line._autoBerryDismissed) line._autoBerryDismissed = {};
+
+        // Remove previous auto-generated reminders (will recompute fresh)
+        line.pdReminders = line.pdReminders.filter(function (r) { return !r.auto; });
+
+        var BERRY_MAP = { 'Sitrus Berry': true, 'Oran Berry': true };
+        var processed = {};
+        // Don't overwrite manually-set reminders
+        for (var i = 0; i < line.pdReminders.length; i++) {
+            processed[line.pdReminders[i].name] = true;
+        }
+
+        // Find P1 mons that hold berries and have a bait round (P2 dies)
+        for (var ri = 0; ri < rounds.length; ri++) {
+            var rd = rounds[ri];
+            if (!rd.p1 || !rd.p2 || rd.isP2Switch) continue;
+            if (!(rd.p2.hpAfter && rd.p2.hpAfter.current <= 0)) continue;
+            // P2 dies on this round — check P1's item
+            var p1Name = rd.p1.name;
+            if (processed[p1Name]) continue;
+            if (line._autoBerryDismissed[p1Name]) continue;
+            processed[p1Name] = true;
+
+            // Look up item from roster
+            var p1i = findInRoster(line.teams.p1, p1Name);
+            if (p1i < 0) continue;
+            var p1RosterEntry = line.teams.p1.roster[p1i];
+            if (!p1RosterEntry.item || !BERRY_MAP[p1RosterEntry.item]) continue;
+
+            // Build fakeP1 at this round's state (mirror bait toggle handler)
+            try {
+                var fakeP1 = $.extend(true, {}, p1RosterEntry);
+                fakeP1.currentHP = rd.p1.hpAfter.current;
+                fakeP1.item = rd.p1.item;
+                fakeP1.ability = rd.p1.ability;
+                fakeP1.status = rd.p1.status;
+                fakeP1.boosts = rd.p1.boosts ? $.extend({}, rd.p1.boosts) : { at:0, df:0, sa:0, sd:0, sp:0 };
+                fakeP1.setId = p1RosterEntry.setId;
+                fakeP1.name = p1Name;
+                fakeP1.sprite = p1RosterEntry.sprite || rd.p1.sprite;
+                fakeP1.moves = p1RosterEntry.moves;
+                fakeP1.maxHP = rd.p1.hpAfter.max;
+                try { fakeP1._speedOverride = computeEntrySpeed(fakeP1); } catch (e2) { /* ignore */ }
+
+                // Snapshot P2 roster, reset, replay up to bait round
+                var p2Team = line.teams.p2;
+                var saved = [];
+                for (var si = 0; si < p2Team.roster.length; si++) {
+                    saved.push({
+                        currentHP: p2Team.roster[si].currentHP,
+                        bestCaseHP: p2Team.roster[si].bestCaseHP,
+                        status: p2Team.roster[si].status || '',
+                        item: p2Team.roster[si].item,
+                        boosts: p2Team.roster[si].boosts ? $.extend({}, p2Team.roster[si].boosts) : null
+                    });
+                }
+                var savedActiveIdx = p2Team.activeIdx;
+                // Reset P2 roster to initial state
+                for (var si2 = 0; si2 < p2Team.roster.length; si2++) {
+                    p2Team.roster[si2].currentHP = p2Team.roster[si2].maxHP;
+                    p2Team.roster[si2].bestCaseHP = p2Team.roster[si2].maxHP;
+                    p2Team.roster[si2].status = '';
+                    if (p2Team.roster[si2].initialItem !== undefined) p2Team.roster[si2].item = p2Team.roster[si2].initialItem;
+                    p2Team.roster[si2].boosts = { at:0, df:0, sa:0, sd:0, sp:0 };
+                }
+                p2Team.activeIdx = 0;
+                // Replay rounds up to and including the bait round
+                for (var si3 = 0; si3 <= ri && si3 < rounds.length; si3++) {
+                    var rr = rounds[si3];
+                    if (rr.p2) {
+                        var p2ri = findInRoster(p2Team, rr.p2.name);
+                        if (p2ri >= 0) {
+                            p2Team.roster[p2ri].currentHP = rr.p2.hpAfter.current;
+                            p2Team.roster[p2ri].bestCaseHP = rr.p2.hpAfter.bestCase != null ? rr.p2.hpAfter.bestCase : rr.p2.hpAfter.current;
+                            if (rr.p2.status) p2Team.roster[p2ri].status = rr.p2.status;
+                            if (rr.p2.item !== undefined) p2Team.roster[p2ri].item = rr.p2.item;
+                            p2Team.activeIdx = p2ri;
+                        }
+                    }
+                }
+                // Compute bait bands
+                var bands = computeBaitAnalysis(fakeP1);
+                // Restore P2 roster state
+                for (var si4 = 0; si4 < p2Team.roster.length; si4++) {
+                    p2Team.roster[si4].currentHP = saved[si4].currentHP;
+                    p2Team.roster[si4].bestCaseHP = saved[si4].bestCaseHP;
+                    p2Team.roster[si4].status = saved[si4].status;
+                    if (saved[si4].item !== undefined) p2Team.roster[si4].item = saved[si4].item;
+                    if (saved[si4].boosts) p2Team.roster[si4].boosts = saved[si4].boosts;
+                }
+                p2Team.activeIdx = savedActiveIdx;
+
+                if (!bands || !bands.length) continue;
+
+                // Find P2 set ID
+                var p2SetId = null;
+                for (var pi = 0; pi < p2Team.roster.length; pi++) {
+                    if (p2Team.roster[pi].name === rd.p2.name) {
+                        p2SetId = p2Team.roster[pi].setId;
+                        break;
+                    }
+                }
+                if (!p2SetId) continue;
+
+                // Compute predamage with p1Item blank so berry suggestions are generated
+                var pdResult = computePredamage({
+                    bands: bands,
+                    p1SetId: fakeP1.setId,
+                    p2SetId: p2SetId,
+                    p1MaxHP: fakeP1.maxHP,
+                    p1Item: '', // blank so berry targets are computed
+                    rounds: rounds,
+                    roundIdx: ri,
+                    p1Name: p1Name,
+                    p2Name: rd.p2.name
+                });
+                if (!pdResult || !pdResult.targets) continue;
+
+                // Find best berry target matching P1's actual item
+                var bestTarget = null;
+                var isSitrus = p1RosterEntry.item === 'Sitrus Berry';
+                for (var bi = 0; bi < pdResult.targets.length; bi++) {
+                    var t = pdResult.targets[bi];
+                    if (!t.possible) continue;
+                    // Prefer crit-resilient berry target
+                    if (isSitrus && t.sitrusCrit) { bestTarget = t.sitrusCrit; break; }
+                    if (!isSitrus && t.oranCrit) { bestTarget = t.oranCrit; break; }
+                    if (isSitrus && t.sitrus) { bestTarget = t.sitrus; break; }
+                    if (!isSitrus && t.oran) { bestTarget = t.oran; break; }
+                }
+                if (!bestTarget) {
+                    // Fallback: norm target from first possible band
+                    for (var bi2 = 0; bi2 < pdResult.targets.length; bi2++) {
+                        if (pdResult.targets[bi2].possible && pdResult.targets[bi2].norm) {
+                            bestTarget = pdResult.targets[bi2].norm;
+                            break;
+                        }
+                    }
+                }
+                if (!bestTarget) continue;
+
+                var maxHP = pdResult.maxHP;
+                var targetHP = bestTarget.hpMax; // enter at max HP of the range
+                var predmg = maxHP - targetHP;
+
+                line.pdReminders.push({
+                    name: p1Name,
+                    sprite: p1RosterEntry.sprite || rd.p1.sprite || '',
+                    targetHP: targetHP,
+                    maxHP: maxHP,
+                    predmg: predmg,
+                    item: p1RosterEntry.item,
+                    auto: true
+                });
+            } catch (e) { /* skip on error */ }
+        }
+    }
+
     // ── Fight Notes (predamage reminders panel above round log) ──
     function renderFightNotes() {
         var $notes = $('#rsa-fight-notes');
         if (!$notes.length) return;
         var line = curLine();
+        _autoGenerateBerryReminders(line);
         if (!line.pdReminders || !line.pdReminders.length) {
             $notes.hide().html('');
             return;
@@ -9407,11 +9579,16 @@
                         var _rdMoves = _eRd.p2.allMoves || [];
                         var _rdPcts = _eRd.p2.aiPcts || [];
                         var _dmgMoves = [];
+                        var _anyPct = false;
+                        for (var _pi2 = 0; _pi2 < _rdPcts.length; _pi2++) {
+                            if (parseFloat((_rdPcts[_pi2] || '0').replace('%', '')) > 0) { _anyPct = true; break; }
+                        }
                         for (var _rmi = 0; _rmi < _rdMoves.length; _rmi++) {
                             var _rmName = _rdMoves[_rmi];
                             if (!_rmName || _rmName === '(No Move)') continue;
                             var _rmPct = parseFloat((_rdPcts[_rmi] || '0').replace('%', ''));
                             if (isNaN(_rmPct)) _rmPct = 0;
+                            if (_anyPct && _rmPct <= 0) continue; // skip 0% AI moves
                             var _rmData = lookupMoveData(_rmName);
                             if (_rmData && _rmData.category === 'Status') continue;
                             _dmgMoves.push({ name: _rmName, pct: _rmPct });
@@ -9669,6 +9846,14 @@
             var name = $(this).data('pd-name');
             var line = curLine();
             if (line.pdReminders) {
+                // Track dismissed auto-reminders so they don't reappear
+                for (var i = 0; i < line.pdReminders.length; i++) {
+                    if (line.pdReminders[i].name === name && line.pdReminders[i].auto) {
+                        if (!line._autoBerryDismissed) line._autoBerryDismissed = {};
+                        line._autoBerryDismissed[name] = true;
+                        break;
+                    }
+                }
                 line.pdReminders = line.pdReminders.filter(function (r) { return r.name !== name; });
             }
             renderAll();
@@ -12124,8 +12309,67 @@
                     continue;
                 }
 
-                // ── 2. Status changed → impactful, replay needed ──
-                if (!p1StatusSame || !p2StatusSame) continue;
+                // ── 2. Status changed — check if it matters ──
+                // If P1 gets a status but switches out and never returns,
+                // or P1 OHKOs P2 next round then switches out, status is irrelevant
+                if (!p1StatusSame || !p2StatusSame) {
+                    var _statusIrrelevant = false;
+                    if (!isLastRound) {
+                        // Check: does P1 switch out next round and not return?
+                        var _s2NextP1 = null;
+                        for (var _s2i = roundIdx + 1; _s2i < allRounds.length; _s2i++) {
+                            var _s2rd = allRounds[_s2i];
+                            if (_s2rd && _s2rd.p1 && _s2rd.p1.name && !_s2rd.isP2Switch) {
+                                _s2NextP1 = _s2rd.p1.name; break;
+                            }
+                        }
+                        if (_s2NextP1 && _s2NextP1 !== rd.p1.name) {
+                            var _s2Returns = false;
+                            for (var _s2j = roundIdx + 2; _s2j < allRounds.length; _s2j++) {
+                                if (allRounds[_s2j] && allRounds[_s2j].p1 && allRounds[_s2j].p1.name === rd.p1.name && !allRounds[_s2j].isP2Switch) {
+                                    _s2Returns = true; break;
+                                }
+                            }
+                            if (!_s2Returns) _statusIrrelevant = true;
+                        }
+                        // Check: same P1 next round, OHKOs P2, then switches out?
+                        if (!_statusIrrelevant && canCheckAI && nextRd) {
+                            var _s2Faster = nextRd.speed && (nextRd.speed.faster === 'p1' || nextRd.speed.faster === 'tie');
+                            var _s2Atk = nextRd.p1.move && nextRd.p1.move !== '—';
+                            var _s2P2D = nextRd.p2.hpAfter && nextRd.p2.hpAfter.current <= 0;
+                            if (_s2Faster && _s2Atk && _s2P2D) {
+                                // P1 OHKOs next round — check if switches out after
+                                for (var _s2k = nextAttackIdx + 1; _s2k < allRounds.length; _s2k++) {
+                                    var _s2krd = allRounds[_s2k];
+                                    if (_s2krd && _s2krd.p1 && _s2krd.p1.name && !_s2krd.isP2Switch) {
+                                        if (_s2krd.p1.name !== rd.p1.name) {
+                                            var _s2kReturns = false;
+                                            for (var _s2m = _s2k + 1; _s2m < allRounds.length; _s2m++) {
+                                                if (allRounds[_s2m] && allRounds[_s2m].p1 && allRounds[_s2m].p1.name === rd.p1.name && !allRounds[_s2m].isP2Switch) {
+                                                    _s2kReturns = true; break;
+                                                }
+                                            }
+                                            if (!_s2kReturns) _statusIrrelevant = true;
+                                        }
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                    } else {
+                        // Last round: status doesn't matter since battle ends
+                        _statusIrrelevant = true;
+                    }
+                    if (_statusIrrelevant && baitSame) {
+                        f._skipReplay = true;
+                        f.impact = 'clean';
+                        f.summary = '✓ No impact — ' + rd.p1.name +
+                            ' gets ' + (f.altP1Status || f.altP2Status) +
+                            ' but switches out and status clears';
+                        continue;
+                    }
+                    continue; // status truly matters — skip to replay
+                }
 
                 // ── 3. HP changed, last round ──
                 if (!hpSame && isLastRound) {
@@ -12212,6 +12456,81 @@
                     } catch (e) { /* ignore */ }
                 }
 
+                // ── 4b. HP changed, bait same, next round uses different P1
+                //         that never returns → no downstream impact ──
+                if (!hpSame && baitSame && !isLastRound) {
+                    var _nextP1Name = null;
+                    for (var _nri = roundIdx + 1; _nri < allRounds.length; _nri++) {
+                        var _nrrd = allRounds[_nri];
+                        if (_nrrd && _nrrd.p1 && _nrrd.p1.name && !_nrrd.isP2Switch) {
+                            _nextP1Name = _nrrd.p1.name; break;
+                        }
+                    }
+                    if (_nextP1Name && _nextP1Name !== rd.p1.name) {
+                        // Check if current P1 returns in any later round
+                        var _p1Returns = false;
+                        for (var _rri = roundIdx + 2; _rri < allRounds.length; _rri++) {
+                            var _rrrd = allRounds[_rri];
+                            if (_rrrd && _rrrd.p1 && _rrrd.p1.name === rd.p1.name && !_rrrd.isP2Switch) {
+                                _p1Returns = true; break;
+                            }
+                        }
+                        if (!_p1Returns) {
+                            f._skipReplay = true;
+                            f.impact = 'clean';
+                            f.summary = '✓ No impact — ' + rd.p1.name +
+                                ' switches out next round and does not return' +
+                                (p2Dies ? ', bait unchanged' : '');
+                            continue;
+                        }
+                    }
+                }
+
+                // ── 4c. HP changed, bait same, same P1 on next round but P1 is faster
+                //         and OHKOs P2 regardless (min roll kills) → then check if P1
+                //         switches out after that and doesn't return ──
+                if (!hpSame && baitSame && !isLastRound && canCheckAI && nextRd) {
+                    var _4cP1Faster = nextRd.speed &&
+                        (nextRd.speed.faster === 'p1' || nextRd.speed.faster === 'tie');
+                    var _4cP1Attacked = nextRd.p1.move && nextRd.p1.move !== '—';
+                    var _4cP2Dies = nextRd.p2.hpAfter && nextRd.p2.hpAfter.current <= 0;
+                    if (_4cP1Faster && _4cP1Attacked && _4cP2Dies) {
+                        // P1 kills P2 first on next round regardless of HP diff
+                        // Check if P1 switches out after the next round and doesn't return
+                        var _4cSwitchesOut = false;
+                        for (var _4ci = nextAttackIdx + 1; _4ci < allRounds.length; _4ci++) {
+                            var _4cRd = allRounds[_4ci];
+                            if (_4cRd && _4cRd.p1 && _4cRd.p1.name && !_4cRd.isP2Switch) {
+                                if (_4cRd.p1.name !== rd.p1.name) { _4cSwitchesOut = true; }
+                                break;
+                            }
+                        }
+                        if (_4cSwitchesOut) {
+                            var _4cReturns = false;
+                            for (var _4cj = nextAttackIdx + 2; _4cj < allRounds.length; _4cj++) {
+                                var _4cRd2 = allRounds[_4cj];
+                                if (_4cRd2 && _4cRd2.p1 && _4cRd2.p1.name === rd.p1.name && !_4cRd2.isP2Switch) {
+                                    _4cReturns = true; break;
+                                }
+                            }
+                            if (!_4cReturns) {
+                                f._skipReplay = true;
+                                f.impact = 'clean';
+                                var _4cBaitNote = '';
+                                for (var _4ck = nextAttackIdx; _4ck < allRounds.length; _4ck++) {
+                                    var _4cBRd = allRounds[_4ck];
+                                    if (_4cBRd && _4cBRd.p2 && _4cBRd.p2.hpAfter && _4cBRd.p2.hpAfter.current <= 0) {
+                                        _4cBaitNote = ', bait unchanged'; break;
+                                    }
+                                }
+                                f.summary = '✓ No impact — ' + rd.p1.name +
+                                    ' OHKOs next round, then switches out' + _4cBaitNote;
+                                continue;
+                            }
+                        }
+                    }
+                }
+
                 // ── 5. Bait rates differ (P1 switches, canCheckAI=false) ──
                 // Check bait move rates for new moves that didn't exist on main path
                 if (!hpSame && !canCheckAI && p2Dies &&
@@ -12277,9 +12596,18 @@
                 }
             }
 
-            // Append AI sub-forks
+            // Append AI sub-forks (but only if their parent wasn't marked clean)
             for (var si = 0; si < subForks.length; si++) {
-                ar.forks.push(subForks[si]);
+                var _sf = subForks[si];
+                // Find parent fork — sub-fork ID starts with parent ID
+                var _parentClean = false;
+                for (var _pfi = 0; _pfi < ar.forks.length; _pfi++) {
+                    var _pf = ar.forks[_pfi];
+                    if (_sf.id.indexOf(_pf.id) === 0 && _pf._skipReplay && _pf.impact === 'clean') {
+                        _parentClean = true; break;
+                    }
+                }
+                if (!_parentClean) ar.forks.push(_sf);
             }
         }
 
@@ -12369,8 +12697,13 @@
             var p1HP = rd.p1.hpBefore.current;
             var p2Dies = rd.p2.hpAfter.current <= 0;
 
-            // ── Main path damage range ──
-            if (rd.p2.move && rd.p2.move !== '—') {
+            // Check if P2 was KO'd before attacking (P1 faster + P1 attacked + P2 died)
+            var p1Faster = rd.speed && (rd.speed.faster === 'p1' || rd.speed.faster === 'tie');
+            var p1Attacked = rd.p1.move && rd.p1.move !== '—';
+            var p2KOdBeforeAttack = p1Faster && p1Attacked && p2Dies;
+
+            // ── Main path damage range (only if P2 actually got to attack) ──
+            if (rd.p2.move && rd.p2.move !== '—' && !p2KOdBeforeAttack) {
                 var mainRolls = _getRolls(_calcResult(p2SetId, p1SetId, rd.p2.move, {
                     atkHP: rd.p2.hpBefore.current, atkItem: rd.p2.item, atkAbility: rd.p2.ability,
                     defHP: p1HP, defItem: rd.p1.item, defAbility: rd.p1.ability,
