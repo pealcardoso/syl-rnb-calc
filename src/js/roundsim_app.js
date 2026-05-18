@@ -6729,9 +6729,11 @@
         line.pdReminders = line.pdReminders.filter(function (r) { return !r.auto; });
 
         var processed = {};
-        // Don't overwrite manually-set reminders
+        // Track which names already have manual reminders (so we can augment them)
+        var manualReminders = {};
         for (var i = 0; i < line.pdReminders.length; i++) {
             processed[line.pdReminders[i].name] = true;
+            manualReminders[line.pdReminders[i].name] = line.pdReminders[i];
         }
 
         // Scan rounds for P1 berry consumption (itemConsumed or statusNullifiedByBerry)
@@ -6739,7 +6741,6 @@
             var rd = rounds[ri];
             if (!rd.p1) continue;
             var p1Name = rd.p1.name;
-            if (processed[p1Name]) continue;
 
             // Check if a berry was consumed on this round
             var consumed = rd.p1.itemConsumed || '';
@@ -6748,13 +6749,28 @@
             if (consumed && consumed.toLowerCase().indexOf('berry') >= 0) {
                 berryName = consumed;
             } else if (berryCured && berryCured.berry) {
-                // statusNullifiedByBerry.berry is lowercase no-space, map back to initial item
-                var p1i = findInRoster(line.teams.p1, p1Name);
-                if (p1i >= 0) berryName = line.teams.p1.roster[p1i].initialItem || '';
+                // statusNullifiedByBerry.berry may be the full name or lowercase no-space
+                var bName = berryCured.berry;
+                if (bName.indexOf(' ') >= 0) {
+                    berryName = bName; // already full name like "Lum Berry"
+                } else {
+                    // map back from initialItem
+                    var p1i = findInRoster(line.teams.p1, p1Name);
+                    if (p1i >= 0) berryName = line.teams.p1.roster[p1i].initialItem || '';
+                }
             }
             if (!berryName) continue;
-            processed[p1Name] = true;
             if (line._autoBerryDismissed[p1Name]) continue;
+
+            // If there's already a manual reminder, augment it with the berry item
+            if (manualReminders[p1Name]) {
+                if (!manualReminders[p1Name].item) {
+                    manualReminders[p1Name].item = berryName;
+                }
+                continue;
+            }
+            if (processed[p1Name]) continue;
+            processed[p1Name] = true;
 
             // Look up roster entry for maxHP / sprite
             var rIdx = findInRoster(line.teams.p1, p1Name);
