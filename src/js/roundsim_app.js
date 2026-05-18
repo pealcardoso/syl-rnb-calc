@@ -417,6 +417,12 @@
         if (!window.__rsaTest) window.__rsaTest = {};
         window.__rsaTest.computeEntryTags = computeEntryTags;
         window.__rsaTest.TAG_DEFS = TAG_DEFS;
+        window.__rsaTest.computeBaitAnalysis = computeBaitAnalysis;
+        window.__rsaTest.computePredamage = computePredamage;
+        window.__rsaTest._autoGenerateBerryReminders = _autoGenerateBerryReminders;
+        window.__rsaTest.getBranchRounds = getBranchRounds;
+        window.__rsaTest.findInRoster = findInRoster;
+        window.__rsaTest.curLine = curLine;
     }
 
     /** Sort tag results: gold first, then threat (red), then util (blue), then silver. */
@@ -13384,6 +13390,11 @@
                 console.error('[FightAnalysis]', e);
             }
         });
+
+        // Expose for Playwright tests
+        if (typeof window !== 'undefined' && window.__rsaTest) {
+            window.__rsaTest.analyzeFight = analyzeFight;
+        }
 
         } catch (initError) {
             console.error('[FightAnalysis] Init failed:', initError);

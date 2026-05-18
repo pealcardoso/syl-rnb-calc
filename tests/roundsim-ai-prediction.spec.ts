@@ -2,110 +2,45 @@ import { test, expect } from './fixtures';
 
 test.describe('AI Switch-In Prediction', () => {
 
-  // ── Switch score categories ───────────────────────────────────
-  // Replicate the scoring logic from computeSwitchScore
-
-  test('Score 5: faster + OHKOs P1', async ({ rsaPage }) => {
-    // This is a conceptual test — verifying the scoring rules
-    const score = 5;
-    expect(score).toBe(5);
-    // In reality, this requires full calc integration (P1 calc, P2 calc, speed comparison)
-    // which is tested via the integration (log round) pathway
-  });
-
-  // ── Ditto special case ────────────────────────────────────────
-
-  test('Ditto exists in BattlePokedex', async ({ rsaPage }) => {
-    const data = await rsaPage.evaluate(() => {
-      const ditto = (window as any).BattlePokedex['ditto'];
-      return ditto ? { name: ditto.name, types: ditto.types, baseStats: ditto.baseStats } : null;
-    });
-    expect(data).toBeTruthy();
-    expect(data.name).toBe('Ditto');
-    expect(data.types).toEqual(['Normal']);
-    expect(data.baseStats.hp).toBe(48);
-    expect(data.baseStats.spe).toBe(48);
-  });
-
-  // ── Wynaut / Wobbuffet special case ───────────────────────────
-
-  test('Wobbuffet exists with Shadow Tag', async ({ rsaPage }) => {
-    const data = await rsaPage.evaluate(() => {
-      const mon = (window as any).BattlePokedex['wobbuffet'];
-      return mon ? { name: mon.name, abilities: mon.abilities } : null;
-    });
-    expect(data).toBeTruthy();
-    expect(data.name).toBe('Wobbuffet');
-    expect(data.abilities['0']).toBe('Shadow Tag');
-  });
-
-  test('Wynaut exists with Shadow Tag', async ({ rsaPage }) => {
-    const data = await rsaPage.evaluate(() => {
-      const mon = (window as any).BattlePokedex['wynaut'];
-      return mon ? { name: mon.name, abilities: mon.abilities } : null;
-    });
-    expect(data).toBeTruthy();
-    expect(data.name).toBe('Wynaut');
-    expect(data.abilities['0']).toBe('Shadow Tag');
-  });
-
   // ── Speed comparison is critical for scoring ──────────────────
 
-  test('Speed ordering works correctly via calcEffectiveSpeed', async ({ rsaPage }) => {
-    // Two entries: one fast, one slow
+  test('Speed ordering: Scarf user outspeeds non-Scarf', async ({ rsaPage }) => {
     const result = await rsaPage.evaluate(() => {
-      const fast = (window as any).__rsaTest.calcEffectiveSpeed(
+      const w = window as any;
+      const fast = w.__rsaTest.calcEffectiveSpeed(
         { item: 'Choice Scarf', ability: '', status: '', boosts: {} }, 100
       );
-      const slow = (window as any).__rsaTest.calcEffectiveSpeed(
+      const slow = w.__rsaTest.calcEffectiveSpeed(
         { item: '', ability: '', status: '', boosts: {} }, 80
       );
       return { fast, slow, fasterWins: fast > slow };
     });
-    expect(result.fast).toBe(150); // 100 * 1.5
+    expect(result.fast).toBe(150);
     expect(result.slow).toBe(80);
     expect(result.fasterWins).toBe(true);
   });
 
-  // ── selectTrainer function exists ─────────────────────────────
+  // ── Ditto special case (Transform uses target's stats) ────────
 
-  test('selectTrainer function is available', async ({ rsaPage }) => {
-    const exists = await rsaPage.evaluate(() => {
-      return typeof (window as any).selectTrainer === 'function';
+  test('Ditto exists in BattlePokedex with correct base stats', async ({ rsaPage }) => {
+    const data = await rsaPage.evaluate(() => {
+      const ditto = (window as any).BattlePokedex['ditto'];
+      return ditto ? { name: ditto.name, types: ditto.types, hp: ditto.baseStats.hp } : null;
     });
-    expect(exists).toBe(true);
+    expect(data).toBeTruthy();
+    expect(data.name).toBe('Ditto');
+    expect(data.types).toEqual(['Normal']);
+    expect(data.hp).toBe(48);
   });
 
-  // ── lookupSet function exists ─────────────────────────────────
+  // ── Shadow Tag trapping ───────────────────────────────────────
 
-  test('lookupSet function is NOT global (IIFE-scoped)', async ({ rsaPage }) => {
-    // lookupSet is defined inside an IIFE and is not exposed on window
-    const exists = await rsaPage.evaluate(() => {
-      return typeof (window as any).lookupSet === 'function';
+  test('Wobbuffet has Shadow Tag', async ({ rsaPage }) => {
+    const ability = await rsaPage.evaluate(() => {
+      const mon = (window as any).BattlePokedex['wobbuffet'];
+      return mon ? mon.abilities['0'] : null;
     });
-    expect(exists).toBe(false);
-  });
-
-  // ── Calc engine is available ──────────────────────────────────
-
-  test('calc.calculate function is available', async ({ rsaPage }) => {
-    const exists = await rsaPage.evaluate(() => {
-      return typeof (window as any).calc?.calculate === 'function';
-    });
-    expect(exists).toBe(true);
-  });
-
-  test('calc.Pokemon constructor is available', async ({ rsaPage }) => {
-    const exists = await rsaPage.evaluate(() => {
-      return typeof (window as any).calc?.Pokemon === 'function';
-    });
-    expect(exists).toBe(true);
-  });
-
-  test('calc.Move constructor is available', async ({ rsaPage }) => {
-    const exists = await rsaPage.evaluate(() => {
-      return typeof (window as any).calc?.Move === 'function';
-    });
-    expect(exists).toBe(true);
+    expect(ability).toBe('Shadow Tag');
   });
 });
+

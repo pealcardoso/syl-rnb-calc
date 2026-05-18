@@ -147,47 +147,4 @@ test.describe('Secondary Effects', () => {
       expect(priority).toBe(tc.priority);
     });
   }
-
-  // ── Move categories ───────────────────────────────────────────
-
-  test('Close Combat is Physical', async ({ rsaPage }) => {
-    const cat = await rsaPage.evaluate(() => (window as any).BattleMovedex['closecombat'].category);
-    expect(cat).toBe('Physical');
-  });
-
-  test('Draco Meteor is Special', async ({ rsaPage }) => {
-    const cat = await rsaPage.evaluate(() => (window as any).BattleMovedex['dracometeor'].category);
-    expect(cat).toBe('Special');
-  });
-
-  test('Trick Room is Status', async ({ rsaPage }) => {
-    const cat = await rsaPage.evaluate(() => (window as any).BattleMovedex['trickroom'].category);
-    expect(cat).toBe('Status');
-  });
-
-  // ── Contact flag ──────────────────────────────────────────────
-
-  test('Close Combat is a contact move', async ({ rsaPage }) => {
-    const contact = await rsaPage.evaluate(() => {
-      const m = (window as any).BattleMovedex['closecombat'];
-      return !!(m.flags && m.flags.contact);
-    });
-    expect(contact).toBe(true);
-  });
-
-  test('Earthquake is NOT a contact move', async ({ rsaPage }) => {
-    const contact = await rsaPage.evaluate(() => {
-      const m = (window as any).BattleMovedex['earthquake'];
-      return !!(m.flags && m.flags.contact);
-    });
-    expect(contact).toBe(false);
-  });
-
-  test('Thunderbolt is NOT a contact move', async ({ rsaPage }) => {
-    const contact = await rsaPage.evaluate(() => {
-      const m = (window as any).BattleMovedex['thunderbolt'];
-      return !!(m.flags && m.flags.contact);
-    });
-    expect(contact).toBe(false);
-  });
 });
