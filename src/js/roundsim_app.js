@@ -6688,11 +6688,18 @@
         var html = '';
         for (var i = 0; i < line.pdReminders.length; i++) {
             var r = line.pdReminders[i];
-            var pct = r.maxHP > 0 ? Math.round(r.targetHP / r.maxHP * 100) : 100;
-            var hpText = r.predmg > 0
-                ? 'Predamage to <b>' + r.targetHP + '/' + r.maxHP + ' HP</b> (' + pct + '%) — take <b>' + r.predmg + '</b> dmg before entering'
-                : 'Enter at <b>full HP (' + r.maxHP + ')</b>';
-            var itemText = r.item ? ' — equip <b>' + esc(r.item) + '</b>' : '';
+            var detailHtml = '';
+            if (r.auto && r.predmg === 0) {
+                // Auto berry reminder: just show "equip [berry]"
+                detailHtml = 'Equip <b>' + esc(r.item) + '</b> (consumed during fight)';
+            } else {
+                var pct = r.maxHP > 0 ? Math.round(r.targetHP / r.maxHP * 100) : 100;
+                var hpText = r.predmg > 0
+                    ? 'Predamage to <b>' + r.targetHP + '/' + r.maxHP + ' HP</b> (' + pct + '%) — take <b>' + r.predmg + '</b> dmg before entering'
+                    : 'Enter at <b>full HP (' + r.maxHP + ')</b>';
+                var itemText = r.item ? ' — equip <b>' + esc(r.item) + '</b>' : '';
+                detailHtml = hpText + itemText;
+            }
             var spriteHtml = r.sprite
                 ? '<img class="rsa-pd-reminder-sprite" src="' + esc(r.sprite) + '" alt="" onerror="this.style.display=\'none\'">'
                 : '';
@@ -6700,7 +6707,7 @@
                 spriteHtml +
                 '<div class="rsa-pd-reminder-body">' +
                     '<div class="rsa-pd-reminder-title">⚠ Don\'t forget: ' + esc(r.name) + '</div>' +
-                    '<div class="rsa-pd-reminder-detail">' + hpText + itemText + '</div>' +
+                    '<div class="rsa-pd-reminder-detail">' + detailHtml + '</div>' +
                 '</div>' +
                 '<button class="rsa-pd-reminder-dismiss" data-pd-name="' + esc(r.name) + '" title="Dismiss">&times;</button>' +
             '</div>';
@@ -6708,17 +6715,12 @@
         return '<div class="rsa-pd-reminders">' + html + '</div>';
     }
 
-    // ── Auto-generate berry reminders for P1 mons with berries ──
+    // ── Auto-generate berry reminders for P1 mons whose berry was consumed ──
     function _autoGenerateBerryReminders(line) {
-        if (!line || !line.teams || !line.teams.p1 || !line.teams.p2) return;
+        if (!line || !line.teams || !line.teams.p1) return;
         var branchIdx = line.activeBranchIdx != null ? line.activeBranchIdx : -1;
         var rounds = getBranchRounds(line, branchIdx);
         if (!rounds || !rounds.length) return;
-
-        // Cache: only recompute when rounds change
-        var cacheKey = rounds.length + '|' + branchIdx;
-        if (line._autoBerryCache === cacheKey) return;
-        line._autoBerryCache = cacheKey;
 
         if (!line.pdReminders) line.pdReminders = [];
         if (!line._autoBerryDismissed) line._autoBerryDismissed = {};
@@ -6726,156 +6728,49 @@
         // Remove previous auto-generated reminders (will recompute fresh)
         line.pdReminders = line.pdReminders.filter(function (r) { return !r.auto; });
 
-        var BERRY_MAP = { 'Sitrus Berry': true, 'Oran Berry': true };
         var processed = {};
         // Don't overwrite manually-set reminders
         for (var i = 0; i < line.pdReminders.length; i++) {
             processed[line.pdReminders[i].name] = true;
         }
 
-        // Find P1 mons that hold berries and have a bait round (P2 dies)
+        // Scan rounds for P1 berry consumption (itemConsumed or statusNullifiedByBerry)
         for (var ri = 0; ri < rounds.length; ri++) {
             var rd = rounds[ri];
-            if (!rd.p1 || !rd.p2 || rd.isP2Switch) continue;
-            if (!(rd.p2.hpAfter && rd.p2.hpAfter.current <= 0)) continue;
-            // P2 dies on this round — check P1's item
+            if (!rd.p1) continue;
             var p1Name = rd.p1.name;
             if (processed[p1Name]) continue;
-            if (line._autoBerryDismissed[p1Name]) continue;
+
+            // Check if a berry was consumed on this round
+            var consumed = rd.p1.itemConsumed || '';
+            var berryCured = rd.p1.statusNullifiedByBerry;
+            var berryName = '';
+            if (consumed && consumed.toLowerCase().indexOf('berry') >= 0) {
+                berryName = consumed;
+            } else if (berryCured && berryCured.berry) {
+                // statusNullifiedByBerry.berry is lowercase no-space, map back to initial item
+                var p1i = findInRoster(line.teams.p1, p1Name);
+                if (p1i >= 0) berryName = line.teams.p1.roster[p1i].initialItem || '';
+            }
+            if (!berryName) continue;
             processed[p1Name] = true;
+            if (line._autoBerryDismissed[p1Name]) continue;
 
-            // Look up item from roster
-            var p1i = findInRoster(line.teams.p1, p1Name);
-            if (p1i < 0) continue;
-            var p1RosterEntry = line.teams.p1.roster[p1i];
-            if (!p1RosterEntry.item || !BERRY_MAP[p1RosterEntry.item]) continue;
+            // Look up roster entry for maxHP / sprite
+            var rIdx = findInRoster(line.teams.p1, p1Name);
+            if (rIdx < 0) continue;
+            var entry = line.teams.p1.roster[rIdx];
+            var maxHP = entry.maxHP || rd.p1.hpAfter.max || 100;
 
-            // Build fakeP1 at this round's state (mirror bait toggle handler)
-            try {
-                var fakeP1 = $.extend(true, {}, p1RosterEntry);
-                fakeP1.currentHP = rd.p1.hpAfter.current;
-                fakeP1.item = rd.p1.item;
-                fakeP1.ability = rd.p1.ability;
-                fakeP1.status = rd.p1.status;
-                fakeP1.boosts = rd.p1.boosts ? $.extend({}, rd.p1.boosts) : { at:0, df:0, sa:0, sd:0, sp:0 };
-                fakeP1.setId = p1RosterEntry.setId;
-                fakeP1.name = p1Name;
-                fakeP1.sprite = p1RosterEntry.sprite || rd.p1.sprite;
-                fakeP1.moves = p1RosterEntry.moves;
-                fakeP1.maxHP = rd.p1.hpAfter.max;
-                try { fakeP1._speedOverride = computeEntrySpeed(fakeP1); } catch (e2) { /* ignore */ }
-
-                // Snapshot P2 roster, reset, replay up to bait round
-                var p2Team = line.teams.p2;
-                var saved = [];
-                for (var si = 0; si < p2Team.roster.length; si++) {
-                    saved.push({
-                        currentHP: p2Team.roster[si].currentHP,
-                        bestCaseHP: p2Team.roster[si].bestCaseHP,
-                        status: p2Team.roster[si].status || '',
-                        item: p2Team.roster[si].item,
-                        boosts: p2Team.roster[si].boosts ? $.extend({}, p2Team.roster[si].boosts) : null
-                    });
-                }
-                var savedActiveIdx = p2Team.activeIdx;
-                // Reset P2 roster to initial state
-                for (var si2 = 0; si2 < p2Team.roster.length; si2++) {
-                    p2Team.roster[si2].currentHP = p2Team.roster[si2].maxHP;
-                    p2Team.roster[si2].bestCaseHP = p2Team.roster[si2].maxHP;
-                    p2Team.roster[si2].status = '';
-                    if (p2Team.roster[si2].initialItem !== undefined) p2Team.roster[si2].item = p2Team.roster[si2].initialItem;
-                    p2Team.roster[si2].boosts = { at:0, df:0, sa:0, sd:0, sp:0 };
-                }
-                p2Team.activeIdx = 0;
-                // Replay rounds up to and including the bait round
-                for (var si3 = 0; si3 <= ri && si3 < rounds.length; si3++) {
-                    var rr = rounds[si3];
-                    if (rr.p2) {
-                        var p2ri = findInRoster(p2Team, rr.p2.name);
-                        if (p2ri >= 0) {
-                            p2Team.roster[p2ri].currentHP = rr.p2.hpAfter.current;
-                            p2Team.roster[p2ri].bestCaseHP = rr.p2.hpAfter.bestCase != null ? rr.p2.hpAfter.bestCase : rr.p2.hpAfter.current;
-                            if (rr.p2.status) p2Team.roster[p2ri].status = rr.p2.status;
-                            if (rr.p2.item !== undefined) p2Team.roster[p2ri].item = rr.p2.item;
-                            p2Team.activeIdx = p2ri;
-                        }
-                    }
-                }
-                // Compute bait bands
-                var bands = computeBaitAnalysis(fakeP1);
-                // Restore P2 roster state
-                for (var si4 = 0; si4 < p2Team.roster.length; si4++) {
-                    p2Team.roster[si4].currentHP = saved[si4].currentHP;
-                    p2Team.roster[si4].bestCaseHP = saved[si4].bestCaseHP;
-                    p2Team.roster[si4].status = saved[si4].status;
-                    if (saved[si4].item !== undefined) p2Team.roster[si4].item = saved[si4].item;
-                    if (saved[si4].boosts) p2Team.roster[si4].boosts = saved[si4].boosts;
-                }
-                p2Team.activeIdx = savedActiveIdx;
-
-                if (!bands || !bands.length) continue;
-
-                // Find P2 set ID
-                var p2SetId = null;
-                for (var pi = 0; pi < p2Team.roster.length; pi++) {
-                    if (p2Team.roster[pi].name === rd.p2.name) {
-                        p2SetId = p2Team.roster[pi].setId;
-                        break;
-                    }
-                }
-                if (!p2SetId) continue;
-
-                // Compute predamage with p1Item blank so berry suggestions are generated
-                var pdResult = computePredamage({
-                    bands: bands,
-                    p1SetId: fakeP1.setId,
-                    p2SetId: p2SetId,
-                    p1MaxHP: fakeP1.maxHP,
-                    p1Item: '', // blank so berry targets are computed
-                    rounds: rounds,
-                    roundIdx: ri,
-                    p1Name: p1Name,
-                    p2Name: rd.p2.name
-                });
-                if (!pdResult || !pdResult.targets) continue;
-
-                // Find best berry target matching P1's actual item
-                var bestTarget = null;
-                var isSitrus = p1RosterEntry.item === 'Sitrus Berry';
-                for (var bi = 0; bi < pdResult.targets.length; bi++) {
-                    var t = pdResult.targets[bi];
-                    if (!t.possible) continue;
-                    // Prefer crit-resilient berry target
-                    if (isSitrus && t.sitrusCrit) { bestTarget = t.sitrusCrit; break; }
-                    if (!isSitrus && t.oranCrit) { bestTarget = t.oranCrit; break; }
-                    if (isSitrus && t.sitrus) { bestTarget = t.sitrus; break; }
-                    if (!isSitrus && t.oran) { bestTarget = t.oran; break; }
-                }
-                if (!bestTarget) {
-                    // Fallback: norm target from first possible band
-                    for (var bi2 = 0; bi2 < pdResult.targets.length; bi2++) {
-                        if (pdResult.targets[bi2].possible && pdResult.targets[bi2].norm) {
-                            bestTarget = pdResult.targets[bi2].norm;
-                            break;
-                        }
-                    }
-                }
-                if (!bestTarget) continue;
-
-                var maxHP = pdResult.maxHP;
-                var targetHP = bestTarget.hpMax; // enter at max HP of the range
-                var predmg = maxHP - targetHP;
-
-                line.pdReminders.push({
-                    name: p1Name,
-                    sprite: p1RosterEntry.sprite || rd.p1.sprite || '',
-                    targetHP: targetHP,
-                    maxHP: maxHP,
-                    predmg: predmg,
-                    item: p1RosterEntry.item,
-                    auto: true
-                });
-            } catch (e) { /* skip on error */ }
+            line.pdReminders.push({
+                name: p1Name,
+                sprite: entry.sprite || rd.p1.sprite || '',
+                targetHP: maxHP,
+                maxHP: maxHP,
+                predmg: 0,
+                item: berryName,
+                auto: true
+            });
         }
     }
 
