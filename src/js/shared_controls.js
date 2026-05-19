@@ -844,8 +844,29 @@ function correctHiddenPower(pokemon) {
 	return pokemon;
 }
 
+// ── createPokemon memoization ──────────────────────────────────────
+var _pokemonCache = {};
+
+function _clonePokemon(cached) {
+	var clone = Object.assign(Object.create(Object.getPrototypeOf(cached)), cached);
+	if (cached.rawStats) clone.rawStats = Object.assign({}, cached.rawStats);
+	if (cached.stats) clone.stats = Object.assign({}, cached.stats);
+	if (cached.moves) clone.moves = cached.moves.slice();
+	if (cached.ivs) clone.ivs = Object.assign({}, cached.ivs);
+	if (cached.evs) clone.evs = Object.assign({}, cached.evs);
+	if (cached.boosts) clone.boosts = Object.assign({}, cached.boosts);
+	return clone;
+}
+
+function clearPokemonCache() {
+	_pokemonCache = {};
+}
+
 function createPokemon(pokeInfo) {
 	if (typeof pokeInfo === "string") { // in this case, pokeInfo is the id of an individual setOptions value whose moveset's tier matches the selected tier(s)
+		// Cache hit — return a clone so callers can mutate freely
+		if (_pokemonCache[pokeInfo]) return _clonePokemon(_pokemonCache[pokeInfo]);
+
 		var name = pokeInfo.substring(0, pokeInfo.indexOf(" ("));
 		var setName = pokeInfo.substring(pokeInfo.indexOf("(") + 1, pokeInfo.lastIndexOf(")"));
 		var isRandoms = $("#randoms").prop("checked");
@@ -884,7 +905,7 @@ function createPokemon(pokeInfo) {
 			});
 		}
 
-		return new calc.Pokemon(gen, name, {
+		var _result = new calc.Pokemon(gen, name, {
 			level: set.level,
 			ability: set.ability,
 			abilityOn: true,
@@ -894,6 +915,8 @@ function createPokemon(pokeInfo) {
 			evs: evs,
 			moves: pokemonMoves
 		});
+		_pokemonCache[pokeInfo] = _result;
+		return _clonePokemon(_result);
 	} else {
 		var setName = pokeInfo.find("input.set-selector").val();
 		var name;
@@ -1156,6 +1179,7 @@ $(".gen").change(function () {
 	pokedex = calc.SPECIES[gen];
 	setdex = SETDEX[gen];
 	randdex = RANDDEX[gen];
+	clearPokemonCache();
 	typeChart = calc.TYPE_CHART[gen];
 	moves = calc.MOVES[gen];
 	items = calc.ITEMS[gen];

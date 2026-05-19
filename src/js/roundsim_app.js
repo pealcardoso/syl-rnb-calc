@@ -67,6 +67,35 @@
     };
 
     // ════════════════════════════════════════════════════════════
+    // PERFORMANCE — Analysis caches
+    // ════════════════════════════════════════════════════════════
+
+    /** Snapshot of createField() captured at analysis start — avoids repeated DOM reads. */
+    var _fieldSnapshot = null;
+    /** Cache of _calcResult outputs keyed by composite string. */
+    var _calcResultCache = {};
+
+    /** Begin an analysis session — snapshots field and enables caches. */
+    function _perfBeginAnalysis() {
+        _fieldSnapshot = createField();
+        _calcResultCache = {};
+        clearPokemonCache();
+    }
+    /** End an analysis session — releases snapshots. */
+    function _perfEndAnalysis() {
+        _fieldSnapshot = null;
+        _calcResultCache = {};
+    }
+    /** Return cached field or live DOM. */
+    function _getField() {
+        if (_fieldSnapshot) {
+            return new calc.Field({ ..._fieldSnapshot, gameType: 'Doubles' });
+        }
+        var f = createField();
+        return new calc.Field({ ...f, gameType: 'Doubles' });
+    }
+
+    // ════════════════════════════════════════════════════════════
     // POKÉMON TAG / BADGE SYSTEM
     // cat:'util' = blue tier  |  cat:'threat' = red/orange tier
     // Each tag: { id, cat, emoji, name, desc, check(entry, mvKeys, mdata) }
@@ -1177,7 +1206,7 @@
         if (candidates.length === 0) return [];
 
         // Pre-compute damage results and calc fields once (reused every HP sample)
-        var field = createField();
+        var field = _getField();
         var fieldSwap = field.clone().swap();
 
         // Pre-compute AI damage from each candidate and player damage to each candidate
@@ -1224,18 +1253,27 @@
             });
         }
 
-        // Sample HP at every 1% granularity (fine enough for accurate thresholds)
+        // ── Optimized bait analysis: scoring pass + sub-band detection ──
         var step = Math.max(1, Math.floor(maxHP / 100));
-        var bands = [];
-        var prevBaitName = null;
-        var prevMoveKey = null;
 
+        // Helper: get moveKey at a given HP for a candidate entry
+        function _getMoveKey(entry, hp) {
+            var fakeP1 = $.extend(true, {}, p1Entry);
+            fakeP1.currentHP = hp;
+            var moveRates = calcP2MoveRates(entry, fakeP1);
+            var activeMoveCount = 0;
+            for (var ri = 0; ri < moveRates.rates.length; ri++) {
+                if (moveRates.rates[ri].rate >= 0.005) activeMoveCount++;
+            }
+            return { moveKey: entry.name + '|' + activeMoveCount, rates: moveRates };
+        }
+
+        // Pass 1: Score candidates at each HP step to find winner at each HP
+        var hpWinners = []; // [{hp, bestIdx, bestScore}]
         for (var hp = maxHP; hp >= 1; hp -= step) {
-            // Score each candidate at this P1 HP level
             var bestScore = -999, bestIdx = -1;
             for (var ci = 0; ci < precomp.length; ci++) {
                 var pc = precomp[ci];
-                // Recalculate damage % relative to current HP
                 var bestAiPct = 0;
                 for (var m = 0; m < pc.aiDmgs.length; m++) {
                     var pct = pc.aiDmgs[m] / hp * 100;
@@ -1268,59 +1306,119 @@
                     bestIdx = ci;
                 }
             }
+            if (bestIdx >= 0) hpWinners.push({ hp: hp, bestIdx: bestIdx, bestScore: bestScore });
+        }
 
-            if (bestIdx < 0) continue;
-            var winner = precomp[bestIdx];
-            var baitName = winner.candidate.entry.name;
+        // Pass 2: Group by winner → winner segments, then detect sub-bands
+        var bands = [];
+        var prevMoveKey = null;
 
-            // Get move rates for this matchup at this P1 HP
-            var fakeP1 = $.extend(true, {}, p1Entry);
-            fakeP1.currentHP = hp;
-            var moveRates = calcP2MoveRates(winner.candidate.entry, fakeP1);
-            // Count active moves (rate > ~0%) to group by
-            var activeMoveCount = 0;
-            for (var ri = 0; ri < moveRates.rates.length; ri++) {
-                if (moveRates.rates[ri].rate >= 0.005) activeMoveCount++;
+        // Group consecutive HP steps by winning candidate
+        var winnerGroups = []; // [{bestIdx, hpUpper, hpLower, bestScore}]
+        for (var si = 0; si < hpWinners.length; si++) {
+            var hw = hpWinners[si];
+            if (!winnerGroups.length || winnerGroups[winnerGroups.length - 1].bestIdx !== hw.bestIdx) {
+                winnerGroups.push({ bestIdx: hw.bestIdx, hpUpper: hw.hp, hpLower: hw.hp, bestScore: hw.bestScore });
+            } else {
+                winnerGroups[winnerGroups.length - 1].hpLower = hw.hp;
             }
-            var moveKey = baitName + '|' + activeMoveCount;
+        }
 
-            if (moveKey !== prevMoveKey) {
-                // New band — initialise min/max tracking per move
+        // For each winner group, detect sub-bands via interval sampling
+        for (var gi = 0; gi < winnerGroups.length; gi++) {
+            var g = winnerGroups[gi];
+            var winner = precomp[g.bestIdx];
+            var entry = winner.candidate.entry;
+
+            // Collect HP values in this group
+            var groupHPs = [];
+            for (var hi = 0; hi < hpWinners.length; hi++) {
+                if (hpWinners[hi].hp <= g.hpUpper && hpWinners[hi].hp >= g.hpLower) {
+                    groupHPs.push(hpWinners[hi].hp);
+                }
+            }
+            if (!groupHPs.length) continue;
+
+            // Sample at ~10 evenly-spaced points plus endpoints
+            var sampleIdxs = [0];
+            var nSamples = Math.min(groupHPs.length, 10);
+            for (var si = 1; si < nSamples; si++) {
+                var idx = Math.round(si * (groupHPs.length - 1) / nSamples);
+                if (sampleIdxs.indexOf(idx) < 0) sampleIdxs.push(idx);
+            }
+            if (sampleIdxs.indexOf(groupHPs.length - 1) < 0) sampleIdxs.push(groupHPs.length - 1);
+            sampleIdxs.sort(function (a, b) { return a - b; });
+
+            // Compute moveKey at sampled points
+            var samples = []; // [{hp, moveKey, rates}]
+            for (var si = 0; si < sampleIdxs.length; si++) {
+                var hp = groupHPs[sampleIdxs[si]];
+                var info = _getMoveKey(entry, hp);
+                samples.push({ hp: hp, moveKey: info.moveKey, rates: info.rates, idx: sampleIdxs[si] });
+            }
+
+            // Find coarse change points between adjacent samples, then refine
+            var changePoints = []; // HP values where moveKey changes
+            for (var si = 0; si < samples.length - 1; si++) {
+                if (samples[si].moveKey !== samples[si + 1].moveKey) {
+                    // Binary search between these two sample indices for exact boundary
+                    var lo = samples[si].idx, hi = samples[si + 1].idx;
+                    var loMK = samples[si].moveKey;
+                    while (hi - lo > 1) {
+                        var mid = Math.floor((lo + hi) / 2);
+                        var midInfo = _getMoveKey(entry, groupHPs[mid]);
+                        if (midInfo.moveKey === loMK) { lo = mid; } else { hi = mid; }
+                    }
+                    changePoints.push(hi); // index in groupHPs where the change happens
+                }
+            }
+
+            // Also check for non-monotonic changes within same-moveKey spans
+            // by checking endpoints of each span when they share a moveKey
+            // (e.g., moveKey A at sample 0 and sample 4, but moveKey B at sample 2)
+            // The above loop already handles this since it checks every adjacent pair
+
+            // Build sub-bands from change points
+            var boundaryIdxs = [0];
+            for (var ci = 0; ci < changePoints.length; ci++) {
+                if (boundaryIdxs.indexOf(changePoints[ci]) < 0) {
+                    boundaryIdxs.push(changePoints[ci]);
+                }
+            }
+            boundaryIdxs.push(groupHPs.length - 1);
+            boundaryIdxs.sort(function (a, b) { return a - b; });
+
+            for (var bi2 = 0; bi2 < boundaryIdxs.length - 1; bi2++) {
+                var upperIdx = boundaryIdxs[bi2];
+                var lowerIdx = boundaryIdxs[bi2 + 1];
+                var bandUpper = groupHPs[upperIdx];
+                var bandLower = groupHPs[lowerIdx];
+
+                var upperInfo = _getMoveKey(entry, bandUpper);
+                var lowerInfo = (bandUpper === bandLower) ? upperInfo : _getMoveKey(entry, bandLower);
+
                 var movesWithRange = [];
-                for (var ri = 0; ri < moveRates.rates.length; ri++) {
+                for (var ri = 0; ri < upperInfo.rates.rates.length; ri++) {
+                    var lr = lowerInfo.rates.rates[ri] ? lowerInfo.rates.rates[ri].rate : upperInfo.rates.rates[ri].rate;
                     movesWithRange.push({
-                        move: moveRates.rates[ri].move,
-                        minRate: moveRates.rates[ri].rate,
-                        maxRate: moveRates.rates[ri].rate
+                        move: upperInfo.rates.rates[ri].move,
+                        minRate: Math.min(upperInfo.rates.rates[ri].rate, lr),
+                        maxRate: Math.max(upperInfo.rates.rates[ri].rate, lr)
                     });
                 }
                 bands.push({
-                    hpUpper: hp,
-                    hpLower: hp,
-                    pctUpper: Math.round(hp / maxHP * 100),
-                    pctLower: Math.round(hp / maxHP * 100),
-                    baitName: baitName,
-                    baitSprite: winner.candidate.entry.sprite || getSprite(baitName),
+                    hpUpper: bandUpper, hpLower: bandLower,
+                    pctUpper: Math.round(bandUpper / maxHP * 100),
+                    pctLower: Math.round(bandLower / maxHP * 100),
+                    baitName: entry.name,
+                    baitSprite: entry.sprite || getSprite(entry.name),
                     reason: winner.aiFaster ? 'Faster' : (winner.aiSlower ? 'Slower' : 'Tie'),
-                    score: bestScore,
-                    faster: winner.aiFaster,
+                    score: g.bestScore, faster: winner.aiFaster,
                     moves: movesWithRange
                 });
-                prevMoveKey = moveKey;
-                prevBaitName = baitName;
-            } else {
-                // Extend current band and widen min/max ranges
-                var cur = bands[bands.length - 1];
-                cur.hpLower = hp;
-                cur.pctLower = Math.round(hp / maxHP * 100);
-                for (var ri = 0; ri < moveRates.rates.length; ri++) {
-                    if (cur.moves[ri]) {
-                        cur.moves[ri].minRate = Math.min(cur.moves[ri].minRate, moveRates.rates[ri].rate);
-                        cur.moves[ri].maxRate = Math.max(cur.moves[ri].maxRate, moveRates.rates[ri].rate);
-                    }
-                }
             }
         }
+
         return bands;
     }
 
@@ -1373,6 +1471,8 @@
             if (eP2Move && opts.overrideP2Moves && opts.overrideP2Moves[ei]) {
                 eP2Move = opts.overrideP2Moves[ei];
             }
+            // '(Miss)' sentinel: treat as 0 damage for this round
+            if (eP2Move === '(Miss)') eP2Move = null;
             if (!eP2Move) {
                 roundDmgs.push({ roundNum: eRd.roundNum || (engagement[ei] + 1), move: null,
                     minNorm: 0, maxNorm: 0, minCrit: 0, maxCrit: 0 });
@@ -1391,7 +1491,7 @@
                 if (eRd.p1.item !== undefined) def.item = eRd.p1.item;
                 if (eRd.p1.ability) def.ability = eRd.p1.ability;
                 // Use per-round field state (weather/terrain from the round, not current form)
-                var field = createField();
+                var field = _fieldSnapshot ? new calc.Field({ ..._fieldSnapshot, gameType: 'Doubles' }) : createField();
                 var fieldWeather = eRd.weather || field.weather || '';
                 var fieldTerrain = eRd.terrain || field.terrain || '';
                 field = new calc.Field({ ...field, gameType: 'Doubles',
@@ -3188,9 +3288,7 @@
             if (atkEntry.ability) atk.ability = atkEntry.ability;
             if (defEntry.ability) def.ability = defEntry.ability;
 
-            var field = createField();
-            // Ensure doubles gameType
-            field = new calc.Field({ ...field, gameType: 'Doubles' });
+            var field = _getField();
 
             var mv = new calc.Move(gen || 9, moveName, {
                 ability: atk.ability,
@@ -3270,8 +3368,7 @@
             if (p2Entry.ability) p2Poke.ability = p2Entry.ability;
             if (p1Entry.ability) p1Poke.ability = p1Entry.ability;
 
-            var field = createField();
-            field = new calc.Field({ ...field, gameType: 'Doubles' });
+            var field = _getField();
             var field2 = field.clone().swap();
 
             var p1Results = [];
@@ -9495,6 +9592,52 @@
                         }
                         var _rdMoves = _eRd.p2.allMoves || [];
                         var _rdPcts = _eRd.p2.aiPcts || [];
+
+                        // On a switch-in round (P1 just switched in, p1Move === '—'),
+                        // P2 chose their move while seeing the OUTGOING P1, not the
+                        // incoming one.  Re-compute AI pcts against the outgoing P1 so
+                        // the move tabs reflect the real decision the AI made.
+                        var _isSwitchInRound = _eii === 0 && _eRd.p1.move === '—';
+                        if (_isSwitchInRound) {
+                            var _prevIdx = _engIdxs[0] - 1;
+                            if (_prevIdx >= 0 && _baitRounds[_prevIdx] && _baitRounds[_prevIdx].p1) {
+                                var _outP1Name = _baitRounds[_prevIdx].p1.name;
+                                var _outP1Entry = null;
+                                for (var _opi = 0; _opi < _baitLine.teams.p1.roster.length; _opi++) {
+                                    if (_baitLine.teams.p1.roster[_opi].name === _outP1Name) {
+                                        _outP1Entry = $.extend(true, {}, _baitLine.teams.p1.roster[_opi]);
+                                        _outP1Entry.currentHP = _baitRounds[_prevIdx].p1.hpAfter.current;
+                                        _outP1Entry.maxHP = _baitRounds[_prevIdx].p1.hpAfter.max;
+                                        break;
+                                    }
+                                }
+                                if (_outP1Entry) {
+                                    var _p2ri = findInRoster(p2Team, _eRd.p2.name);
+                                    if (_p2ri >= 0) {
+                                        var _switchP2Entry = $.extend(true, {}, p2Team.roster[_p2ri]);
+                                        _switchP2Entry.currentHP = _eRd.p2.hpAfter.max || _switchP2Entry.maxHP;
+                                        var _switchRates = calcP2MoveRates(_switchP2Entry, _outP1Entry);
+                                        if (_switchRates && _switchRates.rates && _switchRates.rates.length) {
+                                            // Rebuild _rdPcts from the recomputed rates, aligned to _rdMoves
+                                            var _newPcts = [];
+                                            for (var _npi = 0; _npi < _rdMoves.length; _npi++) {
+                                                var _found = false;
+                                                for (var _sri = 0; _sri < _switchRates.rates.length; _sri++) {
+                                                    if (_switchRates.rates[_sri].move === _rdMoves[_npi]) {
+                                                        _newPcts.push((_switchRates.rates[_sri].rate * 100).toFixed(2) + '%');
+                                                        _found = true;
+                                                        break;
+                                                    }
+                                                }
+                                                if (!_found) _newPcts.push('0.00%');
+                                            }
+                                            _rdPcts = _newPcts;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
                         var _dmgMoves = [];
                         var _anyPct = false;
                         for (var _pi2 = 0; _pi2 < _rdPcts.length; _pi2++) {
@@ -9511,6 +9654,18 @@
                             _dmgMoves.push({ name: _rmName, pct: _rmPct });
                         }
                         if (_dmgMoves.length === 0) _dmgMoves.push({ name: _eRd.p2.move, pct: 100 });
+                        // Add a Miss variant for moves that can miss (accuracy < 100)
+                        var _hasMissable = false;
+                        for (var _ami = 0; _ami < _dmgMoves.length; _ami++) {
+                            var _amData = lookupMoveData(_dmgMoves[_ami].name);
+                            if (_amData && typeof _amData.accuracy === 'number' && _amData.accuracy < 100) {
+                                _hasMissable = true;
+                                break;
+                            }
+                        }
+                        if (_hasMissable) {
+                            _dmgMoves.push({ name: '(Miss)', pct: 0 });
+                        }
                         _perRoundMoves.push(_dmgMoves);
                     }
 
@@ -11197,11 +11352,21 @@
             'Badly Poisoned': 'Badly Poisoned', 'Sleep': 'Asleep', 'Freeze': 'Frozen'
         };
 
-        // ── Re-calc helper ────────────────────────────────────────────
+        // ── Re-calc helper (cached during analysis) ───────────────────
         function _calcResult(atkSetId, defSetId, moveName, ov) {
             if (!atkSetId || !defSetId || !moveName || moveName === '(No Move)') return null;
             try {
                 ov = ov || {};
+                var cacheKey = atkSetId + '|' + defSetId + '|' + moveName + '|' +
+                    (ov.atkHP != null ? ov.atkHP : '') + '|' +
+                    (ov.defHP != null ? ov.defHP : '') + '|' +
+                    (ov.atkItem !== undefined ? ov.atkItem : '') + '|' +
+                    (ov.defItem !== undefined ? ov.defItem : '') + '|' +
+                    (ov.atkAbility || '') + '|' + (ov.defAbility || '') + '|' +
+                    (ov.atkStatus || '') + '|' + (ov.defStatus || '') + '|' +
+                    (ov.isCrit ? '1' : '0');
+                if (_calcResultCache[cacheKey]) return _calcResultCache[cacheKey];
+
                 var atk = createPokemon(atkSetId);
                 var def = createPokemon(defSetId);
                 if (ov.atkHP != null) atk.originalCurHP = Math.min(ov.atkHP, atk.rawStats.hp);
@@ -11212,12 +11377,13 @@
                 if (ov.defAbility) def.ability = ov.defAbility;
                 if (ov.atkStatus && RS_CALC_STATUS[ov.atkStatus]) atk.status = RS_CALC_STATUS[ov.atkStatus];
                 if (ov.defStatus && RS_CALC_STATUS[ov.defStatus]) def.status = RS_CALC_STATUS[ov.defStatus];
-                var field = createField();
-                field = new calc.Field({ ...field, gameType: 'Doubles' });
+                var field = _getField();
                 var mv = new calc.Move(gen || 9, moveName, {
                     ability: atk.ability, item: atk.item, isCrit: !!ov.isCrit
                 });
-                return calc.calculate(gen || 9, atk, def, mv, field);
+                var result = calc.calculate(gen || 9, atk, def, mv, field);
+                _calcResultCache[cacheKey] = result;
+                return result;
             } catch (e) { return null; }
         }
 
@@ -12876,6 +13042,8 @@
         // ═══════════════════════════════════════════════════════════════
 
         function analyzeFight(line) {
+            _perfBeginAnalysis();
+            try {
             var rounds = getBranchRounds(line, line.activeBranchIdx || -1);
             if (!rounds || !rounds.length) return { rounds: [], error: null };
             var analyzed = [];
@@ -12948,11 +13116,13 @@
             // ── Item recommendations ──
             var recommendations = _generateItemRecommendations(line, analyzed, rounds);
 
-            return {
+            var _result = {
                 rounds: analyzed, error: null,
                 summary: { clean: cleanCount, different: diffCount, backup: backupCount },
                 recommendations: recommendations
             };
+            return _result;
+            } finally { _perfEndAnalysis(); }
         }
 
         // ═══════════════════════════════════════════════════════════════
