@@ -9,3 +9,8 @@ dist/
 scripts/__pycache__
 .vscode
 .env
+playwright-report/
+pw-out.*
+playwright-results.json
+test_err*.txt
+test_out*.txt

@@ -11,8 +11,8 @@
 
     var SPRITE_BASE = 'https://raw.githubusercontent.com/May8th1995/sprites/master/';
     var ITEM_SPRITE_BASE = 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/';
-    var TYPE_SPRITE_BASE = 'https://play.pokemonshowdown.com/sprites/types/';
-    var CATEGORY_SPRITE_BASE = 'https://play.pokemonshowdown.com/sprites/categories/';
+    var TYPE_SPRITE_BASE = 'img/types/';
+    var CATEGORY_SPRITE_BASE = 'img/categories/';
     var MAX_TEAM_SIZE = 6;
 
     // Preload all type/category sprite images immediately so the browser
@@ -7601,7 +7601,9 @@
             '</div>';
         }
 
-        return '<div class="rsa-round-card" data-round="' + rd.roundNum + '">' +
+        var _p2ko = (rd.p2 && rd.p2.hpAfter && rd.p2.hpAfter.current <= 0) ? ' data-p2-ko="1"' : '';
+        var _p1ko = (rd.p1 && rd.p1.hpAfter && rd.p1.hpAfter.current <= 0) ? ' data-p1-ko="1"' : '';
+        return '<div class="rsa-round-card" data-round="' + rd.roundNum + '"' + _p2ko + _p1ko + '>' +
             '<div class="rsa-round-header">' +
                 '<span class="rsa-round-num">Round ' + rd.roundNum + '</span>' +
                 '<span class="rsa-speed">⚡ ' + rd.speed.p1 + ' vs ' + rd.speed.p2 + ' — ' + speedLabel + '</span>' +
