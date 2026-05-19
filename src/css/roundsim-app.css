@@ -2696,3 +2696,352 @@ fieldset {
     text-align: right;
     font-weight: 600;
 }
+
+/* ══════════════════════════════════════════════════════════════
+   VISUAL POLISH — Phase 2
+   Elevation, depth, form controls, bar unification
+   ══════════════════════════════════════════════════════════════ */
+
+/* ── 1. Round Card Depth & Scanability ─────────────────────── */
+.rsa-round-card {
+    box-shadow: 0 1px 3px rgba(0,0,0,0.25), 0 1px 2px rgba(0,0,0,0.15);
+}
+.rsa-round-card:hover {
+    box-shadow: 0 3px 8px rgba(0,0,0,0.35), 0 1px 3px rgba(0,0,0,0.2);
+}
+.rsa-round-header {
+    background: linear-gradient(135deg, var(--rsa-bg-overlay) 0%, var(--rsa-bg-base) 100%);
+}
+.rsa-round-card[data-p2-ko="1"] .rsa-round-header {
+    background: linear-gradient(135deg, rgba(72,187,120,0.06) 0%, var(--rsa-bg-base) 100%);
+}
+.rsa-round-card[data-p1-ko="1"] .rsa-round-header {
+    background: linear-gradient(135deg, rgba(252,129,129,0.06) 0%, var(--rsa-bg-base) 100%);
+}
+.rsa-round-num {
+    background: var(--rsa-bg-raised);
+    padding: 2px 8px;
+    border-radius: var(--rsa-radius-sm);
+    font-size: var(--rsa-fs-sm);
+    letter-spacing: 0.02em;
+}
+.rsa-actor {
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.03);
+}
+.rsa-round-body {
+    padding: var(--rsa-sp-3) var(--rsa-sp-3);
+    gap: var(--rsa-sp-3);
+}
+/* Collapsed cards — tighter, chip-like */
+.rsa-round-card.rsa-collapsed {
+    margin-bottom: var(--rsa-sp-1);
+}
+.rsa-round-card.rsa-collapsed .rsa-round-header {
+    padding: 4px 10px;
+}
+
+/* ── 2. Move Selection Restyle ─────────────────────────────── */
+.rsa-moves-area label.btn.btn-xxxwide {
+    background: var(--rsa-bg-overlay);
+    border: 1px solid var(--rsa-border-subtle);
+    color: var(--rsa-text);
+    border-radius: var(--rsa-radius);
+    padding: 5px 10px;
+    font-size: var(--rsa-fs-sm);
+    font-weight: 500;
+    transition: all var(--rsa-tr-fast);
+    margin-bottom: 3px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.15);
+}
+.rsa-moves-area label.btn.btn-xxxwide:hover {
+    background: var(--rsa-bg-raised);
+    border-color: var(--rsa-border);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    transform: translateY(-1px);
+}
+.rsa-moves-area label.btn.btn-xxxwide.active,
+.rsa-moves-area label.btn.btn-xxxwide:has(input:checked) {
+    background: var(--rsa-blue-bg);
+    border-color: var(--rsa-blue-dim);
+    color: var(--rsa-blue-pale);
+    box-shadow: 0 0 0 1px var(--rsa-blue-dim), 0 2px 4px rgba(0,0,0,0.2);
+    font-weight: 600;
+}
+.rsa-moves-area label.btn.btn-xxxwide:focus-within {
+    outline: 2px solid var(--rsa-blue);
+    outline-offset: 2px;
+}
+/* Move rate badges on P2 moves */
+.rsa-moves-area .resultMoveRateR {
+    background: rgba(99,179,237,0.12);
+    padding: 1px 6px;
+    border-radius: 3px;
+}
+
+/* ── 3. Box Panel Polish ───────────────────────────────────── */
+.rsa-box-panel {
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+    transition: box-shadow var(--rsa-tr-base);
+}
+.rsa-box-slot {
+    transition: all var(--rsa-tr-fast);
+    border-radius: var(--rsa-radius);
+}
+.rsa-box-slot:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 3px 8px rgba(0,0,0,0.3);
+}
+.rsa-box-header {
+    padding-bottom: var(--rsa-sp-2);
+    margin-bottom: var(--rsa-sp-2);
+}
+.rsa-box-name {
+    font-weight: 500;
+    letter-spacing: -0.01em;
+}
+.rsa-rank-badges {
+    gap: 3px;
+    margin-top: 2px;
+}
+.rsa-rank-off, .rsa-rank-def, .rsa-rank-def-all {
+    box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+}
+
+/* ── 4. Top Bars Unification ───────────────────────────────── */
+.rsa-nav {
+    padding: 10px 16px;
+    background: linear-gradient(180deg, var(--rsa-bg-base) 0%, var(--rsa-bg-overlay) 100%);
+    border-bottom: 1px solid var(--rsa-border-subtle);
+    box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+    position: relative;
+    z-index: 100;
+}
+.rsa-nav-title {
+    font-size: var(--rsa-fs-xl);
+    letter-spacing: -0.02em;
+}
+.rsa-lines-bar, .rsa-format-bar {
+    background: var(--rsa-bg-overlay);
+    border-color: var(--rsa-border-subtle);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+}
+.rsa-format-btn, .rsa-line-btn {
+    border-radius: var(--rsa-radius);
+    font-weight: 500;
+    transition: all var(--rsa-tr-fast);
+}
+.rsa-format-btn:hover, .rsa-line-btn:hover {
+    transform: translateY(-1px);
+}
+
+/* ── 5. Team Panel Polish ──────────────────────────────────── */
+.rsa-team {
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+    border-radius: var(--rsa-radius-lg);
+    transition: box-shadow var(--rsa-tr-base);
+}
+.rsa-team-header {
+    background: linear-gradient(135deg, var(--rsa-bg-base) 0%, var(--rsa-bg-overlay) 100%);
+    border-bottom: 1px solid var(--rsa-border-subtle);
+    padding: var(--rsa-sp-2) var(--rsa-sp-3);
+    border-radius: var(--rsa-radius-lg) var(--rsa-radius-lg) 0 0;
+}
+.rsa-team-title-p1 {
+    color: var(--rsa-blue);
+    font-weight: 700;
+    letter-spacing: -0.01em;
+}
+.rsa-team-title-p2 {
+    color: var(--rsa-red);
+    font-weight: 700;
+    letter-spacing: -0.01em;
+}
+
+/* ── 6. Native Form Controls ──────────────────────────────── */
+.rsa-controls-row input[type="checkbox"],
+.rsa-inline-check input[type="checkbox"],
+.rsa-moves-area input[type="checkbox"],
+.rsa-moves-area input[type="radio"] {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 14px;
+    height: 14px;
+    border: 2px solid var(--rsa-border-strong);
+    border-radius: 3px;
+    background: var(--rsa-bg-raised);
+    cursor: pointer;
+    transition: all var(--rsa-tr-fast);
+    position: relative;
+    vertical-align: middle;
+    flex-shrink: 0;
+}
+.rsa-moves-area input[type="radio"] {
+    border-radius: 50%;
+}
+.rsa-controls-row input[type="checkbox"]:checked,
+.rsa-inline-check input[type="checkbox"]:checked,
+.rsa-moves-area input[type="checkbox"]:checked {
+    background: var(--rsa-blue-dim);
+    border-color: var(--rsa-blue);
+}
+.rsa-controls-row input[type="checkbox"]:checked::after,
+.rsa-inline-check input[type="checkbox"]:checked::after,
+.rsa-moves-area input[type="checkbox"]:checked::after {
+    content: '';
+    position: absolute;
+    top: 1px; left: 4px;
+    width: 4px; height: 7px;
+    border: solid #fff;
+    border-width: 0 2px 2px 0;
+    transform: rotate(45deg);
+}
+.rsa-moves-area input[type="radio"]:checked {
+    background: var(--rsa-blue-dim);
+    border-color: var(--rsa-blue);
+}
+.rsa-moves-area input[type="radio"]:checked::after {
+    content: '';
+    position: absolute;
+    top: 3px; left: 3px;
+    width: 4px; height: 4px;
+    border-radius: 50%;
+    background: #fff;
+}
+.rsa-controls-row input[type="checkbox"]:focus-visible,
+.rsa-moves-area input[type="checkbox"]:focus-visible,
+.rsa-moves-area input[type="radio"]:focus-visible {
+    outline: 2px solid var(--rsa-blue);
+    outline-offset: 2px;
+}
+/* Number inputs */
+.rsa-controls-row input[type="number"],
+.rsa-inline-row input[type="number"] {
+    background: var(--rsa-bg-raised);
+    border: 1px solid var(--rsa-border);
+    color: var(--rsa-text);
+    border-radius: var(--rsa-radius-sm);
+    padding: 3px 6px;
+    font-size: var(--rsa-fs-sm);
+    font-family: var(--rsa-font-mono);
+    transition: border-color var(--rsa-tr-fast);
+}
+.rsa-controls-row input[type="number"]:focus,
+.rsa-inline-row input[type="number"]:focus {
+    outline: none;
+    border-color: var(--rsa-blue);
+    box-shadow: 0 0 0 2px rgba(99,179,237,0.15);
+}
+/* Select elements in controls */
+.rsa-controls-row select {
+    background: var(--rsa-bg-raised);
+    border: 1px solid var(--rsa-border);
+    color: var(--rsa-text);
+    border-radius: var(--rsa-radius-sm);
+    padding: 3px 8px;
+    font-size: var(--rsa-fs-sm);
+    cursor: pointer;
+    transition: border-color var(--rsa-tr-fast);
+}
+.rsa-controls-row select:focus {
+    outline: none;
+    border-color: var(--rsa-blue);
+    box-shadow: 0 0 0 2px rgba(99,179,237,0.15);
+}
+
+/* ── 7. Tokenize Remaining Hard-Coded Colors ───────────────── */
+.rsa-sort-btn.rsa-sort-active {
+    background: var(--rsa-blue-dim);
+    color: #fff;
+    border-color: var(--rsa-blue-dim);
+}
+.rsa-terrain { background: var(--rsa-green-dim); color: #fff; }
+.rsa-prob-high { background: var(--rsa-green-dim); color: #fff; }
+.rsa-hazard-set { background: var(--rsa-yellow-dim); color: var(--rsa-yellow-light); font-weight: 700; }
+.rsa-crit-info { color: var(--rsa-orange-light); font-weight: 600; }
+.rsa-toggle-crit.rsa-crit-active {
+    background: var(--rsa-red-dim);
+    border-color: var(--rsa-red-strong);
+    color: #fff;
+    font-weight: 700;
+}
+
+/* ── 8. Button Polish (shared RSA buttons) ─────────────────── */
+.rsa-box-import-btn,
+.rsa-bug-report-btn,
+.rsa-format-btn,
+.rsa-sort-btn {
+    box-shadow: 0 1px 2px rgba(0,0,0,0.12);
+    transition: all var(--rsa-tr-fast);
+}
+.rsa-box-import-btn:hover,
+.rsa-bug-report-btn:hover,
+.rsa-format-btn:hover,
+.rsa-sort-btn:hover {
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    transform: translateY(-1px);
+}
+.rsa-box-import-btn:active,
+.rsa-bug-report-btn:active,
+.rsa-format-btn:active,
+.rsa-sort-btn:active {
+    transform: translateY(0);
+    box-shadow: 0 1px 1px rgba(0,0,0,0.15);
+}
+
+/* ── 9. Scrollbar Polish (firefox + chrome) ────────────────── */
+.rsa-box-grid, .rsa-team-panel, #rsa-round-log {
+    scrollbar-width: thin;
+    scrollbar-color: var(--rsa-border) transparent;
+}
+.rsa-box-grid::-webkit-scrollbar,
+#rsa-round-log::-webkit-scrollbar {
+    width: 6px; height: 6px;
+}
+.rsa-box-grid::-webkit-scrollbar-track,
+#rsa-round-log::-webkit-scrollbar-track {
+    background: transparent;
+}
+.rsa-box-grid::-webkit-scrollbar-thumb,
+#rsa-round-log::-webkit-scrollbar-thumb {
+    background: var(--rsa-border);
+    border-radius: 3px;
+}
+.rsa-box-grid::-webkit-scrollbar-thumb:hover,
+#rsa-round-log::-webkit-scrollbar-thumb:hover {
+    background: var(--rsa-border-strong);
+}
+
+/* ── 10. Focus Rings & Accessibility ───────────────────────── */
+.rsa-format-btn:focus-visible,
+.rsa-sort-btn:focus-visible,
+.rsa-box-import-btn:focus-visible,
+.rsa-bug-report-btn:focus-visible,
+.rsa-line-btn:focus-visible,
+.rsa-team-slot:focus-visible {
+    outline: 2px solid var(--rsa-blue);
+    outline-offset: 2px;
+}
+
+/* ── 11. Log Round Button Enhancement ──────────────────────── */
+.rsa-log-btn {
+    background: linear-gradient(135deg, var(--rsa-blue-dim) 0%, var(--rsa-blue-bg) 100%);
+    border: 1px solid var(--rsa-blue-dim);
+    color: var(--rsa-blue-pale);
+    padding: 6px 16px;
+    border-radius: var(--rsa-radius);
+    font-weight: 700;
+    font-size: var(--rsa-fs-sm);
+    cursor: pointer;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    transition: all var(--rsa-tr-fast);
+}
+.rsa-log-btn:hover {
+    background: linear-gradient(135deg, var(--rsa-blue) 0%, var(--rsa-blue-dim) 100%);
+    color: #fff;
+    box-shadow: 0 3px 8px rgba(0,0,0,0.3);
+    transform: translateY(-1px);
+}
+.rsa-log-btn:active {
+    transform: translateY(0);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+}
