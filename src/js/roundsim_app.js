@@ -4013,6 +4013,13 @@
             injectMoveLabelSprites();
             // Re-render inline controls so damage % is up to date
             renderRoundLog();
+            // Restore activeIdx after rebuildBranchTeams may have reset it
+            var _loadedLine = curLine();
+            var _loadedTeam = _loadedLine.teams[side];
+            var _loadedIdx = findInRoster(_loadedTeam, entry.name);
+            if (_loadedIdx >= 0) _loadedTeam.activeIdx = _loadedIdx;
+            // Update info strip so sprite/name reflects the newly loaded mon
+            updateMovePickDisplay();
         }, 0);
     }
 
@@ -6926,7 +6933,6 @@
                 var rd = line.rounds[i];
                 html += rd.isDoubles ? renderDoublesRoundCard(rd) : renderRoundCard(rd, -1);
             }
-            html += renderPdReminders(line);
             if (!isDoubles()) html += renderInlineControls();
             $log.html(html);
             $('#rsa-round-count').text(line.rounds.length);
@@ -6988,7 +6994,6 @@
 
             // Inline controls for this column (only for active branch)
             if (isActive && !isDoubles()) {
-                html += renderPdReminders(line);
                 html += renderInlineControls();
             }
 
@@ -7916,6 +7921,57 @@
     // MOVE SELECTION — integrated with calc radio buttons
     // ════════════════════════════════════════════════════════════
 
+    function _injectMoveInfoStrip(side) {
+        var isP1 = side === 'p1';
+        var subgroupId = isP1 ? 'move-result-subgroupL' : 'move-result-subgroupR';
+        var subgroup = document.getElementById(subgroupId);
+        if (!subgroup) return;
+        var headerDiv = subgroup.querySelector('.result-move-header');
+        if (!headerDiv) return;
+
+        var line = curLine();
+        if (!line || !line.teams) {
+            headerDiv.textContent = isP1 ? 'Select a P1 move' : 'Select a P2 move';
+            return;
+        }
+        var team = isP1 ? line.teams.p1 : line.teams.p2;
+        var entry = getActiveEntry(team);
+        if (!entry) {
+            headerDiv.textContent = isP1 ? 'Select a P1 move' : 'Select a P2 move';
+            return;
+        }
+
+        var spriteUrl = entry.sprite || getSprite(entry.name);
+        var types = entry.types || [];
+        var item = entry.item || '';
+        var ability = entry.ability || '';
+        var spd = getSpeedInfo();
+        var spdVal = isP1 ? spd.p1 : spd.p2;
+
+        var html = '<div class="rsa-move-info-strip">';
+        html += '<img class="rsa-move-info-sprite" src="' + esc(spriteUrl) + '" alt="' + esc(entry.name) + '" onerror="this.style.display=\'none\'">';
+        html += '<span class="rsa-move-info-name">' + esc(entry.name) + '</span>';
+        for (var t = 0; t < types.length; t++) {
+            if (types[t]) {
+                html += '<img class="rsa-move-info-type" src="' + getTypeSpriteUrl(types[t]) + '" alt="' + esc(types[t]) + '" title="' + esc(types[t]) + '">';
+            }
+        }
+        html += '<span class="rsa-move-info-sep">|</span>';
+        html += '<span class="rsa-move-info-stat" title="Speed">⚡' + spdVal + '</span>';
+        if (ability) {
+            html += '<span class="rsa-move-info-stat" title="Ability">🛡 ' + esc(ability) + '</span>';
+        }
+        if (item) {
+            var itemUrl = getItemSpriteUrl(item);
+            html += '<span class="rsa-move-info-item" title="' + esc(item) + '">';
+            if (itemUrl) html += '<img class="rsa-move-info-item-icon" src="' + esc(itemUrl) + '" alt="" onerror="this.style.display=\'none\'">';
+            html += esc(item) + '</span>';
+        }
+        html += '</div>';
+
+        headerDiv.innerHTML = html;
+    }
+
     function updateMovePickDisplay() {
         // Re-anchor the calc's move-result-group into our moves area.
         // The calc framework regenerates this element on every set change
@@ -7934,6 +7990,10 @@
         if (!_loadingForm) {
             injectMoveLabelSprites();
         }
+
+        // Inject Pokemon info strip into move subgroup headers
+        _injectMoveInfoStrip('p1');
+        _injectMoveInfoStrip('p2');
 
         // Highlight the selected move rows
         $('.move-result-subgroupL > div').removeClass('rsa-move-selected');
