@@ -3782,11 +3782,8 @@
         var hasMagicGuard = abilEff ? !!abilEff.indirectDamageImmunity : (ability === 'Magic Guard');
         var hasPoisonHeal = abilEff && abilEff.statusHeal && (abilEff.statusHeal.status === 'Poison' || abilEff.statusHeal.status === 'Badly Poisoned');
         if (!abilEff) hasPoisonHeal = (ability === 'Poison Heal');
-        // Guts suppresses burn damage (but burn SpAtk drop still applies)
-        var hasGuts = abilEff ? !!abilEff.burnAttackBoost : (ability === 'Guts');
-
-        // --- Status damage (blocked by Magic Guard / Guts for burn) ---
-        if (entry.status === 'Burn' && !hasMagicGuard && !hasGuts) {
+        // --- Status damage (blocked by Magic Guard) ---
+        if (entry.status === 'Burn' && !hasMagicGuard) {
             var burnDmg = Math.max(1, Math.floor(maxHP / 16));
             eot.push({ source: 'Burn', damage: burnDmg });
         }
@@ -11106,7 +11103,7 @@
             if (reg.ignoresAbility)         parts.push('Ignores defender abilities');
             if (reg.survivalFullHP)         parts.push('Survives one hit at 1 HP from full');
             if (reg.statusImmunity)         parts.push('Immune to: ' + reg.statusImmunity.join(', '));
-            if (reg.burnAttackBoost)        parts.push('Ignores burn Atk drop + chip');
+            if (reg.burnAttackBoost)        parts.push('Ignores burn Atk drop');
             if (reg.priorityMod) {
                 var pm = reg.priorityMod;
                 if (pm.condition && pm.condition.alwaysLast) parts.push('Always moves last');

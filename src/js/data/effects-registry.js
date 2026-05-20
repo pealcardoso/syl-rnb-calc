@@ -45,7 +45,7 @@
  *                                             'Badly Poisoned','Paralysis','any')
  *   statusHeal:             { status, frac }
  *                                          — converts status DAMAGE into healing
- *   burnAttackBoost:        true           — ignores burn Atk drop AND blocks burn chip
+ *   burnAttackBoost:        true           — ignores burn Atk drop (does NOT block burn chip)
  *   eatBerryThreshold:      number         — denominator for berry trigger HP threshold
  *                                            (2 = ≤50% HP, 4 = ≤25% HP)
  *   flinchImmunity:         true           — cannot be made to flinch
@@ -191,7 +191,7 @@ window.EffectsRegistry = {
     /* --- Status Heal (converts status damage into healing) --- */
     poisonheal:      { statusHeal: { status: 'Poisoned', frac: 1/8 } },
 
-    /* --- Guts: ignores burn Atk drop AND blocks burn chip --- */
+    /* --- Guts: ignores burn Atk drop (still takes burn chip) --- */
     guts:            { burnAttackBoost: true },
 
     /* --- Berry Threshold Modifier --- */

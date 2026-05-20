@@ -168,8 +168,6 @@ async function exposeTestHelpers(page: Page) {
         const ability = entry.ability || '';
         const hasMagicGuard = ability === 'Magic Guard';
         const hasPoisonHeal = ability === 'Poison Heal';
-        const hasGuts = ability === 'Guts';
-
         const WEATHER_IMMUNE_ABILITIES = [
           'Overcoat','Magic Guard','Sand Veil','Sand Rush','Sand Force',
           'Ice Body','Snow Cloak','Slush Rush'
@@ -181,7 +179,7 @@ async function exposeTestHelpers(page: Page) {
         }
 
         // Status damage
-        if (entry.status === 'Burn' && !hasMagicGuard && !hasGuts) {
+        if (entry.status === 'Burn' && !hasMagicGuard) {
           eot.push({ source: 'Burn', damage: Math.max(1, Math.floor(maxHP / 16)) });
         }
         if (hasPoisonHeal && (entry.status === 'Poison' || entry.status === 'Badly Poisoned')) {

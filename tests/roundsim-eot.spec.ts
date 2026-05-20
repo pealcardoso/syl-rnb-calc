@@ -24,14 +24,15 @@ test.describe('End-of-Turn Damage', () => {
     expect(burnEntry).toBeUndefined();
   });
 
-  test('Burn blocked by Guts', async ({ rsaPage }) => {
+  test('Burn NOT blocked by Guts (Guts only negates Atk drop)', async ({ rsaPage }) => {
     const eot = await rsaPage.evaluate(() => {
       return (window as any).__rsaTest.calcEndOfTurnDamage(
         { maxHP: 320, status: 'Burn', ability: 'Guts', item: '', types: ['Normal'] }, 'None'
       );
     });
     const burnEntry = eot.find((e: any) => e.source === 'Burn');
-    expect(burnEntry).toBeUndefined();
+    expect(burnEntry).toBeDefined();
+    expect(burnEntry.damage).toBe(Math.floor(320 / 16));
   });
 
   // ── Poison residual ───────────────────────────────────────────
