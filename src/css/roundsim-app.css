@@ -2587,6 +2587,43 @@ fieldset {
 }
 .rsa-bait-segment:hover { opacity: 1; }
 
+/* ── Compound Fork Analysis ── */
+.rsa-fa-compound {
+    margin-top: 12px; padding: 10px; border-radius: 6px;
+    background: rgba(159,122,234,0.06); border: 1px solid #4a3a6a;
+}
+.rsa-fa-compound-hdr {
+    font-size: var(--rsa-fs-base); font-weight: 700; color: #b794f4; margin-bottom: 8px;
+}
+.rsa-cs {
+    padding: 6px 8px; border-radius: 5px; margin-bottom: 6px;
+    border-left: 3px solid var(--rsa-text-muted);
+}
+.rsa-cs-safe  { border-left-color: var(--rsa-green-light); background: rgba(72,187,120,0.05); }
+.rsa-cs-death { border-left-color: var(--rsa-red); background: rgba(245,101,101,0.08); }
+.rsa-cs-bait  { border-left-color: var(--rsa-yellow); background: rgba(236,201,75,0.06); }
+.rsa-cs-div   { border-left-color: var(--rsa-blue); background: rgba(99,179,237,0.06); }
+.rsa-cs-hdr {
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+    font-size: var(--rsa-fs-sm); margin-bottom: 3px;
+}
+.rsa-cs-matchup { font-weight: 600; color: var(--rsa-text); }
+.rsa-cs-rounds  { color: var(--rsa-text-muted); font-size: var(--rsa-fs-xs); }
+.rsa-cs-paths   { margin-left: auto; color: var(--rsa-text-secondary); font-size: var(--rsa-fs-xs); }
+.rsa-cs-body { font-size: var(--rsa-fs-sm); color: var(--rsa-text-secondary); margin-bottom: 4px; }
+.rsa-cs-deaths, .rsa-cs-baits { margin-top: 4px; }
+.rsa-cs-death-path, .rsa-cs-bait-path {
+    display: flex; align-items: center; gap: 4px;
+    font-size: var(--rsa-fs-xs); padding: 2px 4px; border-radius: 3px;
+    margin-bottom: 2px;
+}
+.rsa-cs-death-path { background: rgba(245,101,101,0.1); }
+.rsa-cs-bait-path  { background: rgba(236,201,75,0.08); }
+.rsa-cs-dp-icon, .rsa-cs-bp-icon { flex-shrink: 0; }
+.rsa-cs-dp-desc, .rsa-cs-bp-desc { flex: 1; color: var(--rsa-text); }
+.rsa-cs-dp-prob, .rsa-cs-bp-prob { color: var(--rsa-text-muted); }
+.rsa-cs-more { font-size: var(--rsa-fs-xs); color: var(--rsa-text-muted); padding: 2px 4px; }
+
 /* ── Item Recommendations ── */
 .rsa-fa-recs {
     margin-top: 12px; padding: 10px; border-radius: 6px;
@@ -2600,15 +2637,20 @@ fieldset {
     padding: 4px 6px; border-radius: 4px; margin-bottom: 3px;
     font-size: var(--rsa-fs-sm); color: var(--rsa-text);
 }
-.rsa-rec-status { border-left: 3px solid var(--rsa-yellow); }
-.rsa-rec-hp     { border-left: 3px solid var(--rsa-green-light); }
+.rsa-rec-status   { border-left: 3px solid var(--rsa-yellow); }
+.rsa-rec-hp       { border-left: 3px solid var(--rsa-green-light); }
+.rsa-rec-compound { border-left: 3px solid var(--rsa-red); }
+.rsa-rec-clickable { cursor: pointer; transition: background 0.15s; }
+.rsa-rec-clickable:hover { background: rgba(255,255,255,0.08); }
 .rsa-rec-spr { width: 24px; height: 24px; image-rendering: pixelated; flex-shrink: 0; }
 .rsa-rec-mon { font-weight: 600; color: var(--rsa-text); min-width: 80px; }
 .rsa-rec-item { color: var(--rsa-orange-light); }
 .rsa-rec-item b { color: #f6e05e; }
 .rsa-rec-reason { flex: 1; color: var(--rsa-text-secondary); }
 .rsa-rec-cost { font-size: var(--rsa-fs-base); color: var(--rsa-red); }
+.rsa-rec-has { font-size: var(--rsa-fs-sm); color: var(--rsa-green-light); font-style: italic; }
 .rsa-rec-rounds { font-size: var(--rsa-fs-sm); padding: 1px 5px; border-radius: 8px; background: var(--rsa-bg-raised); color: var(--rsa-text-muted); }
+.rsa-rec-apply { font-size: var(--rsa-fs-sm); padding: 1px 6px; border-radius: 8px; background: var(--rsa-blue); color: #fff; font-weight: 600; white-space: nowrap; }
 
 .rsa-bait-marker {
     position: absolute;

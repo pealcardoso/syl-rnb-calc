@@ -452,6 +452,10 @@
         window.__rsaTest.getBranchRounds = getBranchRounds;
         window.__rsaTest.findInRoster = findInRoster;
         window.__rsaTest.curLine = curLine;
+        window.__rsaTest.calcP2MoveRates = calcP2MoveRates;
+        window.__rsaTest.captureRound = captureRound;
+        window.__rsaTest.createBranch = createBranch;
+        window.__rsaTest.rebuildLineTeams = rebuildLineTeams;
     }
 
     /** Sort tag results: gold first, then threat (red), then util (blue), then silver. */
@@ -1153,6 +1157,13 @@
         try { p1calc = createPokemon(p1Entry.setId); } catch (e) { return []; }
         if (p1Entry.item !== undefined) p1calc.item = p1Entry.item;
         if (p1Entry.ability) p1calc.ability = p1Entry.ability;
+        // Apply stat boosts from the roster entry
+        if (p1Entry.boosts) {
+            var _bm = { at: 'atk', df: 'def', sa: 'spa', sd: 'spd', sp: 'spe' };
+            for (var _bk in _bm) {
+                if (p1Entry.boosts[_bk]) p1calc.boosts[_bm[_bk]] = p1Entry.boosts[_bk];
+            }
+        }
         var maxHP = p1calc.rawStats ? p1calc.rawStats.hp : (p1calc.stats ? p1calc.stats.hp : 100);
         if (maxHP <= 0) return [];
 
@@ -11622,6 +11633,8 @@
                 var rA = a.moves[i].maxRate != null ? a.moves[i].maxRate : 0;
                 var rB = b.moves[i].maxRate != null ? b.moves[i].maxRate : 0;
                 if (Math.abs(rA - rB) > 0.10) return true;
+                // Detect move appearing or disappearing (rate crosses zero)
+                if ((rA >= 0.01 && rB < 0.005) || (rB >= 0.01 && rA < 0.005)) return true;
             }
             return false;
         }
@@ -11636,6 +11649,8 @@
                 var rA = a.moves[i].maxRate != null ? a.moves[i].maxRate : 0;
                 var rB = b.moves[i].maxRate != null ? b.moves[i].maxRate : 0;
                 if (Math.abs(rA - rB) > 0.10) return 'moves';
+                // Detect move appearing or disappearing (rate crosses zero)
+                if ((rA >= 0.01 && rB < 0.005) || (rB >= 0.01 && rA < 0.005)) return 'moves';
             }
             return false;
         }
@@ -11647,11 +11662,14 @@
             // to present a single representative snapshot. Rates at any single HP
             // must sum to ~100%, but maxRates are from different HP samples and can
             // exceed 100% when combined — which confuses users.
+            // Skip moves with minRate near zero — they aren't consistently used
+            // across the band, so the midpoint would be misleading.
             var total = 0;
             var items = [];
             for (var i = 0; i < bait.moves.length; i++) {
                 var mn = bait.moves[i].minRate != null ? bait.moves[i].minRate : 0;
                 var mx = bait.moves[i].maxRate != null ? bait.moves[i].maxRate : 0;
+                if (mn < 0.005) continue; // move not consistently used across the band
                 var r = (mn + mx) / 2;
                 if (r >= 0.01) { items.push({ move: bait.moves[i].move, rate: r }); total += r; }
             }
@@ -11662,6 +11680,846 @@
                 }
             }
             return parts.join(' / ');
+        }
+
+        // ═══════════════════════════════════════════════════════════════
+        // Segment identification — group rounds into 1v1 segments
+        // by P1 deployment, with P2 sub-segments for bait tracking
+        // ═══════════════════════════════════════════════════════════════
+
+        /**
+         * Group consecutive combat rounds into 1v1 segments.
+         * A segment = consecutive rounds where the same P1 is on the field.
+         * Sub-segments = individual P2 matchups within a P1 deployment.
+         */
+        function _identifySegments(allRounds) {
+            var segments = [];
+            if (!allRounds || !allRounds.length) return segments;
+
+            var curP1 = null, segStart = -1;
+            var subSegs = [], subStart = -1, subP2 = null, subIndices = [];
+
+            function flushSub() {
+                if (subP2 && subIndices.length) {
+                    subSegs.push({ p2Name: subP2, roundIndices: subIndices.slice() });
+                }
+                subIndices = [];
+                subP2 = null;
+            }
+
+            function flushSeg(endIdx) {
+                flushSub();
+                if (curP1 && subSegs.length) {
+                    // Check if P1 returns later in the fight
+                    var p1Returns = false;
+                    for (var k = endIdx + 1; k < allRounds.length; k++) {
+                        var krd = allRounds[k];
+                        if (krd && krd.p1 && krd.p1.name === curP1 && !krd.isP2Switch) {
+                            p1Returns = true; break;
+                        }
+                    }
+                    segments.push({
+                        startIdx: segStart, endIdx: endIdx,
+                        p1Name: curP1, subSegments: subSegs.slice(),
+                        p1ReturnsLater: p1Returns
+                    });
+                }
+                subSegs = [];
+                curP1 = null;
+            }
+
+            for (var i = 0; i < allRounds.length; i++) {
+                var rd = allRounds[i];
+                if (!rd || !rd.p1 || !rd.p2 || rd.isP2Switch) continue;
+
+                var p1Name = rd.p1.name;
+                var p2Name = rd.p2.name;
+
+                // New P1 deployment?
+                if (p1Name !== curP1) {
+                    if (curP1) flushSeg(i - 1);
+                    curP1 = p1Name;
+                    segStart = i;
+                    subP2 = p2Name;
+                    subStart = i;
+                    subIndices = [i];
+                    continue;
+                }
+
+                // Same P1, new P2?
+                if (p2Name !== subP2) {
+                    flushSub();
+                    subP2 = p2Name;
+                    subStart = i;
+                    subIndices = [i];
+                    continue;
+                }
+
+                // Same P1, same P2 — extend sub-segment
+                subIndices.push(i);
+            }
+            if (curP1) flushSeg(allRounds.length - 1);
+
+            return segments;
+        }
+
+        // ═══════════════════════════════════════════════════════════════
+        // Fork variable extraction — independent fork vars at a round
+        // (lightweight: probabilities + main state, no full fork objects)
+        // ═══════════════════════════════════════════════════════════════
+
+        /**
+         * Extract the independent fork variables for a single round.
+         * Each variable has: { prob, applicable, mainState, effect? }
+         * mainState = what was actually logged (true = event occurred).
+         */
+        function _extractRoundForkVars(line, rd, roundIdx, allRounds) {
+            var vars = {
+                p2Crit:      { prob: 0, applicable: false, mainState: false },
+                p2Sec:       { prob: 0, applicable: false, mainState: false, effect: '' },
+                p2Miss:      { prob: 0, applicable: false, mainState: false },
+                flinch:      { prob: 0, applicable: false, mainState: false },
+                p1Sec:       { prob: 0, applicable: false, mainState: false, effect: '' },
+                contactAbil: { prob: 0, applicable: false, mainState: false, effect: '' }
+            };
+            if (!rd.p1 || !rd.p2 || rd.isP2Switch) return vars;
+
+            var p1Attacked = rd.p1.move && rd.p1.move !== '—';
+            var p1Faster = rd.speed && (rd.speed.faster === 'p1' || rd.speed.faster === 'tie');
+            var p2Dies = rd.p2.hpAfter.current <= 0;
+            var p2KOdBeforeAttack = p1Faster && p1Attacked && p2Dies;
+            var p2Move = rd.p2.move && rd.p2.move !== '—' ? rd.p2.move : null;
+            var p2MoveData = p2Move ? lookupMoveData(p2Move) : null;
+            var p1MoveData = p1Attacked ? lookupMoveData(rd.p1.move) : null;
+
+            // P2 crit — only if P2 attacks and it's damaging
+            if (!p2KOdBeforeAttack && p2MoveData && p2MoveData.category !== 'Status') {
+                vars.p2Crit = { prob: 1 / 24, applicable: true, mainState: !!rd.p2Crit };
+            }
+
+            // P2 secondary effect on P1
+            if (!p2KOdBeforeAttack && p2MoveData && p2MoveData.secondary &&
+                p2MoveData.secondary.chance && p2MoveData.secondary.chance < 100) {
+                var _se = resolveSecondaryEffects(p2MoveData, 'p1', false);
+                var _seName = _se.status || _se.volatile || '';
+                if (_seName || (p2MoveData.secondary.boosts && Object.keys(p2MoveData.secondary.boosts).length)) {
+                    var secEffect = _seName;
+                    if (!secEffect && p2MoveData.secondary.boosts) {
+                        var bk = Object.keys(p2MoveData.secondary.boosts);
+                        secEffect = bk.map(function (k) { return k + ':' + p2MoveData.secondary.boosts[k]; }).join(',');
+                    }
+                    vars.p2Sec = {
+                        prob: p2MoveData.secondary.chance / 100,
+                        applicable: true,
+                        mainState: !!(rd.p2.secondaryApplied),
+                        effect: secEffect
+                    };
+                }
+            }
+
+            // P2 miss
+            if (!p2KOdBeforeAttack && p2MoveData && p2MoveData.accuracy &&
+                p2MoveData.accuracy !== true && p2MoveData.accuracy < 100) {
+                vars.p2Miss = {
+                    prob: (100 - p2MoveData.accuracy) / 100,
+                    applicable: true, mainState: false
+                };
+            }
+
+            // Flinch from P1's move (only if P1 faster and P2 survived)
+            if (p1Faster && p1Attacked && !p2KOdBeforeAttack && p1MoveData &&
+                p1MoveData.secondary && p1MoveData.secondary.volatileStatus === 'flinch' &&
+                p1MoveData.secondary.chance) {
+                vars.flinch = {
+                    prob: p1MoveData.secondary.chance / 100,
+                    applicable: true,
+                    mainState: !!(rd.p2.flinched)
+                };
+            }
+
+            // P1 secondary on P2
+            if (p1Attacked && p1MoveData && p1MoveData.secondary &&
+                p1MoveData.secondary.chance && p1MoveData.secondary.chance < 100) {
+                var _p1Eff = resolveSecondaryEffects(p1MoveData, 'p2', false);
+                var _p1EffName = _p1Eff.status || _p1Eff.volatile || '';
+                if (_p1EffName) {
+                    vars.p1Sec = {
+                        prob: p1MoveData.secondary.chance / 100,
+                        applicable: true,
+                        mainState: !!(rd.p1.secondaryApplied),
+                        effect: _p1EffName
+                    };
+                }
+            }
+
+            // Contact ability (Flame Body, Static)
+            if (!p2KOdBeforeAttack && p2MoveData && p2MoveData.flags && p2MoveData.flags.contact && rd.p1.ability) {
+                var _ae = getAbilityEffects(rd.p1.ability);
+                if (_ae && _ae.contactStatusInflict) {
+                    vars.contactAbil = {
+                        prob: _ae.contactStatusInflict.chance / 100,
+                        applicable: true,
+                        mainState: false,
+                        effect: _ae.contactStatusInflict.status
+                    };
+                }
+            }
+
+            // ── Alternative P2 moves from AI prediction ──
+            vars.p2MoveAlts = [];
+            var _allM = rd.p2.allMoves, _aiP = rd.p2.aiPcts;
+            if (!p2KOdBeforeAttack && _allM && _allM.length) {
+                for (var _ami = 0; _ami < _allM.length; _ami++) {
+                    var _mv = _allM[_ami];
+                    if (!_mv || _mv === '(No Move)' || _mv === rd.p2.move) continue;
+                    var _pct = _parseAiPct(_aiP[_ami]);
+                    if (_pct < 0.01) continue;
+                    var _altMD = lookupMoveData(_mv);
+                    if (!_altMD) continue;
+                    var _alt = {
+                        moveName: _mv, moveIdx: _ami, moveProb: _pct,
+                        p2Crit: { prob: 0, applicable: false, mainState: false },
+                        p2Sec:  { prob: 0, applicable: false, mainState: false, effect: '' },
+                        p2Miss: { prob: 0, applicable: false, mainState: false },
+                        contactAbil: { prob: 0, applicable: false, mainState: false, effect: '' }
+                    };
+                    if (_altMD.category !== 'Status') {
+                        _alt.p2Crit = { prob: 1 / 24, applicable: true, mainState: false };
+                    }
+                    if (_altMD.secondary && _altMD.secondary.chance && _altMD.secondary.chance < 100) {
+                        var _altSe = resolveSecondaryEffects(_altMD, 'p1', false);
+                        var _altSeName = _altSe.status || _altSe.volatile || '';
+                        if (_altSeName || (_altMD.secondary.boosts && Object.keys(_altMD.secondary.boosts).length)) {
+                            var _altSecEff = _altSeName;
+                            if (!_altSecEff && _altMD.secondary.boosts) {
+                                var _abk = Object.keys(_altMD.secondary.boosts);
+                                _altSecEff = _abk.map(function (k) { return k + ':' + _altMD.secondary.boosts[k]; }).join(',');
+                            }
+                            _alt.p2Sec = { prob: _altMD.secondary.chance / 100, applicable: true, mainState: false, effect: _altSecEff };
+                        }
+                    }
+                    if (_altMD.accuracy && _altMD.accuracy !== true && _altMD.accuracy < 100) {
+                        _alt.p2Miss = { prob: (100 - _altMD.accuracy) / 100, applicable: true, mainState: false };
+                    }
+                    if (_altMD.flags && _altMD.flags.contact && rd.p1.ability) {
+                        var _altAe = getAbilityEffects(rd.p1.ability);
+                        if (_altAe && _altAe.contactStatusInflict) {
+                            _alt.contactAbil = { prob: _altAe.contactStatusInflict.chance / 100, applicable: true, mainState: false, effect: _altAe.contactStatusInflict.status };
+                        }
+                    }
+                    vars.p2MoveAlts.push(_alt);
+                }
+            }
+
+            return vars;
+        }
+
+        // ═══════════════════════════════════════════════════════════════
+        // Cross-round compound fork analysis — tree simulation
+        // within 1v1 sub-segments using captureRound for accuracy
+        // ═══════════════════════════════════════════════════════════════
+
+        /**
+         * Enumerate the meaningful fork variable combinations for a round.
+         * Returns array of { choices: {p2Crit, p2Sec, p2Miss, flinch, ...}, prob }.
+         * Prunes combos below minProb.
+         */
+        function _enumerateForkCombos(vars, minProb) {
+            // Build the independent variable states
+            var dims = [];
+            var keys = ['p2Crit', 'p2Sec', 'p2Miss', 'flinch', 'p1Sec', 'contactAbil'];
+            for (var ki = 0; ki < keys.length; ki++) {
+                var k = keys[ki];
+                var v = vars[k];
+                if (!v || !v.applicable) continue;
+                dims.push({ key: k, prob: v.prob });
+            }
+
+            // Cartesian product with pruning
+            var combos = [{ choices: {}, prob: 1.0 }];
+            for (var di = 0; di < dims.length; di++) {
+                var d = dims[di];
+                var next = [];
+                for (var ci = 0; ci < combos.length; ci++) {
+                    var c = combos[ci];
+                    // State: event occurs
+                    var pOn = c.prob * d.prob;
+                    if (pOn >= minProb) {
+                        var chOn = $.extend({}, c.choices);
+                        chOn[d.key] = true;
+                        next.push({ choices: chOn, prob: pOn });
+                    }
+                    // State: event does not occur
+                    var pOff = c.prob * (1 - d.prob);
+                    if (pOff >= minProb) {
+                        var chOff = $.extend({}, c.choices);
+                        chOff[d.key] = false;
+                        next.push({ choices: chOff, prob: pOff });
+                    }
+                }
+                combos = next;
+            }
+
+            // Apply mutual exclusion: flinch/miss → P2 doesn't attack → no crit, no p2sec, no contactAbil
+            for (var ci = combos.length - 1; ci >= 0; ci--) {
+                var ch = combos[ci].choices;
+                if (ch.flinch || ch.p2Miss) {
+                    if (ch.p2Crit || ch.p2Sec || ch.contactAbil) {
+                        combos.splice(ci, 1);
+                    }
+                }
+            }
+
+            return combos;
+        }
+
+        /**
+         * Build a state hash for memoization.
+         * State = P1 HP, status, item, boosts + P2 HP, status, item, boosts.
+         */
+        function _stateHash(p1e, p2e) {
+            var b1 = p1e.boosts || {};
+            var b2 = p2e.boosts || {};
+            return (p1e.currentHP || 0) + '|' + (p1e.status || '') + '|' + (p1e.item || '') + '|' +
+                (b1.at || 0) + ',' + (b1.df || 0) + ',' + (b1.sa || 0) + ',' + (b1.sd || 0) + ',' + (b1.sp || 0) + '|' +
+                (p2e.currentHP || 0) + '|' + (p2e.status || '') + '|' + (p2e.item || '') + '|' +
+                (b2.at || 0) + ',' + (b2.df || 0) + ',' + (b2.sa || 0) + ',' + (b2.sd || 0) + ',' + (b2.sp || 0);
+        }
+
+        /**
+         * Simulate a 1v1 sub-segment tree: explore cross-round fork
+         * combinations using captureRound for accurate damage/item/EOT.
+         *
+         * @param {object} line         The battle line
+         * @param {object} subSeg       { p2Name, roundIndices: [int] }
+         * @param {Array}  allRounds    All rounds in the fight
+         * @param {Array}  analyzed     Per-round analyzed data (from _analyzeRound)
+         * @returns {object}            { paths, deathPaths, baitChangePaths }
+         */
+        function _simulateSegmentTree(line, subSeg, allRounds, analyzed) {
+            var indices = subSeg.roundIndices;
+            if (!indices || indices.length < 2) return null; // single-round: skip
+
+            // Check if all per-round forks are clean — skip tree if so
+            var allClean = true;
+            for (var ci = 0; ci < indices.length; ci++) {
+                var ar = analyzed[indices[ci]];
+                if (ar && ar.forks && ar.forks.length > 0) {
+                    for (var fi = 0; fi < ar.forks.length; fi++) {
+                        if (ar.forks[fi].impact !== 'clean') { allClean = false; break; }
+                    }
+                }
+                if (!allClean) break;
+            }
+            // Even if all single-round forks are clean, compound forks may not be.
+            // Only skip if there are zero applicable fork variables across the segment.
+            var anyForkVars = false;
+            var roundForkVars = [];
+            for (var ri = 0; ri < indices.length; ri++) {
+                var rd = allRounds[indices[ri]];
+                var fv = _extractRoundForkVars(line, rd, indices[ri], allRounds);
+                roundForkVars.push(fv);
+                var keys = ['p2Crit', 'p2Sec', 'p2Miss', 'flinch', 'p1Sec', 'contactAbil'];
+                for (var ki = 0; ki < keys.length; ki++) {
+                    if (fv[keys[ki]] && fv[keys[ki]].applicable) { anyForkVars = true; break; }
+                }
+                if (!anyForkVars && fv.p2MoveAlts && fv.p2MoveAlts.length > 0) anyForkVars = true;
+            }
+            if (!anyForkVars) return null;
+
+            // Pre-compute fork combos per round
+            var MIN_PROB = 0.001;
+            var roundCombos = [];
+            for (var ri = 0; ri < indices.length; ri++) {
+                var _fv = roundForkVars[ri];
+                var _baseCombos = _enumerateForkCombos(_fv, MIN_PROB);
+
+                // If alt moves exist, adjust main move probabilities and add alt move combos
+                if (_fv.p2MoveAlts && _fv.p2MoveAlts.length > 0) {
+                    var _altProbSum = 0;
+                    for (var _ai = 0; _ai < _fv.p2MoveAlts.length; _ai++) {
+                        _altProbSum += _fv.p2MoveAlts[_ai].moveProb;
+                    }
+                    var _mainMoveProb = Math.max(0, 1 - _altProbSum);
+
+                    // Scale main move combos by main move probability
+                    for (var _ci = _baseCombos.length - 1; _ci >= 0; _ci--) {
+                        _baseCombos[_ci].prob *= _mainMoveProb;
+                        _baseCombos[_ci].choices._isMainMove = true;
+                        if (_baseCombos[_ci].prob < MIN_PROB) _baseCombos.splice(_ci, 1);
+                    }
+
+                    // Generate and add alt move combos
+                    for (var _ai = 0; _ai < _fv.p2MoveAlts.length; _ai++) {
+                        var _alt = _fv.p2MoveAlts[_ai];
+                        // Build fork vars for this alt move, using P1-dependent vars from main
+                        var _altVars = {
+                            p2Crit: _alt.p2Crit, p2Sec: _alt.p2Sec,
+                            p2Miss: _alt.p2Miss, contactAbil: _alt.contactAbil,
+                            flinch: _fv.flinch, p1Sec: _fv.p1Sec
+                        };
+                        var _altCombos = _enumerateForkCombos(_altVars, MIN_PROB / Math.max(_alt.moveProb, 0.01));
+                        for (var _aci = 0; _aci < _altCombos.length; _aci++) {
+                            _altCombos[_aci].prob *= _alt.moveProb;
+                            _altCombos[_aci].choices._isMainMove = false;
+                            _altCombos[_aci].choices._moveIdx = _alt.moveIdx;
+                            _altCombos[_aci].choices._moveName = _alt.moveName;
+                            if (_altCombos[_aci].prob >= MIN_PROB) _baseCombos.push(_altCombos[_aci]);
+                        }
+                    }
+                }
+                roundCombos.push(_baseCombos);
+            }
+
+            // ── Snapshot and create branch ──
+            var snap = _snapshotState(line);
+            var tempBI = -1;
+            var results = { paths: [], deathPaths: [], baitChangePaths: [] };
+            var memo = {};
+
+            try {
+                // Create branch starting from the round before this sub-segment
+                var branchStart = indices[0];
+                tempBI = createBranch(line, branchStart, '__compound__');
+                line.activeBranchIdx = tempBI;
+                rebuildBranchTeams(line, tempBI);
+
+                // Fix activeIdx to match the first round's pokemon
+                var firstRd = allRounds[indices[0]];
+                if (firstRd.p1 && firstRd.p1.name) {
+                    var _fp1i = findInRoster(line.teams.p1, firstRd.p1.name);
+                    if (_fp1i >= 0) line.teams.p1.activeIdx = _fp1i;
+                }
+                if (firstRd.p2 && firstRd.p2.name) {
+                    var _fp2i = findInRoster(line.teams.p2, firstRd.p2.name);
+                    if (_fp2i >= 0) line.teams.p2.activeIdx = _fp2i;
+                }
+
+                // ── Helper: does this combo match the logged round state? ──
+                function _isMainCombo(combo, roundPos) {
+                    // Alt move → not main path
+                    if (combo.choices._isMainMove === false) return false;
+                    var fv = roundForkVars[roundPos];
+                    var ch = combo.choices;
+                    var keys = ['p2Crit', 'p2Sec', 'p2Miss', 'flinch', 'p1Sec', 'contactAbil'];
+                    for (var ki = 0; ki < keys.length; ki++) {
+                        var k = keys[ki];
+                        if (fv[k] && fv[k].applicable) {
+                            if (!!ch[k] !== !!fv[k].mainState) return false;
+                        }
+                    }
+                    return true;
+                }
+
+                // ── Apply logged post-round state to roster entries ──
+                function _applyLoggedState(mainRd) {
+                    var p1e = getActiveEntry(line.teams.p1);
+                    var p2e = getActiveEntry(line.teams.p2);
+                    if (p1e && mainRd.p1) {
+                        p1e.currentHP = mainRd.p1.hpAfter.current;
+                        p1e.bestCaseHP = mainRd.p1.hpAfter.bestCase != null ? mainRd.p1.hpAfter.bestCase : mainRd.p1.hpAfter.current;
+                        if (mainRd.p1.status !== undefined) p1e.status = mainRd.p1.status || '';
+                        if (mainRd.p1.item !== undefined) p1e.item = mainRd.p1.item;
+                        if (mainRd.p1.boosts) p1e.boosts = $.extend({}, mainRd.p1.boosts);
+                    }
+                    if (p2e && mainRd.p2) {
+                        p2e.currentHP = mainRd.p2.hpAfter.current;
+                        p2e.bestCaseHP = mainRd.p2.hpAfter.bestCase != null ? mainRd.p2.hpAfter.bestCase : mainRd.p2.hpAfter.current;
+                        if (mainRd.p2.status !== undefined) p2e.status = mainRd.p2.status || '';
+                        if (mainRd.p2.item !== undefined) p2e.item = mainRd.p2.item;
+                        if (mainRd.p2.boosts) p2e.boosts = $.extend({}, mainRd.p2.boosts);
+                    }
+                }
+
+                // ── DFS through the tree ──
+                // isOnMainPath: true if ALL previous rounds used main-path combos.
+                // When true AND current combo is main, use logged values (no simulation).
+                // When false, always simulate via captureRound.
+                function dfs(roundPos, pathProb, pathChoices, isOnMainPath) {
+                    if (roundPos >= indices.length) {
+                        // Leaf: record final state
+                        var p1e = getActiveEntry(line.teams.p1);
+                        var p2e = getActiveEntry(line.teams.p2);
+                        var path = {
+                            choices: pathChoices.slice(),
+                            _roundIndices: indices.slice(),
+                            probability: pathProb,
+                            p1HPFinal: p1e ? p1e.currentHP : 0,
+                            p1Alive: p1e ? p1e.currentHP > 0 : false,
+                            p2Alive: p2e ? p2e.currentHP > 0 : false,
+                            p1Status: p1e ? (p1e.status || '') : '',
+                            p1Item: p1e ? (p1e.item || '') : ''
+                        };
+                        results.paths.push(path);
+                        if (!path.p1Alive) results.deathPaths.push(path);
+                        return;
+                    }
+
+                    var ridx = indices[roundPos];
+                    var mainRd = allRounds[ridx];
+                    var combos = roundCombos[roundPos];
+
+                    // Snapshot before this round so we can restore between combos
+                    var roundSnap = _snapshotState(line);
+                    var branchRoundsLen = line.branches[tempBI].rounds.length;
+
+                    for (var ci = 0; ci < combos.length; ci++) {
+                        var combo = combos[ci];
+                        var comboProb = pathProb * combo.prob;
+                        if (comboProb < MIN_PROB) continue;
+
+                        // Restore to pre-round state
+                        _restoreFromSnapshot(line, roundSnap);
+                        line.activeBranchIdx = tempBI;
+                        // Trim branch rounds back to pre-round length
+                        if (line.branches[tempBI].rounds.length > branchRoundsLen) {
+                            line.branches[tempBI].rounds.length = branchRoundsLen;
+                        }
+
+                        var thisIsMain = isOnMainPath && _isMainCombo(combo, roundPos);
+
+                        if (thisIsMain) {
+                            // ── Main-path combo: use logged state directly ──
+                            // No simulation needed — set roster to logged post-round values
+                            _applyLoggedState(mainRd);
+
+                            // Check P1/P2 death from logged data
+                            if (mainRd.p1.hpAfter.current <= 0) {
+                                // P1 died on the main path — record but this is
+                                // already caught by per-round analysis
+                                var deathPath = {
+                                    choices: pathChoices.concat([combo.choices]),
+                                    _roundIndices: indices.slice(),
+                                    probability: comboProb,
+                                    p1HPFinal: 0, p1Alive: false,
+                                    p2Alive: mainRd.p2.hpAfter.current > 0,
+                                    p1Status: mainRd.p1.status || '',
+                                    p1Item: mainRd.p1.item || ''
+                                };
+                                results.paths.push(deathPath);
+                                results.deathPaths.push(deathPath);
+                                continue;
+                            }
+                            if (mainRd.p2.hpAfter.current <= 0) {
+                                results.paths.push({
+                                    choices: pathChoices.concat([combo.choices]),
+                                    _roundIndices: indices.slice(),
+                                    probability: comboProb,
+                                    p1HPFinal: mainRd.p1.hpAfter.current,
+                                    p1Alive: true, p2Alive: false,
+                                    p1Status: mainRd.p1.status || '',
+                                    p1Item: mainRd.p1.item || ''
+                                });
+                                continue;
+                            }
+
+                            // Recurse — still on main path
+                            dfs(roundPos + 1, comboProb, pathChoices.concat([combo.choices]), true);
+                            continue;
+                        }
+
+                        // ── Non-main combo: simulate via captureRound ──
+                        // Check memoization
+                        var p1e = getActiveEntry(line.teams.p1);
+                        var p2e = getActiveEntry(line.teams.p2);
+                        if (!p1e || !p2e) continue;
+                        var hash = roundPos + '|' + _stateHash(p1e, p2e) + '|' + JSON.stringify(combo.choices);
+                        if (memo[hash] !== undefined) {
+                            var memoResult = memo[hash];
+                            for (var mi = 0; mi < memoResult.length; mi++) {
+                                var mp = $.extend({}, memoResult[mi]);
+                                mp.probability = comboProb * (mp.probability / (mp._memoBaseProb || 1));
+                                mp.choices = pathChoices.concat([combo.choices]).concat(mp._memoChoices || []);
+                                results.paths.push(mp);
+                                if (!mp.p1Alive) results.deathPaths.push(mp);
+                            }
+                            continue;
+                        }
+
+                        // Ensure correct active indices
+                        var _rp1i = findInRoster(line.teams.p1, mainRd.p1.name);
+                        if (_rp1i >= 0) line.teams.p1.activeIdx = _rp1i;
+                        var _rp2i = findInRoster(line.teams.p2, mainRd.p2.name);
+                        if (_rp2i >= 0) line.teams.p2.activeIdx = _rp2i;
+
+                        // Sync form
+                        _syncFieldFromRound(mainRd);
+                        _loadActiveIntoForm(line);
+
+                        // Determine captureRound parameters
+                        var ch = combo.choices;
+                        var p2MoveIdx = (ch.flinch || ch.p2Miss) ? 'none'
+                            : (ch._moveIdx !== undefined ? ch._moveIdx : mainRd.p2.moveIdx);
+                        var p2Crit = !!ch.p2Crit;
+                        var p1ApplySec = ch.p1Sec !== undefined ? !!ch.p1Sec : !!mainRd.p1.secondaryApplied;
+                        var p2ApplySec = ch.p2Sec !== undefined ? !!ch.p2Sec : !!mainRd.p2.secondaryApplied;
+
+                        var forkRd = captureRound(
+                            mainRd.p1.moveIdx,
+                            p2MoveIdx,
+                            p2Crit,
+                            mainRd.p1PreDmg || 0,
+                            mainRd.p1PreStatus || '',
+                            '',
+                            p1ApplySec,
+                            p2ApplySec
+                        );
+                        if (!forkRd) continue;
+
+                        // Push to branch so subsequent rounds see cumulative state
+                        line.branches[tempBI].rounds.push(forkRd);
+
+                        // Check P1 death
+                        if (forkRd.p1.hpAfter.current <= 0) {
+                            var deathPath = {
+                                choices: pathChoices.concat([combo.choices]),
+                                _roundIndices: indices.slice(),
+                                probability: comboProb,
+                                p1HPFinal: 0, p1Alive: false,
+                                p2Alive: forkRd.p2.hpAfter.current > 0,
+                                p1Status: forkRd.p1.status || '',
+                                p1Item: forkRd.p1.item || ''
+                            };
+                            results.paths.push(deathPath);
+                            results.deathPaths.push(deathPath);
+                            continue;
+                        }
+
+                        // Check P2 death
+                        if (forkRd.p2.hpAfter.current <= 0) {
+                            results.paths.push({
+                                choices: pathChoices.concat([combo.choices]),
+                                _roundIndices: indices.slice(),
+                                probability: comboProb,
+                                p1HPFinal: forkRd.p1.hpAfter.current,
+                                p1Alive: true, p2Alive: false,
+                                p1Status: forkRd.p1.status || '',
+                                p1Item: forkRd.p1.item || ''
+                            });
+                            continue;
+                        }
+
+                        // Recurse — no longer on main path
+                        var preRecurseLen = results.paths.length;
+                        dfs(roundPos + 1, comboProb, pathChoices.concat([combo.choices]), false);
+
+                        // Memoize results from this subtree
+                        var memoResults = [];
+                        for (var mri = preRecurseLen; mri < results.paths.length; mri++) {
+                            var mr = results.paths[mri];
+                            memoResults.push($.extend({}, mr, {
+                                _memoBaseProb: comboProb,
+                                _memoChoices: mr.choices.slice(pathChoices.length + 1)
+                            }));
+                        }
+                        memo[hash] = memoResults;
+                    }
+                }
+
+                dfs(0, 1.0, [], true);
+                return _forkCleanup(line, tempBI, snap, results);
+            } catch (e) {
+                console.error('[CompoundFork]', e);
+                return _forkCleanup(line, tempBI, snap, results);
+            }
+        }
+
+        /**
+         * Classify the outcomes of a segment's tree simulation.
+         * Returns: { status, compoundDeaths, baitChanges, stateDivergences, summary }
+         */
+        function _classifySegmentOutcomes(segment, treeResult, line, allRounds, analyzed) {
+            if (!treeResult || !treeResult.paths || !treeResult.paths.length) {
+                return { status: 'clean', compoundDeaths: [], baitChanges: [],
+                         stateDivergences: [], summary: '✓ No compound forks' };
+            }
+
+            var deathPaths = treeResult.deathPaths || [];
+            var allPaths = treeResult.paths;
+
+            // ── Check for compound deaths ──
+            // A "compound death" = P1 dies in this path, but NOT in the
+            // per-round analysis (i.e., no single-round fork kills P1).
+            var compoundDeaths = [];
+            var totalDeathProb = 0;
+            for (var di = 0; di < deathPaths.length; di++) {
+                var dp = deathPaths[di];
+                // Count rounds with DANGEROUS non-main fork choices.
+                // Only forks that increase risk to P1 count:
+                //   p2Crit      — more damage to P1
+                //   p2Sec       — status/stat penalty on P1
+                //   contactAbil — contact-ability status on P1
+                //   alt move    — different P2 move (may change damage/effects)
+                // Protective forks are excluded (they can't cause death):
+                //   p2Miss  — P2 doesn't hit  → safer for P1
+                //   flinch  — P2 can't attack  → safer for P1
+                //   p1Sec   — P1 secondary on P2 → beneficial for P1
+                var nonMainCount = 0;
+                for (var ci = 0; ci < dp.choices.length; ci++) {
+                    var ch = dp.choices[ci];
+                    if (ch.p2Crit || ch.p2Sec || ch.contactAbil || ch._isMainMove === false) {
+                        nonMainCount++;
+                    }
+                }
+                // Only flag deaths that require fork vars from multiple rounds.
+                // Single-round deaths (nonMainCount <= 1) are already caught
+                // by per-round _identifyForks + _replayForkForward.
+                if (nonMainCount >= 2) {
+                    compoundDeaths.push(dp);
+                    totalDeathProb += dp.probability;
+                }
+            }
+
+            // ── Check bait differences across surviving paths ──
+            var baitChanges = [];
+            var lastSubIdx = segment.subSegments[segment.subSegments.length - 1];
+            var lastRoundIdx = lastSubIdx.roundIndices[lastSubIdx.roundIndices.length - 1];
+            var ar = analyzed[lastRoundIdx];
+            if (ar && ar.baitBands && ar.baitBands.length) {
+                var mainBait = ar.baitAtLogged;
+                for (var pi = 0; pi < allPaths.length; pi++) {
+                    var p = allPaths[pi];
+                    if (p.p1Alive && !p.p2Alive && p.p1HPFinal > 0) {
+                        var pathBait = _lookupBait(ar.baitBands, p.p1HPFinal);
+                        if (pathBait && mainBait && _baitsDiffer(pathBait, mainBait)) {
+                            p.bait = pathBait;
+                            p.mainBait = mainBait;
+                            baitChanges.push(p);
+                        }
+                    }
+                }
+            }
+
+            // ── Check state divergences (for return recalc) ──
+            var stateDivergences = [];
+            if (segment.p1ReturnsLater) {
+                var mainP1Entry = null;
+                for (var pi = 0; pi < allPaths.length; pi++) {
+                    var p = allPaths[pi];
+                    if (!p.p1Alive) continue;
+                    if (!mainP1Entry) {
+                        mainP1Entry = { hp: p.p1HPFinal, status: p.p1Status, item: p.p1Item };
+                        continue;
+                    }
+                    var hpDiff = Math.abs(p.p1HPFinal - mainP1Entry.hp);
+                    var statusDiff = p.p1Status !== mainP1Entry.status;
+                    var itemDiff = p.p1Item !== mainP1Entry.item;
+                    if (statusDiff || itemDiff || (mainP1Entry.hp > 0 && hpDiff > mainP1Entry.hp * 0.05)) {
+                        stateDivergences.push(p);
+                    }
+                }
+            }
+
+            // ── Determine overall status ──
+            var status = 'clean';
+            var summary = '';
+            if (compoundDeaths.length > 0) {
+                status = 'backup';
+                summary = '☠ Compound death risk: ' + (totalDeathProb * 100).toFixed(2) + '% — ' +
+                    _describeCompoundPath(compoundDeaths[0]);
+            } else if (baitChanges.length > 0) {
+                status = 'baitChange';
+                summary = '⚠ Bait changes on ' + baitChanges.length + ' fork path' +
+                    (baitChanges.length !== 1 ? 's' : '');
+            } else if (stateDivergences.length > 0) {
+                status = 'divergent';
+                summary = '⚠ P1 state differs — ' + segment.p1Name + ' returns later';
+            } else {
+                summary = '✓ Safe across all compound forks';
+            }
+
+            return {
+                status: status,
+                compoundDeaths: compoundDeaths,
+                totalDeathProb: totalDeathProb,
+                baitChanges: baitChanges,
+                stateDivergences: stateDivergences,
+                summary: summary,
+                pathCount: allPaths.length
+            };
+        }
+
+        /** Describe a compound death path for display. */
+        function _describeCompoundPath(path) {
+            if (!path || !path.choices) return '';
+            var parts = [];
+            var rIdx = path._roundIndices || [];
+            for (var ci = 0; ci < path.choices.length; ci++) {
+                var ch = path.choices[ci];
+                var rdParts = [];
+                // If alt move, show move name
+                if (ch._isMainMove === false && ch._moveName) {
+                    rdParts.push(ch._moveName);
+                }
+                if (ch.p2Crit) rdParts.push('crit');
+                if (ch.p2Sec) rdParts.push('sec');
+                if (ch.p2Miss) rdParts.push('miss');
+                if (ch.flinch) rdParts.push('flinch');
+                if (ch.p1Sec) rdParts.push('P1 sec');
+                if (ch.contactAbil) rdParts.push('contact');
+                if (rdParts.length) {
+                    var rNum = ci < rIdx.length ? (rIdx[ci] + 1) : (ci + 1);
+                    parts.push('R' + rNum + ' ' + rdParts.join('+'));
+                }
+            }
+            return parts.join(' + ') || 'main path';
+        }
+
+        /**
+         * Handle P1 return recalc: for segments where P1 has state divergences
+         * and returns later, replay the return segment with divergent states.
+         */
+        function _handleReturnRecalc(line, segments, segmentResults, allRounds) {
+            for (var si = 0; si < segments.length; si++) {
+                var seg = segments[si];
+                var res = segmentResults[si];
+                if (!res || res.status === 'clean' || !seg.p1ReturnsLater) continue;
+                if (!res.stateDivergences || !res.stateDivergences.length) continue;
+
+                // Find the return segment
+                var returnSegIdx = -1;
+                for (var sj = si + 1; sj < segments.length; sj++) {
+                    if (segments[sj].p1Name === seg.p1Name) { returnSegIdx = sj; break; }
+                }
+                if (returnSegIdx < 0) continue;
+
+                var returnSeg = segments[returnSegIdx];
+                var returnStartRdIdx = returnSeg.subSegments[0].roundIndices[0];
+
+                // For each divergent state, replay the return segment
+                for (var di = 0; di < res.stateDivergences.length; di++) {
+                    var div = res.stateDivergences[di];
+                    // Build a fork object compatible with _replayForkForward
+                    var retFork = {
+                        altP1HPMin: div.p1HPFinal, altP1HPMax: div.p1HPFinal,
+                        altP1Status: div.p1Status || ''
+                    };
+                    // If item was consumed, set it on the fork
+                    if (div.p1Item !== undefined) retFork._altP1Item = div.p1Item;
+
+                    var replay = _replayForkForward(line, returnStartRdIdx - 1, retFork, allRounds);
+                    if (replay) {
+                        for (var ri = 0; ri < replay.length; ri++) {
+                            if (replay[ri].kills && !replay[ri].mainP1Dies) {
+                                // P1 dies on return with this divergent state
+                                div._returnDeath = true;
+                                div._returnDeathRound = replay[ri].roundNum;
+                                if (!res.compoundDeaths) res.compoundDeaths = [];
+                                res.compoundDeaths.push(div);
+                                res.totalDeathProb = (res.totalDeathProb || 0) + div.probability;
+                                if (res.status !== 'backup') {
+                                    res.status = 'backup';
+                                    res.summary = '☠ ' + seg.p1Name + ' dies on return (R' +
+                                        replay[ri].roundNum + ') due to compound fork in R' +
+                                        (seg.subSegments[0].roundIndices[0] + 1) + '-' +
+                                        (seg.subSegments[seg.subSegments.length - 1].roundIndices.slice(-1)[0] + 1);
+                                }
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
         }
 
         // ═══════════════════════════════════════════════════════════════
@@ -12878,6 +13736,7 @@
                 p1HPAfter: rd.p1 ? rd.p1.hpAfter.current : 0,
                 p1Max: rd.p1 ? rd.p1.hpBefore.max : 0,
                 p2HPAfter: rd.p2 ? rd.p2.hpAfter.current : 0,
+                p2Dies: rd.p2 ? rd.p2.hpAfter.current <= 0 : false,
                 p1Status: rd.p1 ? (rd.p1.status || '') : '',
                 p2Status: rd.p2 ? (rd.p2.status || '') : '',
                 dmgRange: null,
@@ -13057,6 +13916,37 @@
             'Assault Vest':1,'Eviolite':1,'Focus Sash':1,'Rocky Helmet':1
         };
 
+        // Map single status → specific berry (saves Lum Berries)
+        var STATUS_BERRY_MAP = {
+            'Freeze': 'Aspear Berry',
+            'Sleep': 'Chesto Berry',
+            'Paralysis': 'Cheri Berry',
+            'Burn': 'Rawst Berry',
+            'Poison': 'Pecha Berry',
+            'Badly Poisoned': 'Pecha Berry'
+        };
+
+        /** Check if a P1 mon already has (or has consumed) a specific item. */
+        function _monHasOrConsumedItem(line, monName, itemName) {
+            var team = line.teams.p1;
+            if (!team || !team.roster) return false;
+            for (var i = 0; i < team.roster.length; i++) {
+                var e = team.roster[i];
+                if (e.name !== monName) continue;
+                if (e.item === itemName) return true;
+                if (e.initialItem === itemName) return true;
+            }
+            // Check round logs for consumed items
+            var rounds = getBranchRounds(line, line.activeBranchIdx || -1);
+            if (rounds) {
+                for (var r = 0; r < rounds.length; r++) {
+                    var rd = rounds[r];
+                    if (rd.p1 && rd.p1.name === monName && rd.p1.itemConsumed === itemName) return true;
+                }
+            }
+            return false;
+        }
+
         function _generateItemRecommendations(line, analyzed, rounds) {
             var recs = [];
             var team = line.teams.p1;
@@ -13126,31 +14016,124 @@
                     }
                 }
 
-                // ── Lum Berry recommendation ──
-                if (statusThreats.length && !needsItem && currentItem !== 'Lum Berry') {
-                    var statuses = statusThreats.map(function(t) { return t.status; }).filter(function(v,i,a){ return a.indexOf(v)===i; });
+                // ── Status berry recommendation ──
+                if (statusThreats.length && !needsItem) {
+                    var statuses = statusThreats.map(function(t) { return t.status; })
+                        .filter(function(v,i,a){ return a.indexOf(v)===i; });
                     var maxProb = 0;
                     for (var si = 0; si < statusThreats.length; si++) {
                         if (statusThreats[si].probability > maxProb) maxProb = statusThreats[si].probability;
                     }
-                    recs.push({
-                        mon: monName, item: 'Lum Berry', type: 'status-protection',
-                        reason: 'Prevents ' + statuses.join('/') + ' from fork' + (statusThreats.length > 1 ? 's' : ''),
-                        replacing: currentItem, probability: maxProb,
-                        itemFree: itemSlotFree, roundNums: statusThreats.map(function(t) { return t.round; })
-                    });
-                // ── Sitrus Berry recommendation (only if Lum not recommended) ──
-                } else if (sitrusHelps && !needsItem && currentItem !== 'Sitrus Berry' && !statusThreats.length) {
-                    recs.push({
-                        mon: monName, item: 'Sitrus Berry', type: 'hp-recovery',
-                        reason: 'Heals ' + sitrusHP + ' HP (25%) when HP drops below 50%',
-                        replacing: currentItem, itemFree: itemSlotFree,
-                        roundNums: hpThreats.map(function(t) { return t.round; })
-                    });
+
+                    // Determine which berry to recommend
+                    var recItem;
+                    if (statuses.length === 1 && STATUS_BERRY_MAP[statuses[0]]) {
+                        // Single status → specific berry (saves Lum Berries)
+                        recItem = STATUS_BERRY_MAP[statuses[0]];
+                    } else {
+                        // Multiple different statuses → Lum Berry covers all
+                        recItem = 'Lum Berry';
+                    }
+
+                    // Check if mon already has this berry
+                    var alreadyHas = _monHasOrConsumedItem(line, monName, recItem);
+                    if (!alreadyHas && currentItem !== recItem) {
+                        recs.push({
+                            mon: monName, item: recItem, type: 'status-protection',
+                            reason: 'Prevents ' + statuses.join('/') + ' from fork' + (statusThreats.length > 1 ? 's' : ''),
+                            replacing: currentItem, probability: maxProb,
+                            itemFree: itemSlotFree, alreadyHas: false,
+                            roundNums: statusThreats.map(function(t) { return t.round; })
+                        });
+                    }
+                // ── Sitrus Berry recommendation (only if status berry not recommended) ──
+                } else if (sitrusHelps && !needsItem && !statusThreats.length) {
+                    var alreadyHasSitrus = _monHasOrConsumedItem(line, monName, 'Sitrus Berry');
+                    if (!alreadyHasSitrus && currentItem !== 'Sitrus Berry') {
+                        recs.push({
+                            mon: monName, item: 'Sitrus Berry', type: 'hp-recovery',
+                            reason: 'Heals ' + sitrusHP + ' HP (25%) when HP drops below 50%',
+                            replacing: currentItem, itemFree: itemSlotFree, alreadyHas: false,
+                            roundNums: hpThreats.map(function(t) { return t.round; })
+                        });
+                    }
                 }
             }
 
             return recs;
+        }
+
+        /**
+         * Add berry recommendations for compound death paths.
+         * Called after segment analysis to check if a Sitrus Berry
+         * would save P1 from compound deaths.
+         */
+        function _addCompoundDeathRecs(line, recs, segmentResults, rounds) {
+            var team = line.teams.p1;
+            if (!team || !team.roster) return;
+
+            for (var si = 0; si < segmentResults.length; si++) {
+                var seg = segmentResults[si];
+                if (!seg.subResults) continue;
+                for (var sri = 0; sri < seg.subResults.length; sri++) {
+                    var sr = seg.subResults[sri];
+                    if (!sr.result || sr.result.status !== 'backup') continue;
+                    var deaths = sr.result.compoundDeaths;
+                    if (!deaths || !deaths.length) continue;
+
+                    var monName = seg.p1Name;
+                    var entry = null;
+                    for (var pi = 0; pi < team.roster.length; pi++) {
+                        if (team.roster[pi].name === monName) { entry = team.roster[pi]; break; }
+                    }
+                    if (!entry) continue;
+
+                    var needsItem = !!(entry.item && DAMAGE_ITEMS[entry.item]);
+                    if (needsItem) continue;
+
+                    // Check if Sitrus Berry could save P1 from any death path
+                    var sitrusHP = Math.max(1, Math.floor(entry.maxHP / 4));
+                    var sitrusSaves = false;
+                    var totalDeathProb = 0;
+                    var roundIdxSet = {};
+                    for (var di = 0; di < deaths.length; di++) {
+                        var dp = deaths[di];
+                        // Estimate: if death margin is within Sitrus heal, berry likely saves
+                        if (dp.p1HPFinal !== undefined && dp.p1HPFinal <= 0 && dp.p1HPFinal + sitrusHP > 0) {
+                            sitrusSaves = true;
+                        }
+                        totalDeathProb += dp.probability;
+                        if (dp._roundIndices) {
+                            for (var ri = 0; ri < dp._roundIndices.length; ri++) {
+                                var rdIdx = dp._roundIndices[ri];
+                                var rdObj = rounds[rdIdx];
+                                if (rdObj) roundIdxSet[rdObj.roundNum || (rdIdx + 1)] = true;
+                            }
+                        }
+                    }
+
+                    if (!sitrusSaves) continue;
+
+                    // Skip if mon already has Sitrus Berry
+                    var alreadyHas = _monHasOrConsumedItem(line, monName, 'Sitrus Berry');
+                    // Skip if we already recommended a berry for this mon
+                    var alreadyRecd = false;
+                    for (var ri2 = 0; ri2 < recs.length; ri2++) {
+                        if (recs[ri2].mon === monName) { alreadyRecd = true; break; }
+                    }
+                    if (alreadyRecd) continue;
+
+                    var currentItem = entry.item || 'None';
+                    var itemSlotFree = !entry.item || entry.item === '' || entry.item === 'None';
+                    recs.push({
+                        mon: monName, item: 'Sitrus Berry', type: 'compound-survival',
+                        reason: 'Survives compound death (' + (totalDeathProb * 100).toFixed(2) + '% risk) with +' + sitrusHP + ' HP',
+                        replacing: currentItem, probability: totalDeathProb,
+                        itemFree: itemSlotFree, alreadyHas: alreadyHas,
+                        roundNums: Object.keys(roundIdxSet).map(Number)
+                    });
+                }
+            }
         }
 
         // ═══════════════════════════════════════════════════════════════
@@ -13165,6 +14148,52 @@
             var analyzed = [];
             for (var ri = 0; ri < rounds.length; ri++) {
                 analyzed.push(_analyzeRound(line, rounds[ri], ri, rounds));
+            }
+
+            // ── Forward bait check: non-KO forks that change P1 HP may shift bait at the next KO ──
+            for (var ai = 0; ai < analyzed.length; ai++) {
+                var ar = analyzed[ai];
+                if (ar.p2Dies) continue; // KO rounds already have bait checks
+                if (!ar.forks || !ar.forks.length) continue;
+
+                // Find the next KO round in the same P1 matchup
+                var nextKOAr = null, nextKORd = null;
+                for (var ni = ai + 1; ni < analyzed.length; ni++) {
+                    if (analyzed[ni].p1Name !== ar.p1Name) break;
+                    if (analyzed[ni].p2Dies) {
+                        nextKOAr = analyzed[ni]; nextKORd = rounds[ni]; break;
+                    }
+                }
+                if (!nextKOAr || !nextKOAr.baitBands || !nextKOAr.baitBands.length) continue;
+                if (!nextKOAr.baitAtLogged) continue;
+
+                for (var fi = 0; fi < ar.forks.length; fi++) {
+                    var f = ar.forks[fi];
+                    if (f.altP1HPMin <= 0) continue;
+                    if (f.altP1HPMin === ar.p1HPAfter) continue;
+                    var delta = ar.p1HPAfter - f.altP1HPMin;
+                    var projHP = nextKORd.p1.hpAfter.current - delta;
+                    if (projHP <= 0) continue;
+                    var projBait = _lookupBait(nextKOAr.baitBands, projHP);
+                    if (_baitsDiffer(projBait, nextKOAr.baitAtLogged)) {
+                        f.forwardBait = projBait;
+                        f.forwardBaitDiffers = true;
+                        f.forwardBaitDiffType = _baitDiffType(projBait, nextKOAr.baitAtLogged);
+                        f.forwardBaitKORound = nextKOAr.roundNum;
+                        f.forwardBaitMainBait = nextKOAr.baitAtLogged;
+                        // Flag for impact categorization
+                        f.baitDiffers = true;
+                        f.bait = projBait;
+                        f.mainBait = nextKOAr.baitAtLogged;
+                        f.baitDiffType = f.forwardBaitDiffType;
+                        // Override pre-assessed impact — forward bait change is impactful
+                        f.impact = 'different';
+                        f.summary = f.forwardBaitDiffType === 'moves'
+                            ? 'Bait move rates change at R' + nextKOAr.roundNum + ' for ' + projBait.name
+                            : 'Bait changes at R' + nextKOAr.roundNum + ' → ' + projBait.name;
+                        ar.impactful = true;
+                    }
+                }
             }
 
             // ── Fork impact categorization pass ──
@@ -13232,9 +14261,55 @@
             // ── Item recommendations ──
             var recommendations = _generateItemRecommendations(line, analyzed, rounds);
 
+            // ── Cross-round compound fork analysis ──
+            var segments = _identifySegments(rounds);
+            var segmentResults = [];
+            var compoundDeathCount = 0, baitChangeCount = 0;
+            for (var si = 0; si < segments.length; si++) {
+                var seg = segments[si];
+                var segResult = { status: 'clean', subResults: [] };
+                for (var ssi = 0; ssi < seg.subSegments.length; ssi++) {
+                    var subSeg = seg.subSegments[ssi];
+                    var treeResult = _simulateSegmentTree(line, subSeg, rounds, analyzed);
+                    if (treeResult) {
+                        var classified = _classifySegmentOutcomes(seg, treeResult, line, rounds, analyzed);
+                        segResult.subResults.push({
+                            p2Name: subSeg.p2Name,
+                            roundIndices: subSeg.roundIndices,
+                            result: classified
+                        });
+                        if (classified.status === 'backup') {
+                            segResult.status = 'backup';
+                            compoundDeathCount += classified.compoundDeaths.length;
+                        } else if (classified.status === 'baitChange' && segResult.status !== 'backup') {
+                            segResult.status = 'baitChange';
+                            baitChangeCount += classified.baitChanges.length;
+                        } else if (classified.status === 'divergent' &&
+                                   segResult.status !== 'backup' && segResult.status !== 'baitChange') {
+                            segResult.status = 'divergent';
+                        }
+                    }
+                }
+                segResult.p1Name = seg.p1Name;
+                segResult.startIdx = seg.startIdx;
+                segResult.endIdx = seg.endIdx;
+                segResult.p1ReturnsLater = seg.p1ReturnsLater;
+                segmentResults.push(segResult);
+            }
+
+            // ── Return recalc for P1s that return later with different state ──
+            _handleReturnRecalc(line, segments, segmentResults, rounds);
+
+            // ── Compound death berry recommendations ──
+            _addCompoundDeathRecs(line, recommendations, segmentResults, rounds);
+
             var _result = {
                 rounds: analyzed, error: null,
-                summary: { clean: cleanCount, different: diffCount, backup: backupCount },
+                summary: {
+                    clean: cleanCount, different: diffCount, backup: backupCount,
+                    compoundDeaths: compoundDeathCount, baitChanges: baitChangeCount
+                },
+                segments: segmentResults,
                 recommendations: recommendations
             };
             return _result;
@@ -13267,12 +14342,14 @@
                 if (ars[i].impactful) forkRounds.push(ars[i].roundNum);
                 totalForks += ars[i].forks.length;
             }
-            var s = result.summary || { clean: 0, different: 0, backup: 0 };
+            var s = result.summary || { clean: 0, different: 0, backup: 0, compoundDeaths: 0 };
             var bannerCls, bannerText;
-            if (s.backup > 0) {
+            if (s.backup > 0 || s.compoundDeaths > 0) {
                 bannerCls = 'rsa-fa-danger';
-                bannerText = '☠ ' + s.backup + ' fork' + (s.backup !== 1 ? 's need' : ' needs') +
+                var backupTotal = s.backup + (s.compoundDeaths || 0);
+                bannerText = '☠ ' + backupTotal + ' fork' + (backupTotal !== 1 ? 's need' : ' needs') +
                     ' backup plan';
+                if (s.compoundDeaths > 0) bannerText += ' (' + s.compoundDeaths + ' compound)';
                 if (s.different > 0) bannerText += ' · ' + s.different + ' different';
                 if (s.clean > 0) bannerText += ' · ' + s.clean + ' clean';
             } else if (s.different > 0) {
@@ -13296,22 +14373,99 @@
             }
             html += '</div>';
 
+            // ── Compound fork analysis ──
+            if (result.segments && result.segments.length) {
+                var hasCompound = false;
+                for (var si = 0; si < result.segments.length; si++) {
+                    var seg = result.segments[si];
+                    if (seg.subResults && seg.subResults.length) hasCompound = true;
+                }
+                if (hasCompound) {
+                    html += '<div class="rsa-fa-compound">';
+                    html += '<div class="rsa-fa-compound-hdr">🔗 Compound Fork Analysis</div>';
+                    for (var si = 0; si < result.segments.length; si++) {
+                        var seg = result.segments[si];
+                        if (!seg.subResults || !seg.subResults.length) continue;
+                        for (var ssi = 0; ssi < seg.subResults.length; ssi++) {
+                            var sub = seg.subResults[ssi];
+                            var sr = sub.result;
+                            var segCls = sr.status === 'backup' ? 'rsa-cs-death' :
+                                         sr.status === 'baitChange' ? 'rsa-cs-bait' :
+                                         sr.status === 'divergent' ? 'rsa-cs-div' : 'rsa-cs-safe';
+                            var rNums = sub.roundIndices.map(function (ri) { return 'R' + (ri + 1); });
+                            html += '<div class="rsa-cs ' + segCls + '">';
+                            html += '<div class="rsa-cs-hdr">';
+                            html += '<span class="rsa-cs-matchup">' + _esc(seg.p1Name) + ' vs ' + _esc(sub.p2Name) + '</span>';
+                            html += '<span class="rsa-cs-rounds">(' + rNums.join(', ') + ')</span>';
+                            html += '<span class="rsa-cs-paths">' + sr.pathCount + ' paths</span>';
+                            html += '</div>';
+                            html += '<div class="rsa-cs-body">' + _esc(sr.summary) + '</div>';
+
+                            // Show compound death paths
+                            if (sr.compoundDeaths && sr.compoundDeaths.length) {
+                                html += '<div class="rsa-cs-deaths">';
+                                var shown = Math.min(sr.compoundDeaths.length, 5);
+                                for (var dpi = 0; dpi < shown; dpi++) {
+                                    var dp = sr.compoundDeaths[dpi];
+                                    html += '<div class="rsa-cs-death-path">';
+                                    html += '<span class="rsa-cs-dp-icon">☠</span>';
+                                    html += '<span class="rsa-cs-dp-desc">' + _esc(_describeCompoundPath(dp)) + '</span>';
+                                    html += '<span class="rsa-cs-dp-prob">(' + (dp.probability * 100).toFixed(2) + '%)</span>';
+                                    html += '</div>';
+                                }
+                                if (sr.compoundDeaths.length > shown) {
+                                    html += '<div class="rsa-cs-more">+ ' + (sr.compoundDeaths.length - shown) + ' more paths</div>';
+                                }
+                                html += '</div>';
+                            }
+
+                            // Show bait changes
+                            if (sr.baitChanges && sr.baitChanges.length) {
+                                html += '<div class="rsa-cs-baits">';
+                                var bShown = Math.min(sr.baitChanges.length, 3);
+                                for (var bci = 0; bci < bShown; bci++) {
+                                    var bc = sr.baitChanges[bci];
+                                    html += '<div class="rsa-cs-bait-path">';
+                                    html += '<span class="rsa-cs-bp-icon">⚠</span>';
+                                    html += '<span class="rsa-cs-bp-desc">Bait → ' + _esc(bc.bait ? bc.bait.name : '?') + '</span>';
+                                    html += '<span class="rsa-cs-bp-prob">(' + (bc.probability * 100).toFixed(2) + '%)</span>';
+                                    html += '</div>';
+                                }
+                                html += '</div>';
+                            }
+
+                            html += '</div>';
+                        }
+                    }
+                    html += '</div>';
+                }
+            }
+
             // ── Item recommendations ──
             if (result.recommendations && result.recommendations.length) {
                 html += '<div class="rsa-fa-recs">';
                 html += '<div class="rsa-fa-recs-hdr">💡 Item Recommendations</div>';
                 for (var ri = 0; ri < result.recommendations.length; ri++) {
                     var rec = result.recommendations[ri];
-                    var recCls = rec.type === 'status-protection' ? 'rsa-rec-status' : 'rsa-rec-hp';
-                    html += '<div class="rsa-rec ' + recCls + '">';
+                    var recCls = rec.type === 'status-protection' ? 'rsa-rec-status'
+                        : rec.type === 'compound-survival' ? 'rsa-rec-compound' : 'rsa-rec-hp';
+                    var clickable = !rec.alreadyHas;
+                    if (clickable) recCls += ' rsa-rec-clickable';
+                    html += '<div class="rsa-rec ' + recCls + '"'
+                        + ' data-rec-mon="' + _esc(rec.mon) + '"'
+                        + ' data-rec-item="' + _esc(rec.item) + '">';
                     html += '<img class="rsa-rec-spr" src="' + SPRITE_BASE + _esc(rec.mon) + '.png" alt="" onerror="this.style.display=\'none\'">';
                     html += '<span class="rsa-rec-mon">' + _esc(rec.mon) + '</span>';
                     html += '<span class="rsa-rec-item">→ <b>' + _esc(rec.item) + '</b></span>';
                     html += '<span class="rsa-rec-reason">' + _esc(rec.reason) + '</span>';
+                    if (rec.alreadyHas) {
+                        html += '<span class="rsa-rec-has">✓ Already equipped</span>';
+                    }
                     if (!rec.itemFree && rec.replacing && rec.replacing !== 'None') {
                         html += '<span class="rsa-rec-cost">Replaces ' + _esc(rec.replacing) + '</span>';
                     }
                     html += '<span class="rsa-rec-rounds">R' + rec.roundNums.filter(function(v,i,a){ return a.indexOf(v)===i; }).join(', R') + '</span>';
+                    if (clickable) html += '<span class="rsa-rec-apply">▶ Apply</span>';
                     html += '</div>';
                 }
                 html += '</div>';
@@ -13323,6 +14477,271 @@
             $p.find('.rsa-fk-toggle').off('click').on('click', function () {
                 $(this).closest('.rsa-fk').toggleClass('rsa-fk-open');
             });
+
+            // Wire up clickable recommendations
+            $p.find('.rsa-rec-clickable').off('click').on('click', function () {
+                var monName = $(this).data('rec-mon');
+                var itemName = $(this).data('rec-item');
+                if (monName && itemName) _applyItemRecommendation(monName, itemName);
+            });
+        }
+
+        /**
+         * Auto-create branches when fight analysis detects a bait change
+         * that introduces a new P2 move not previously considered.
+         * Creates one branch per new move with the default outcome (hit,
+         * no crit, no secondary applied).  The existing fight-analysis
+         * system then handles all fork variables (crits, misses,
+         * secondary effects, damage ranges, etc.) when the branch is
+         * analysed — exactly the same as any manually-captured round.
+         */
+        function _autoCreateBaitMoveBranches(line, result) {
+            if (!line || !result || !result.rounds) return [];
+            var rounds = getBranchRounds(line, line.activeBranchIdx || -1);
+            if (!rounds || !rounds.length) return [];
+
+            // Collect unique bait-move sub-forks that introduce new moves
+            var seen = {};
+            var targets = []; // { roundIdx, moveIdx, moveName, forkLabel, probability }
+            for (var ai = 0; ai < result.rounds.length; ai++) {
+                var ar = result.rounds[ai];
+                if (!ar.forks) continue;
+                for (var fi = 0; fi < ar.forks.length; fi++) {
+                    var f = ar.forks[fi];
+                    if (!f._nextRoundMoveOverride) continue;
+                    if (!f._isAIMoveSubFork && !f._isBaitMoveSubFork) continue;
+                    // Only act on forks with meaningful probability
+                    if (f.probability < 0.005) continue;
+                    var key = f._nextRoundMoveOverride.roundIdx + ':' + f._nextRoundMoveOverride.moveName;
+                    if (seen[key]) continue;
+                    seen[key] = true;
+                    targets.push({
+                        roundIdx: f._nextRoundMoveOverride.roundIdx,
+                        moveIdx: f._nextRoundMoveOverride.moveIdx,
+                        moveName: f._nextRoundMoveOverride.moveName,
+                        forkLabel: f.label,
+                        probability: f.probability
+                    });
+                }
+            }
+            if (!targets.length) return [];
+
+            // Don't create branches that already exist for the same scenario
+            var existing = {};
+            if (line.branches) {
+                for (var bi = 0; bi < line.branches.length; bi++) {
+                    var b = line.branches[bi];
+                    if (b._autoBaitForkKey) existing[b._autoBaitForkKey] = true;
+                }
+            }
+
+            var created = [];
+            var snap = _snapshotState(line);
+
+            try {
+                for (var ti = 0; ti < targets.length; ti++) {
+                    var t = targets[ti];
+                    var targetRd = rounds[t.roundIdx];
+                    if (!targetRd || !targetRd.p1 || !targetRd.p2) continue;
+
+                    var branchKey = t.roundIdx + ':' + t.moveName;
+                    if (existing[branchKey]) continue;
+
+                    // Restore state before each branch creation
+                    _restoreFromSnapshot(line, snap);
+                    snap = _snapshotState(line);
+
+                    var branchName = 'R' + (targetRd.roundNum || t.roundIdx + 1) +
+                        ' ' + t.moveName;
+
+                    // Create branch forking at the target round
+                    var newBI = createBranch(line, t.roundIdx, branchName);
+                    line.branches[newBI]._autoBaitForkKey = branchKey;
+                    line.activeBranchIdx = newBI;
+                    rebuildBranchTeams(line, newBI);
+
+                    // Ensure correct active pokemon
+                    var _p1i = findInRoster(line.teams.p1, targetRd.p1.name);
+                    if (_p1i >= 0) line.teams.p1.activeIdx = _p1i;
+                    var _p2i = findInRoster(line.teams.p2, targetRd.p2.name);
+                    if (_p2i >= 0) line.teams.p2.activeIdx = _p2i;
+
+                    // Sync field state and load form
+                    _syncFieldFromRound(targetRd);
+                    _loadActiveIntoForm(line);
+
+                    // Capture one round with the default outcome (hit, no crit,
+                    // no secondary applied).  The analysis system will generate
+                    // all fork variables (crit, miss, secondary, rolls, etc.)
+                    // when this branch is analysed — same as any other round.
+                    var rd = captureRound(
+                        targetRd.p1.moveIdx,
+                        t.moveIdx,
+                        false,                              // no P2 crit
+                        targetRd.p1PreDmg || 0,
+                        targetRd.p1PreStatus || '',
+                        '',                                 // no comment
+                        !!targetRd.p1.secondaryApplied,
+                        false                               // no P2 secondary
+                    );
+                    if (rd) {
+                        rd.roundNum = targetRd.roundNum;
+                        rd._baitForkMove = t.moveName;
+                        line.branches[newBI].rounds.push(rd);
+                    }
+
+                    created.push(branchName);
+                }
+            } catch (e) {
+                console.error('[AutoBaitFork]', e);
+            }
+
+            // Restore original state
+            _restoreFromSnapshot(line, snap);
+            _loadActiveIntoForm(line);
+
+            if (created.length) {
+                // Re-render to show new branches
+                rebuildLineTeams(line);
+                renderRoundLog();
+            }
+
+            return created;
+        }
+
+        /**
+         * Apply an item recommendation: set the item on the P1 mon,
+         * resimulate all rounds from the mon's entry point, and re-render.
+         */
+        function _applyItemRecommendation(monName, itemName) {
+            var line = curLine();
+            if (!line || !line.teams || !line.teams.p1) return;
+
+            // Find the mon in the P1 roster
+            var entry = null, entryIdx = -1;
+            for (var i = 0; i < line.teams.p1.roster.length; i++) {
+                if (line.teams.p1.roster[i].name === monName) {
+                    entry = line.teams.p1.roster[i]; entryIdx = i; break;
+                }
+            }
+            if (!entry) return;
+
+            // Set the item on the roster entry
+            entry.item = itemName;
+            entry.initialItem = itemName;
+
+            // Find the first round where this mon appears (entry round)
+            var rounds = getBranchRounds(line, line.activeBranchIdx || -1);
+            if (!rounds || !rounds.length) return;
+            var entryRoundIdx = -1;
+            for (var ri = 0; ri < rounds.length; ri++) {
+                if (rounds[ri].p1 && rounds[ri].p1.name === monName) {
+                    entryRoundIdx = ri; break;
+                }
+            }
+            if (entryRoundIdx < 0) return;
+
+            // Snapshot current state
+            var snap = _snapshotState(line);
+
+            try {
+                // Reset roster to initial state and replay up to entry round
+                for (var i2 = 0; i2 < line.teams.p1.roster.length; i2++) {
+                    var e = line.teams.p1.roster[i2];
+                    if (e.initialItem !== undefined && e.name !== monName) e.item = e.initialItem;
+                    e.currentHP = e.maxHP; e.bestCaseHP = e.maxHP;
+                    e.status = ''; e.toxicCounter = 0;
+                    if (e.boosts) { for (var bk in e.boosts) e.boosts[bk] = 0; }
+                }
+                for (var i3 = 0; i3 < line.teams.p2.roster.length; i3++) {
+                    var e2 = line.teams.p2.roster[i3];
+                    if (e2.initialItem !== undefined) e2.item = e2.initialItem;
+                    e2.currentHP = e2.maxHP; e2.bestCaseHP = e2.maxHP;
+                    e2.status = ''; e2.toxicCounter = 0;
+                    if (e2.boosts) { for (var bk2 in e2.boosts) e2.boosts[bk2] = 0; }
+                }
+
+                // Apply logged state from rounds before the entry point
+                for (var ri2 = 0; ri2 < entryRoundIdx; ri2++) {
+                    var rd = rounds[ri2];
+                    if (!rd.p1 || !rd.p2) continue;
+                    var p1i = findInRoster(line.teams.p1, rd.p1.name);
+                    if (p1i >= 0) {
+                        line.teams.p1.roster[p1i].currentHP = rd.p1.hpAfter.current;
+                        line.teams.p1.roster[p1i].bestCaseHP = rd.p1.hpAfter.bestCase != null ? rd.p1.hpAfter.bestCase : rd.p1.hpAfter.current;
+                        if (rd.p1.status !== undefined) line.teams.p1.roster[p1i].status = rd.p1.status || '';
+                        if (rd.p1.item !== undefined) line.teams.p1.roster[p1i].item = rd.p1.item;
+                        if (rd.p1.boosts) line.teams.p1.roster[p1i].boosts = $.extend({}, rd.p1.boosts);
+                        line.teams.p1.activeIdx = p1i;
+                    }
+                    var p2i = findInRoster(line.teams.p2, rd.p2.name);
+                    if (p2i >= 0) {
+                        line.teams.p2.roster[p2i].currentHP = rd.p2.hpAfter.current;
+                        line.teams.p2.roster[p2i].bestCaseHP = rd.p2.hpAfter.bestCase != null ? rd.p2.hpAfter.bestCase : rd.p2.hpAfter.current;
+                        if (rd.p2.status !== undefined) line.teams.p2.roster[p2i].status = rd.p2.status || '';
+                        if (rd.p2.item !== undefined) line.teams.p2.roster[p2i].item = rd.p2.item;
+                        if (rd.p2.boosts) line.teams.p2.roster[p2i].boosts = $.extend({}, rd.p2.boosts);
+                        line.teams.p2.activeIdx = p2i;
+                    }
+                }
+
+                // Ensure the mon has the new item at entry
+                entry.item = itemName;
+
+                // Resimulate from entry round onward
+                for (var ri3 = entryRoundIdx; ri3 < rounds.length; ri3++) {
+                    var oldRd = rounds[ri3];
+                    if (!oldRd.p1 || !oldRd.p2) continue;
+                    if (oldRd.isP2Switch) continue; // P2 switch rounds don't need resim
+
+                    // Set active indices
+                    var _rp1i = findInRoster(line.teams.p1, oldRd.p1.name);
+                    if (_rp1i >= 0) line.teams.p1.activeIdx = _rp1i;
+                    var _rp2i = findInRoster(line.teams.p2, oldRd.p2.name);
+                    if (_rp2i >= 0) line.teams.p2.activeIdx = _rp2i;
+
+                    // Sync field state and load form
+                    _syncFieldFromRound(oldRd);
+                    _loadActiveIntoForm(line);
+
+                    // Resimulate with the same parameters
+                    var newRd = captureRound(
+                        oldRd.p1.moveIdx,
+                        oldRd.p2.moveIdx,
+                        !!oldRd.p2Crit,
+                        oldRd.p1PreDmg || 0,
+                        oldRd.p1PreStatus || '',
+                        oldRd.comment || '',
+                        !!oldRd.p1.secondaryApplied,
+                        !!oldRd.p2.secondaryApplied
+                    );
+
+                    if (newRd) {
+                        // Preserve round metadata
+                        newRd.roundNum = oldRd.roundNum;
+                        newRd.isSwitch = oldRd.isSwitch;
+                        newRd.isP2Switch = oldRd.isP2Switch;
+                        // Replace the old round in the array
+                        if (line.activeBranchIdx >= 0 && line.branches[line.activeBranchIdx]) {
+                            var bRounds = line.branches[line.activeBranchIdx].rounds;
+                            if (ri3 < bRounds.length) bRounds[ri3] = newRd;
+                        } else {
+                            if (ri3 < line.rounds.length) line.rounds[ri3] = newRd;
+                        }
+                    }
+                }
+
+                // Rebuild state from all rounds (cleans up any inconsistencies)
+                rebuildLineTeams(line);
+                // Re-render the round log
+                renderRoundLog();
+                // Re-run fight analysis with updated data
+                $('#rsa-analyze-fight').click();
+            } catch (e) {
+                console.error('[ApplyItemRec]', e);
+                // Restore original state on error
+                _restoreFromSnapshot(line, snap);
+            }
         }
 
         function _renderNode(ar, isLast) {
@@ -13497,9 +14916,10 @@
 
                 if (f.baitDiffers && f.bait) {
                     h += '<div class="rsa-fk-bait-diff">';
+                    var baitPfx = f.forwardBaitDiffers ? '🔮 At R' + f.forwardBaitKORound + ': ' : '🔮 ';
                     if (f.baitDiffType === 'moves') {
                         // Same mon, different move rates
-                        h += '🔮 <b>' + _esc(f.bait.name) + '</b> move rates change';
+                        h += baitPfx + '<b>' + _esc(f.bait.name) + '</b> move rates change';
                         var mainMvStr = f.mainBait ? _fmtMoves(f.mainBait) : '';
                         var forkMvStr = _fmtMoves(f.bait);
                         if (mainMvStr && forkMvStr) {
@@ -13510,7 +14930,7 @@
                         }
                     } else {
                         // Different mon
-                        h += '🔮 Bait changes → <b>' + _esc(f.bait.name) + '</b>';
+                        h += baitPfx + 'Bait changes → <b>' + _esc(f.bait.name) + '</b>';
                         var mvStr = _fmtMoves(f.bait);
                         if (mvStr) h += ' (' + _esc(mvStr) + ')';
                     }
@@ -13664,6 +15084,8 @@
                                 $card.append(_newBadges);
                             }
                         }
+                        // Auto-create branches for bait moves not previously considered
+                        _autoCreateBaitMoveBranches(line, result);
                     } catch (e) {
                         $panel.html('<div class="rsa-fa-error">⚠ ' +
                             $('<span>').text(String(e)).html() + '</div>').show();
@@ -13680,6 +15102,7 @@
         // Expose for Playwright tests
         if (typeof window !== 'undefined' && window.__rsaTest) {
             window.__rsaTest.analyzeFight = analyzeFight;
+            window.__rsaTest._autoCreateBaitMoveBranches = _autoCreateBaitMoveBranches;
         }
 
         } catch (initError) {
