@@ -1203,9 +1203,10 @@ fieldset {
 /* Info strip header: absolutely positioned in the outer whitespace */
 .rsa-moves-area .result-move-header {
     position: absolute;
-    top: 50%;
-    transform: translateY(-50%);
+    top: 0;
+    bottom: 0;
     display: flex;
+    align-items: center;
     justify-content: center;
     pointer-events: none;
 }
@@ -2828,6 +2829,7 @@ fieldset {
     flex: 1 1 0%;
     min-width: 0;
     white-space: nowrap;
+    text-align: left;
 }
 /* Neutralize base .btn hover/checked chrome */
 .rsa-moves-area label.btn.btn-xxxwide:hover,
@@ -2958,16 +2960,16 @@ fieldset {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 3px;
-    padding: 4px 6px;
+    gap: 1px;
+    padding: 2px 4px;
     font-size: var(--rsa-fs-xs);
     color: var(--rsa-text);
     text-align: center;
-    min-width: 64px;
+    min-width: 56px;
 }
 .rsa-move-info-sprite {
-    width: 48px;
-    height: 48px;
+    width: 36px;
+    height: 36px;
     image-rendering: pixelated;
     flex-shrink: 0;
 }

@@ -6232,6 +6232,39 @@
      * the calc form for both sides.  Call after any rebuild/round-delete so the
      * calc form and roster never drift apart.
      */
+    /**
+     * Sync the calc form to the roster's active (field) entries.
+     * If the form already shows the correct mons, calls back immediately.
+     * Otherwise loads the active entries and waits for recalculation.
+     */
+    function syncFieldToForm(callback) {
+        var line = curLine();
+        var p1Entry = getActiveEntry(line.teams.p1);
+        var p2Entry = getActiveEntry(line.teams.p2);
+        var formP1 = getP1Name();
+        var formP2 = getP2Name();
+        var needsSync = false;
+
+        if (p1Entry && formP1 !== p1Entry.name) {
+            loadPokemonIntoForm('p1', p1Entry);
+            needsSync = true;
+        }
+        if (p2Entry && formP2 !== p2Entry.name) {
+            suppressP2Sync = true;
+            loadPokemonIntoForm('p2', p2Entry);
+            needsSync = true;
+        }
+        if (needsSync) {
+            setTimeout(function () {
+                suppressP2Sync = false;
+                syncActiveStateToForm();
+                if (callback) callback();
+            }, 500);
+        } else {
+            if (callback) callback();
+        }
+    }
+
     function syncActiveStateToForm() {
         var line = curLine();
         window.NO_CALC = true;
@@ -7050,7 +7083,7 @@
             // Build P1 move options
             var p1MoveOpts = '<option value="none">— P1 Move —</option>';
             for (var m = 0; m < 4; m++) {
-                var ml = getMoveNames(0, m);
+                var ml = (p1.moves && p1.moves[m]) ? p1.moves[m] : null;
                 if (ml && ml !== '—' && ml !== '(No Move)') {
                     var sel = (selectedP1Move === m) ? ' selected' : '';
                     p1MoveOpts += '<option value="' + m + '"' + sel + '>' + esc(ml) + '</option>';
@@ -7099,36 +7132,23 @@
         var p1Sprite = p1.sprite ? '<img class="rsa-inline-sprite" src="' + esc(p1.sprite) + '" alt="">' : '';
         var p2Sprite = p2.sprite ? '<img class="rsa-inline-sprite" src="' + esc(p2.sprite) + '" alt="">' : '';
 
-        // Build P1 move options with min damage %
-        // Use form labels (getMoveNames) — same order as damageResults / getDamageInfo
+        // Build P1 move options — use roster entry moves (independent of calc form)
         var p1MoveOpts = '';
         for (var m = 0; m < 4; m++) {
-            var label = getMoveNames(0, m);
+            var label = (p1.moves && p1.moves[m]) ? p1.moves[m] : null;
             if (label && label !== '—' && label !== '(No Move)') {
                 var sel = (selectedP1Move === m) ? ' selected' : '';
-                var dmgTag = '';
-                var info = getDamageInfo(0, m);
-                if (info && p2.maxHP > 0) {
-                    dmgTag = ' (' + Math.floor(info.minDmg / p2.maxHP * 100) + '%)';
-                }
-                p1MoveOpts += '<option value="' + m + '"' + sel + '>' + esc(label) + dmgTag + '</option>';
+                p1MoveOpts += '<option value="' + m + '"' + sel + '>' + esc(label) + '</option>';
             }
         }
 
-        // Build P2 move options with max damage % and AI probability
+        // Build P2 move options — use roster entry moves (independent of calc form)
         var p2MoveOpts = '';
         for (var m = 0; m < 4; m++) {
-            var label = getMoveNames(1, m);
+            var label = (p2.moves && p2.moves[m]) ? p2.moves[m] : null;
             if (label && label !== '—' && label !== '(No Move)') {
                 var sel = (selectedP2Move === m) ? ' selected' : '';
-                var dmgTag = '';
-                var info = getDamageInfo(1, m);
-                if (info && p1.maxHP > 0) {
-                    dmgTag = ' (' + Math.floor(info.maxDmg / p1.maxHP * 100) + '%)';
-                }
-                var aiPct = $('#resultMoveRateR' + (m + 1)).text() || '';
-                if (aiPct) dmgTag += ' ' + aiPct;
-                p2MoveOpts += '<option value="' + m + '"' + sel + '>' + esc(label) + dmgTag + '</option>';
+                p2MoveOpts += '<option value="' + m + '"' + sel + '>' + esc(label) + '</option>';
             }
         }
 
@@ -9202,7 +9222,17 @@
                 }
                 return; // In doubles, P1 uses drag-to-slot
             }
-            switchActive(side, idx);
+            // Preview-only: load mon into calc form for matchup exploration
+            // without changing activeIdx (field state). The inline controls
+            // and Log Round always use activeIdx entries (the actual field mons).
+            var line = curLine();
+            var entry = line.teams[side].roster[idx];
+            if (!entry) return;
+            if (side === 'p2') suppressP2Sync = true;
+            loadPokemonIntoForm(side, entry);
+            if (side === 'p2') {
+                setTimeout(function () { suppressP2Sync = false; }, 500);
+            }
         });
 
         // In doubles, clicking a P2 active-field slot also refreshes box rankings
@@ -9230,6 +9260,10 @@
                 showSaveToast('⏳ Form still loading — please wait a moment and try again.', 2000);
                 return;
             }
+            // Auto-sync the calc form to the field mons before capturing.
+            // This makes the inline Log Round independent of whatever mon
+            // the user may have previewed in the top calc panel.
+            syncFieldToForm(function () {
             var comment = $('#rsa-comment').val().trim();
 
             function finishRound(rd) {
@@ -9393,6 +9427,7 @@
             }
 
             finishRound(doCaptureSingles());
+        }); // end syncFieldToForm callback
         });
 
         // ── Switch P1 in (takes the P2 move) ──
@@ -9406,6 +9441,17 @@
                 return;
             }
             _switchInProgress = true;
+
+            // Ensure P2 form matches the field P2 before switching P1
+            var _p2Field = getActiveEntry(curLine().teams.p2);
+            var _p2Form  = getP2Name();
+            var _needP2Sync = false;
+            if (_p2Field && _p2Form !== _p2Field.name) {
+                suppressP2Sync = true;
+                loadPokemonIntoForm('p2', _p2Field);
+                _needP2Sync = true;
+            }
+
             var line = curLine();
             var p2MoveIdx = selectedP2Move;
             var p2Crit = $('#rsa-p2-crit').is(':checked');
@@ -9417,7 +9463,9 @@
             switchActive('p1', switchIdx);
 
             // Wait for the calc engine to recalculate with the new P1 pokemon
+            // (extra time if P2 also needed syncing)
             setTimeout(function () {
+                suppressP2Sync = false;
                 // rebuildBranchTeams (fired by loadPokemonIntoForm's 300ms timer) may have
                 // reset team.p1.activeIdx back to the pre-switch mon via replay. Re-apply
                 // the switch index so captureRound uses the correct incoming pokemon.
@@ -9445,7 +9493,7 @@
                 $('#rsa-comment').val('');
                 $('#rsa-switch-p1').val('');
                 _switchInProgress = false;
-            }, 600);
+            }, _needP2Sync ? 1000 : 600);
         });
 
         // ── Collapse / expand all rounds ──
@@ -10475,10 +10523,16 @@
             }
             var inlineComment = $('.rsa-inline-comment-ko').val() || ('P2 sends ' + incomingName);
 
+            // Ensure P1 form matches the field P1 (user may have previewed a different mon)
+            var _p1Field = getActiveEntry(line.teams.p1);
+            var _needP1Sync = _p1Field && getP1Name() !== _p1Field.name;
+            if (_needP1Sync) loadPokemonIntoForm('p1', _p1Field);
+
             // Switch P2 active mon (loads into form, resets boosts)
             switchActive('p2', p2SendIdx);
 
             // Wait for the form to fully load, then capture the round
+            // (extra time if P1 also needed syncing)
             setTimeout(function () {
                 // rebuildBranchTeams (fired by loadPokemonIntoForm's 300ms timer) may have
                 // reset team.p2.activeIdx back to the KO'd mon via replay. Re-apply the
@@ -10495,7 +10549,7 @@
                 renderAll();
                 syncActiveStatusToForm();
                 autoSave();
-            }, 750);
+            }, _needP1Sync ? 1000 : 750);
         });
 
         // P2 KO: Confirm button (or change) switches P2 in and transitions to full normal panel
