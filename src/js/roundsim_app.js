@@ -697,6 +697,30 @@
         return window.EffectsRegistry.items[key] || null;
     }
 
+    // ── Custom dialog helpers (replace native alert / confirm / prompt) ──
+    var _rsaDlgCb = null;
+    function _rsaDlgShow(msg, mode, defVal) {
+        $('#rsa-dlg-msg').text(msg);
+        var isPrompt = (mode === 'prompt');
+        $('#rsa-dlg-input').toggle(isPrompt).val(defVal || '');
+        $('#rsa-dlg-cancel').toggle(mode !== 'alert');
+        $('#rsa-dlg-overlay').show();
+        if (isPrompt) { setTimeout(function() { $('#rsa-dlg-input').focus().select(); }, 30); }
+        else { setTimeout(function() { $('#rsa-dlg-ok').focus(); }, 30); }
+    }
+    function rsaAlert(msg, onDone) {
+        _rsaDlgCb = { ok: onDone || null, cancel: null };
+        _rsaDlgShow(msg, 'alert', '');
+    }
+    function rsaConfirm(msg, onOk, onCancel) {
+        _rsaDlgCb = { ok: onOk || null, cancel: onCancel || null };
+        _rsaDlgShow(msg, 'confirm', '');
+    }
+    function rsaPrompt(msg, defVal, onOk) {
+        _rsaDlgCb = { ok: onOk || null, cancel: null };
+        _rsaDlgShow(msg, 'prompt', defVal);
+    }
+
     /** Get the defensive type multiplier for a single attacking type vs this pokemon.
      *  Takes into account dual typing and ability immunities. */
     function getTypeMultiplier(atkType, defTypes, abilityName) {
@@ -4551,7 +4575,7 @@
         var p1Entry = getActiveEntry(line.teams.p1);
         var p2Entry = getActiveEntry(line.teams.p2);
         if (!p1Entry || !p2Entry) {
-            alert('Both sides need an active Pokémon on their team.');
+            rsaAlert('Both sides need an active Pokémon on their team.');
             return null;
         }
 
@@ -8522,8 +8546,7 @@
 
     /** Remove items from all box mons and persist */
     function removeAllBoxItems() {
-        if (!confirm('Remove items from ALL box Pokémon? This is persistent.')) return;
-
+        rsaConfirm('Remove items from ALL box Pokémon? This is persistent.', function() {
         // customsets structure: { pokemonName: { setName: { item, moves, ... } } }
         var customSets = {};
         try { customSets = JSON.parse(localStorage.getItem('customsets') || '{}'); } catch (e) {}
@@ -8563,6 +8586,7 @@
         $('#p1 .item').val('').trigger('change');
 
         renderBox('p1');
+        }); // rsaConfirm
     }
 
     function renderBox(side) {
@@ -9010,32 +9034,35 @@
         $(document).on('click', '#next-trainer, #previous-trainer', function (e) {
             var line = curLine();
             if (line.rounds.length > 0) {
-                var save = confirm(
-                    'You have ' + line.rounds.length + ' round(s) logged in "' + line.name + '".\n\n' +
-                    'OK = Save this line and start a new one\n' +
-                    'Cancel = Discard rounds and load next opponent'
+                rsaConfirm(
+                    'You have ' + line.rounds.length + ' round(s) logged in "' + line.name + '".\n\nOK = Save this line and start a new one\nCancel = Discard rounds and load next opponent',
+                    function() {
+                        // Keep current line, create a new one for the next trainer
+                        lines.push(createLine('Line ' + String.fromCharCode(65 + lines.length)));
+                        currentLineIdx = lines.length - 1;
+                        renderAll();
+                        setTimeout(function () {
+                            initP1Team();
+                            syncP2Team();
+                            setTimeout(autoSelectP2MostProbable, 500);
+                        }, 500);
+                    },
+                    function() {
+                        // Discard: clear current line's rounds and reset teams
+                        line.rounds = [];
+                        line.roundCounter = 0;
+                        line.teams = {
+                            p1: { roster: [], activeIdx: -1 },
+                            p2: { roster: [], activeIdx: -1 }
+                        };
+                        renderAll();
+                        setTimeout(function () {
+                            initP1Team();
+                            syncP2Team();
+                            setTimeout(autoSelectP2MostProbable, 500);
+                        }, 500);
+                    }
                 );
-                if (save) {
-                    // Keep current line, create a new one for the next trainer
-                    lines.push(createLine('Line ' + String.fromCharCode(65 + lines.length)));
-                    currentLineIdx = lines.length - 1;
-                } else {
-                    // Discard: clear current line's rounds and reset teams
-                    line.rounds = [];
-                    line.roundCounter = 0;
-                    line.teams = {
-                        p1: { roster: [], activeIdx: -1 },
-                        p2: { roster: [], activeIdx: -1 }
-                    };
-                }
-                renderAll();
-                // Re-init P1 team after the form loads the new trainer
-                setTimeout(function () {
-                    initP1Team();
-                    syncP2Team();
-                    // Auto-select most probable P2 move after new trainer loads
-                    setTimeout(autoSelectP2MostProbable, 500);
-                }, 500);
             }
         });
 
@@ -9097,24 +9124,26 @@
         });
 
         $('#rsa-add-line').on('click', function () {
-            var name = prompt('Name for new line:', 'Line ' + String.fromCharCode(65 + lines.length));
-            if (!name) return;
-            lines.push(createLine(name));
-            currentLineIdx = lines.length - 1;
-            // Inherit the current P1 and trainer's roster into the new line
-            initP1Team();
-            syncP2Team();
-            renderAll();
-            autoSave();
+            rsaPrompt('Name for new line:', 'Line ' + String.fromCharCode(65 + lines.length), function(name) {
+                if (!name || !name.trim()) return;
+                lines.push(createLine(name.trim()));
+                currentLineIdx = lines.length - 1;
+                // Inherit the current P1 and trainer's roster into the new line
+                initP1Team();
+                syncP2Team();
+                renderAll();
+                autoSave();
+            });
         });
 
         $('#rsa-delete-line').on('click', function () {
-            if (lines.length <= 1) { alert('Cannot delete the only line.'); return; }
-            if (!confirm('Delete "' + curLine().name + '" and all its rounds?')) return;
-            lines.splice(currentLineIdx, 1);
-            currentLineIdx = Math.min(currentLineIdx, lines.length - 1);
-            renderAll();
-            autoSave();
+            if (lines.length <= 1) { rsaAlert('Cannot delete the only line.'); return; }
+            rsaConfirm('Delete "' + curLine().name + '" and all its rounds?', function() {
+                lines.splice(currentLineIdx, 1);
+                currentLineIdx = Math.min(currentLineIdx, lines.length - 1);
+                renderAll();
+                autoSave();
+            });
         });
 
         // ── Session save / load / clear ──
@@ -9125,35 +9154,37 @@
 
         $('#rsa-load-session').on('click', function () {
             var saved = localStorage.getItem(RSA_STORAGE_KEY);
-            if (!saved) { alert('No saved session found.'); return; }
-            if (!confirm('Load saved session? Unsaved current work will be overwritten.')) return;
-            try {
-                if (deserializeSession(saved)) {
-                    // Restore format UI
-                    $('.rsa-format-btn').removeClass('rsa-format-active');
-                    $('[data-format="' + battleFormat + '"]').addClass('rsa-format-active');
-                    if (isDoubles()) {
-                        $('body').addClass('rsa-format-doubles');
-                        $('#rsa-doubles-moves').show();
-                        $('.rsa-active-field').addClass('rsa-show');
-                        $('.rsa-doubles-switch').show();
-                    } else {
-                        $('body').removeClass('rsa-format-doubles');
-                        $('#rsa-doubles-moves').hide();
-                        $('.rsa-active-field').removeClass('rsa-show');
-                        $('.rsa-doubles-switch').hide();
+            if (!saved) { rsaAlert('No saved session found.'); return; }
+            rsaConfirm('Load saved session? Unsaved current work will be overwritten.', function() {
+                try {
+                    if (deserializeSession(saved)) {
+                        // Restore format UI
+                        $('.rsa-format-btn').removeClass('rsa-format-active');
+                        $('[data-format="' + battleFormat + '"]').addClass('rsa-format-active');
+                        if (isDoubles()) {
+                            $('body').addClass('rsa-format-doubles');
+                            $('#rsa-doubles-moves').show();
+                            $('.rsa-active-field').addClass('rsa-show');
+                            $('.rsa-doubles-switch').show();
+                        } else {
+                            $('body').removeClass('rsa-format-doubles');
+                            $('#rsa-doubles-moves').hide();
+                            $('.rsa-active-field').removeClass('rsa-show');
+                            $('.rsa-doubles-switch').hide();
+                        }
+                        renderAll();
+                        showSaveToast('📂 Session loaded!');
                     }
-                    renderAll();
-                    showSaveToast('📂 Session loaded!');
-                }
-            } catch (ex) { alert('Failed to load session: ' + ex.message); }
+                } catch (ex) { rsaAlert('Failed to load session: ' + ex.message); }
+            });
         });
 
         $('#rsa-clear-session').on('click', function () {
-            if (!hasSavedSession()) { alert('No saved session to clear.'); return; }
-            if (!confirm('Delete the saved session from browser storage?')) return;
-            localStorage.removeItem(RSA_STORAGE_KEY);
-            showSaveToast('🗑️ Saved session cleared.');
+            if (!hasSavedSession()) { rsaAlert('No saved session to clear.'); return; }
+            rsaConfirm('Delete the saved session from browser storage?', function() {
+                localStorage.removeItem(RSA_STORAGE_KEY);
+                showSaveToast('🗑️ Saved session cleared.');
+            });
         });
 
         $('#rsa-line-tabs').on('click', '.rsa-tab', function () {
@@ -9445,7 +9476,7 @@
             if (_switchInProgress) return;
             var switchIdx = parseInt($('#rsa-switch-p1').val());
             if (isNaN(switchIdx)) {
-                alert('Select a Pokémon to switch in.');
+                rsaAlert('Select a Pokémon to switch in.');
                 return;
             }
             _switchInProgress = true;
@@ -10110,19 +10141,20 @@
             var line = curLine();
             if (branchIdx < 0 || branchIdx >= line.branches.length) return;
             var branchName = line.branches[branchIdx].name;
-            if (!confirm('Delete branch "' + branchName + '"?')) return;
-            line.branches.splice(branchIdx, 1);
-            // Fix activeBranchIdx after removal
-            if (line.activeBranchIdx === branchIdx) {
-                line.activeBranchIdx = -1; // back to main
-            } else if (line.activeBranchIdx > branchIdx) {
-                line.activeBranchIdx--;
-            }
-            rebuildBranchTeams(line, line.activeBranchIdx);
-            ensureP2RosterComplete();
-            syncActiveStateToForm();
-            renderAll();
-            autoSave();
+            rsaConfirm('Delete branch "' + branchName + '"?', function() {
+                line.branches.splice(branchIdx, 1);
+                // Fix activeBranchIdx after removal
+                if (line.activeBranchIdx === branchIdx) {
+                    line.activeBranchIdx = -1; // back to main
+                } else if (line.activeBranchIdx > branchIdx) {
+                    line.activeBranchIdx--;
+                }
+                rebuildBranchTeams(line, line.activeBranchIdx);
+                ensureP2RosterComplete();
+                syncActiveStateToForm();
+                renderAll();
+                autoSave();
+            });
         });
 
         // ── Branch rename (double-click tab) ──
@@ -10132,14 +10164,18 @@
             var line = curLine();
             if (branchIdx < 0) {
                 // Rename main line
-                var newName = prompt('Rename main line:', line.name);
-                if (newName && newName.trim()) { line.name = newName.trim(); }
+                rsaPrompt('Rename main line:', line.name, function(newName) {
+                    if (newName && newName.trim()) { line.name = newName.trim(); }
+                    renderAll();
+                    autoSave();
+                });
             } else if (line.branches[branchIdx]) {
-                var newName = prompt('Rename branch:', line.branches[branchIdx].name);
-                if (newName && newName.trim()) { line.branches[branchIdx].name = newName.trim(); }
+                rsaPrompt('Rename branch:', line.branches[branchIdx].name, function(newName) {
+                    if (newName && newName.trim()) { line.branches[branchIdx].name = newName.trim(); }
+                    renderAll();
+                    autoSave();
+                });
             }
-            renderAll();
-            autoSave();
         });
 
         // ── Delete All Rounds (log header button) ──
@@ -10150,46 +10186,48 @@
                 totalRounds += line.branches[_bi].rounds.length;
             }
             if (totalRounds === 0) return;
-            if (!confirm('Delete all ' + totalRounds + ' rounds (including ' + line.branches.length + ' branch(es)) in "' + line.name + '"?')) return;
-            suppressP2Sync = true;
-            line.rounds = [];
-            line.roundCounter = 0;
-            line.branches = [];
-            line.activeBranchIdx = -1;
-            rebuildLineTeams(line);
-            ensureP2RosterComplete();
-            syncActiveStateToForm();
-            renderAll();
-            autoSave();
-            setTimeout(function () {
-                rebuildLineTeams(curLine());
+            rsaConfirm('Delete all ' + totalRounds + ' rounds (including ' + line.branches.length + ' branch(es)) in "' + line.name + '"?', function() {
+                suppressP2Sync = true;
+                line.rounds = [];
+                line.roundCounter = 0;
+                line.branches = [];
+                line.activeBranchIdx = -1;
+                rebuildLineTeams(line);
+                ensureP2RosterComplete();
                 syncActiveStateToForm();
                 renderAll();
                 autoSave();
-                suppressP2Sync = false;
-            }, 700);
+                setTimeout(function () {
+                    rebuildLineTeams(curLine());
+                    syncActiveStateToForm();
+                    renderAll();
+                    autoSave();
+                    suppressP2Sync = false;
+                }, 700);
+            });
         });
 
         // ── Clear line ──
         $('#rsa-clear-line').on('click', function () {
             var line = curLine();
             if (line.rounds.length === 0) return;
-            if (!confirm('Clear all rounds in "' + line.name + '"?')) return;
-            suppressP2Sync = true;
-            line.rounds = [];
-            line.roundCounter = 0;
-            rebuildLineTeams(line);
-            ensureP2RosterComplete();
-            syncActiveStateToForm();
-            renderAll();
-            autoSave();
-            setTimeout(function () {
-                rebuildLineTeams(curLine());
+            rsaConfirm('Clear all rounds in "' + line.name + '"?', function() {
+                suppressP2Sync = true;
+                line.rounds = [];
+                line.roundCounter = 0;
+                rebuildLineTeams(line);
+                ensureP2RosterComplete();
                 syncActiveStateToForm();
                 renderAll();
                 autoSave();
-                suppressP2Sync = false;
-            }, 700);
+                setTimeout(function () {
+                    rebuildLineTeams(curLine());
+                    syncActiveStateToForm();
+                    renderAll();
+                    autoSave();
+                    suppressP2Sync = false;
+                }, 700);
+            });
         });
 
         // ── Import panel toggle ──
@@ -10260,20 +10298,20 @@
                             $sugg.hide();
                             var line = curLine();
                             if (line.rounds.length > 0) {
-                                var save = confirm(
-                                    'You have ' + line.rounds.length + ' round(s) logged in "' + line.name + '".\n\n' +
-                                    'OK = Save this line and start a new one\n' +
-                                    'Cancel = Discard rounds and load next opponent'
+                                rsaConfirm(
+                                    'You have ' + line.rounds.length + ' round(s) logged in "' + line.name + '".\n\nOK = Save this line and start a new one\nCancel = Discard rounds',
+                                    function() {
+                                        lines.push(createLine('Line ' + String.fromCharCode(65 + lines.length)));
+                                        currentLineIdx = lines.length - 1;
+                                        renderAll();
+                                    },
+                                    function() {
+                                        line.rounds = [];
+                                        line.roundCounter = 0;
+                                        line.teams = { p1: { roster: [], activeIdx: -1 }, p2: { roster: [], activeIdx: -1 } };
+                                        renderAll();
+                                    }
                                 );
-                                if (save) {
-                                    lines.push(createLine('Line ' + String.fromCharCode(65 + lines.length)));
-                                    currentLineIdx = lines.length - 1;
-                                } else {
-                                    line.rounds = [];
-                                    line.roundCounter = 0;
-                                    line.teams = { p1: { roster: [], activeIdx: -1 }, p2: { roster: [], activeIdx: -1 } };
-                                }
-                                renderAll();
                             }
                             selectTrainer(r.idx);
                             setTimeout(function () {
@@ -10363,7 +10401,7 @@
             try {
                 var line = curLine();
                 if (!line || !line.rounds || !line.rounds.length) {
-                    alert('No rounds logged. Nothing to export.');
+                    rsaAlert('No rounds logged. Nothing to export.');
                     return;
                 }
                 var trIdx = parseInt(localStorage.getItem('lasttimetrainer') || '0', 10);
@@ -10409,7 +10447,7 @@
                     showCopyModal(json);
                 }
             } catch (e) {
-                alert('Export failed: ' + e.message);
+                rsaAlert('Export failed: ' + e.message);
             }
         });
 
@@ -10435,10 +10473,10 @@
             $importBtn.on('click', function () {
                 try {
                     var json = $ta.val().trim();
-                    if (!json) { alert('Paste JSON first.'); return; }
+                    if (!json) { rsaAlert('Paste JSON first.'); return; }
                     var data = JSON.parse(json);
                     if (!data || data.type !== 'rsa-line-export' || !data.line) {
-                        alert('Invalid line export data.');
+                        rsaAlert('Invalid line export data.');
                         return;
                     }
 
@@ -10494,17 +10532,17 @@
                                     autoSave();
                                     showSaveToast('✓ Line imported (' + (line.rounds ? line.rounds.length : 0) + ' rounds)');
                                 } catch (e) {
-                                    alert('Import error (restore): ' + e.message);
+                                    rsaAlert('Import error (restore): ' + e.message);
                                 }
                             }, 800);
                         } catch (e) {
-                            alert('Import error (sync): ' + e.message);
+                            rsaAlert('Import error (sync): ' + e.message);
                         }
                     }, 600);
 
                     $overlay.remove();
                 } catch (e) {
-                    alert('Import failed: ' + e.message);
+                    rsaAlert('Import failed: ' + e.message);
                 }
             });
         });
@@ -10520,7 +10558,7 @@
         // P2 KO switch button → switch P2 active mon, then log a switch round
         $(document).on('click', '.rsa-inline-p2-switch', function () {
             var p2SendIdx = parseInt($('.rsa-inline-p2-send').val());
-            if (isNaN(p2SendIdx)) { alert('Select who P2 sends in.'); return; }
+            if (isNaN(p2SendIdx)) { rsaAlert('Select who P2 sends in.'); return; }
             var line = curLine();
             var incomingName = line.teams.p2.roster[p2SendIdx] ? line.teams.p2.roster[p2SendIdx].name : '?';
 
@@ -10563,7 +10601,7 @@
         // P2 KO: Confirm button (or change) switches P2 in and transitions to full normal panel
         function doP2SendIn() {
             var idx = parseInt($('.rsa-inline-p2-send').val());
-            if (isNaN(idx)) { alert('Select who P2 sends in.'); return; }
+            if (isNaN(idx)) { rsaAlert('Select who P2 sends in.'); return; }
             var line = curLine();
             var entry = line.teams.p2.roster[idx];
             if (!entry) return;
@@ -10830,6 +10868,23 @@
         });
         $(document).on('click', '#rsa-battletag-close', function () {
             $('#rsa-battletag-modal').hide();
+        });
+
+        // ── Custom dialog button wiring ──
+        $('#rsa-dlg-ok').on('click', function() {
+            $('#rsa-dlg-overlay').hide();
+            var cb = _rsaDlgCb; _rsaDlgCb = null;
+            if (!cb || !cb.ok) return;
+            cb.ok($('#rsa-dlg-input').is(':visible') ? $('#rsa-dlg-input').val() : true);
+        });
+        $('#rsa-dlg-cancel').on('click', function() {
+            $('#rsa-dlg-overlay').hide();
+            var cb = _rsaDlgCb; _rsaDlgCb = null;
+            if (cb && cb.cancel) cb.cancel();
+        });
+        $('#rsa-dlg-overlay').on('keydown', function(e) {
+            if (e.key === 'Enter' && !$(e.target).is('textarea,select')) $('#rsa-dlg-ok').trigger('click');
+            if (e.key === 'Escape') $('#rsa-dlg-cancel').trigger('click');
         });
 
         // ── Tag filter bar (event delegation) ── filters box, not team panels

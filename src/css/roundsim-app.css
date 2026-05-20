@@ -3434,3 +3434,45 @@ fieldset {
     padding: 8px 12px;
     box-shadow: 0 1px 3px rgba(0,0,0,0.15);
 }
+
+/* ── RSA generic dialog (replaces native alert / confirm / prompt) ── */
+#rsa-dlg-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,.55);
+    z-index: 10000;
+    display: flex; align-items: center; justify-content: center;
+}
+#rsa-dlg-box {
+    background: var(--rsa-bg, #2a2a2e);
+    border: 1px solid #555;
+    border-radius: 6px;
+    padding: 18px 20px 14px;
+    min-width: 260px; max-width: 420px;
+    box-shadow: 0 4px 24px rgba(0,0,0,.5);
+}
+#rsa-dlg-msg {
+    font-size: 13px; color: #ddd;
+    white-space: pre-wrap;
+    margin-bottom: 12px; line-height: 1.45;
+}
+#rsa-dlg-input {
+    display: none;
+    width: 100%; box-sizing: border-box;
+    margin-bottom: 12px;
+    padding: 5px 8px;
+    border-radius: 4px; border: 1px solid #555;
+    background: #1e1e22; color: #ddd; font-size: 13px;
+}
+#rsa-dlg-btns {
+    display: flex; gap: 8px; justify-content: flex-end;
+}
+#rsa-dlg-ok {
+    background: #3a8; color: #fff;
+    border: none; padding: 5px 16px;
+    border-radius: 4px; cursor: pointer; font-size: 13px;
+}
+#rsa-dlg-cancel {
+    background: #555; color: #ddd;
+    border: none; padding: 5px 14px;
+    border-radius: 4px; cursor: pointer; font-size: 13px;
+}
