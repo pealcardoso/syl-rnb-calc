@@ -10872,10 +10872,11 @@
 
         // ── Custom dialog button wiring ──
         $('#rsa-dlg-ok').on('click', function() {
+            var val = $('#rsa-dlg-input').is(':visible') ? $('#rsa-dlg-input').val() : true;
             $('#rsa-dlg-overlay').hide();
             var cb = _rsaDlgCb; _rsaDlgCb = null;
             if (!cb || !cb.ok) return;
-            cb.ok($('#rsa-dlg-input').is(':visible') ? $('#rsa-dlg-input').val() : true);
+            cb.ok(val);
         });
         $('#rsa-dlg-cancel').on('click', function() {
             $('#rsa-dlg-overlay').hide();
