@@ -137,6 +137,7 @@
                     <button class="rsa-box-import-btn" id="rsa-delete-toggle" title="Toggle delete mode — click × on a Pokémon to remove it from the box">🗑 Delete</button>
                     <button class="rsa-box-import-btn" id="rsa-coverage-btn" title="Type Coverage Analysis">📊 Coverage</button>
                     <button class="rsa-box-import-btn" id="rsa-utility-btn" title="Box Tag Coverage — see which Pokémon have which roles">🏷️ Tag Cov.</button>
+                    <button class="rsa-box-import-btn" id="rsa-learnset-btn" title="Learnset Explorer — view full learnsets, badges, and move search">📖 Learnset</button>
                     <button class="rsa-box-import-btn" id="rsa-remove-items-btn" title="Remove all items from box mons (persistent)">🚫 Items</button>
                 </div>
             </div>
@@ -210,6 +211,32 @@
                 <button class="rsa-modal-close" id="rsa-battletag-close">×</button>
             </div>
             <div class="rsa-modal-body rsa-bta-body"></div>
+        </div>
+    </div>
+
+    <!-- ═══ RSA: Learnset Explorer Modal ═══ -->
+    <div class="rsa-modal-overlay" id="rsa-learnset-modal" style="display:none;">
+        <div class="rsa-modal rsa-learnset-modal-wide">
+            <div class="rsa-modal-header">
+                <span class="rsa-modal-title">📖 Learnset Explorer</span>
+                <div class="rsa-learnset-search-wrap">
+                    <input type="text" id="rsa-learnset-search" class="rsa-learnset-search" placeholder="Search by move name..." />
+                </div>
+                <button class="rsa-modal-close" id="rsa-learnset-close">×</button>
+            </div>
+            <div class="rsa-modal-body rsa-learnset-body"></div>
+        </div>
+    </div>
+
+    <!-- ═══ RSA: Custom Calc Modal ═══ -->
+    <div class="rsa-modal-overlay" id="rsa-customcalc-modal" style="display:none;">
+        <div class="rsa-modal rsa-cc-modal-wide">
+            <div class="rsa-modal-header">
+                <span class="rsa-modal-title">🧮 Custom Calc</span>
+                <button class="rsa-btn rsa-btn-primary" id="rsa-cc-run">▶ Calculate</button>
+                <button class="rsa-modal-close" id="rsa-cc-close">×</button>
+            </div>
+            <div class="rsa-modal-body rsa-cc-body"></div>
         </div>
     </div>
 
@@ -343,6 +370,7 @@
 
         <div class="rsa-btn-row">
             <button class="rsa-btn rsa-btn-primary" id="rsa-log-round">&#9654; Log Round</button>
+            <button class="rsa-btn" id="rsa-custom-calc" title="Custom one-off calc — tweak moves, items, IVs, etc.">&#x1F9EE; Custom Calc</button>
             <div class="rsa-switch-group rsa-singles-switch">
                 <select id="rsa-switch-p1" title="Switch P1 active">
                     <option value="">— Switch P1 —</option>
@@ -2220,6 +2248,7 @@
     <script type="text/javascript" src="./js/data/rbdex/items.js"></script>
     <script type="text/javascript" src="./js/data/rbdex/abilities.js"></script>
     <script type="text/javascript" src="./js/data/rbdex/pokedex.js"></script>
+    <script type="text/javascript" src="./js/data/rbdex/learnsets.js"></script>
     <script type="text/javascript" src="./js/data/effects-registry.js"></script>
     <script type="text/javascript" src="./calc/data/types.js?"></script>
     <script type="text/javascript" src="./calc/data/natures.js?"></script>

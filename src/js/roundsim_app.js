@@ -523,6 +523,724 @@
         return html;
     }
 
+    // ═══════════════════════════════════════════════════════════
+    //  Learnset Explorer
+    // ═══════════════════════════════════════════════════════════
+
+    /** Look up the full learnset for a Pokémon from BattleLearnsets.
+     *  Returns array of { key, name, sources } where sources is ["9L5","9M",…]. */
+    function getFullLearnset(pokemonName) {
+        if (!window.BattleLearnsets || !pokemonName) return [];
+        var key = pokemonName.toLowerCase().replace(/[\s\-\']+/g, '');
+        // Try exact match first, then some common aliases
+        var data = window.BattleLearnsets[key];
+        if (!data && key.indexOf('-') >= 0) data = window.BattleLearnsets[key.replace(/-/g, '')];
+        if (!data || !data.learnset) return [];
+        var result = [];
+        for (var moveKey in data.learnset) {
+            var md = window.BattleMovedex ? window.BattleMovedex[moveKey] : null;
+            result.push({
+                key: moveKey,
+                name: md ? md.name : moveKey,
+                sources: data.learnset[moveKey]
+            });
+        }
+        // Sort: level-up by level first, then TM, tutor, egg
+        result.sort(function (a, b) {
+            var aLvl = 999, bLvl = 999;
+            for (var i = 0; i < a.sources.length; i++) {
+                var m = a.sources[i].match(/^9L(\d+)$/);
+                if (m) { aLvl = Math.min(aLvl, parseInt(m[1])); }
+            }
+            for (var i = 0; i < b.sources.length; i++) {
+                var m = b.sources[i].match(/^9L(\d+)$/);
+                if (m) { bLvl = Math.min(bLvl, parseInt(m[1])); }
+            }
+            if (aLvl !== bLvl) return aLvl - bLvl;
+            return a.name.localeCompare(b.name);
+        });
+        return result;
+    }
+
+    /** Format learnset source codes into readable badges. */
+    function formatLearnSource(sources) {
+        var html = '';
+        for (var i = 0; i < sources.length; i++) {
+            var s = sources[i];
+            var m = s.match(/^9L(\d+)$/);
+            if (m) {
+                html += '<span class="rsa-ls-src rsa-ls-src-level">Lv' + m[1] + '</span> ';
+            } else if (s === '9M') {
+                html += '<span class="rsa-ls-src rsa-ls-src-tm">TM</span> ';
+            } else if (s === '9T') {
+                html += '<span class="rsa-ls-src rsa-ls-src-tutor">Tutor</span> ';
+            } else if (s === '9E') {
+                html += '<span class="rsa-ls-src rsa-ls-src-egg">Egg</span> ';
+            }
+        }
+        return html;
+    }
+
+    /** Compute which TAG_DEFS badges a Pokémon COULD earn from its full learnset.
+     *  Returns { current: [{def,tier}], potential: [{def,tier}] }
+     *  where potential = badges not in current but possible with learnset moves. */
+    function computeLearnsetBadges(entry, learnsetMoves) {
+        // Current badges from the mon's actual 4 moves
+        var currentTags = computeEntryTags(entry);
+        var currentIds = {};
+        for (var i = 0; i < currentTags.length; i++) currentIds[currentTags[i].def.id] = true;
+
+        // Build a fake entry with ALL learnset moves to compute potential badges
+        var allMoveNames = [];
+        for (var i = 0; i < learnsetMoves.length; i++) {
+            allMoveNames.push(learnsetMoves[i].name);
+        }
+        var fakeEntry = {
+            name: entry.name,
+            setId: entry.setId,
+            ability: entry.ability,
+            item: entry.item,
+            types: entry.types ? entry.types.slice() : [],
+            moves: allMoveNames
+        };
+        var allTags = computeEntryTags(fakeEntry);
+        var potential = [];
+        for (var i = 0; i < allTags.length; i++) {
+            if (!currentIds[allTags[i].def.id]) {
+                potential.push(allTags[i]);
+            }
+        }
+        return { current: sortTagResults(currentTags), potential: sortTagResults(potential) };
+    }
+
+    /** For a given badge def, find which learnset moves contribute to it. */
+    function findBadgeMoveContributors(badgeDef, entry, learnsetMoves) {
+        var contributors = [];
+        for (var i = 0; i < learnsetMoves.length; i++) {
+            var mv = learnsetMoves[i];
+            // Build a single-move entry to test if this move triggers the badge
+            var testEntry = {
+                name: entry.name, setId: entry.setId,
+                ability: entry.ability, item: entry.item,
+                types: entry.types ? entry.types.slice() : [],
+                moves: [mv.name]
+            };
+            var tags = computeEntryTags(testEntry);
+            for (var t = 0; t < tags.length; t++) {
+                if (tags[t].def.id === badgeDef.id) {
+                    contributors.push(mv.name);
+                    break;
+                }
+            }
+        }
+        return contributors;
+    }
+
+    /** Which badges does a single move contribute to?
+     *  Computes the diff: badges WITH the move minus badges WITHOUT any moves.
+     *  This filters out badges caused purely by type/ability/item. */
+    function getMoveBadges(moveName, entry) {
+        // Baseline: badges from type/ability/item alone (no moves)
+        var baseEntry = {
+            name: entry.name, setId: entry.setId,
+            ability: entry.ability, item: entry.item,
+            types: entry.types ? entry.types.slice() : [],
+            moves: []
+        };
+        var baseTags = computeEntryTags(baseEntry);
+        var baseIds = {};
+        for (var i = 0; i < baseTags.length; i++) baseIds[baseTags[i].def.id] = true;
+
+        // With the move
+        var testEntry = {
+            name: entry.name, setId: entry.setId,
+            ability: entry.ability, item: entry.item,
+            types: entry.types ? entry.types.slice() : [],
+            moves: [moveName]
+        };
+        var withTags = computeEntryTags(testEntry);
+
+        // Return only badges that the move adds
+        var result = [];
+        for (var i = 0; i < withTags.length; i++) {
+            if (!baseIds[withTags[i].def.id]) result.push(withTags[i]);
+        }
+        return result;
+    }
+
+    /** Render the full Learnset Explorer modal body. */
+    function renderLearnsetExplorer(searchTerm) {
+        var mons = getBoxPokemon('p1');
+        if (!mons || !mons.length) {
+            return '<div class="rsa-ls-no-data">No Pokémon in your box.</div>';
+        }
+        if (!window.BattleLearnsets) {
+            return '<div class="rsa-ls-no-data">Learnset data not loaded.</div>';
+        }
+        var search = (searchTerm || '').toLowerCase().replace(/[\s\-\']+/g, '');
+        var html = '';
+
+        for (var i = 0; i < mons.length; i++) {
+            var m = mons[i];
+            var learnset = getFullLearnset(m.name);
+            if (!learnset.length) continue;
+
+            // Build entry with enriched data
+            var typeInfo = { types: [], ability: '' };
+            try { typeInfo = getMonTypeInfo(m.name, m.setId); } catch (e) {}
+            var boxItem = '';
+            try { var bs = lookupSet(m.setId); if (bs) boxItem = bs.item || ''; } catch (e) {}
+            var entry = {
+                name: m.name, setId: m.setId,
+                ability: typeInfo.ability, item: boxItem,
+                types: typeInfo.types
+            };
+
+            // Check if any learnset move matches the search
+            var hasSearchMatch = false;
+            var matchingMoveKeys = {};
+            if (search) {
+                for (var li = 0; li < learnset.length; li++) {
+                    var lmKey = learnset[li].key;
+                    var lmName = learnset[li].name.toLowerCase().replace(/[\s\-\']+/g, '');
+                    if (lmKey.indexOf(search) >= 0 || lmName.indexOf(search) >= 0) {
+                        hasSearchMatch = true;
+                        matchingMoveKeys[lmKey] = true;
+                    }
+                }
+                if (!hasSearchMatch) continue; // skip mons that don't have the searched move
+            }
+
+            // Badge analysis
+            var badges = computeLearnsetBadges(entry, learnset);
+
+            // Get current set moves for highlighting
+            var setMoves = getEntryMoves(entry);
+            var setMoveKeys = {};
+            for (var si = 0; si < setMoves.length; si++) {
+                if (setMoves[si] && setMoves[si] !== '(No Move)') {
+                    setMoveKeys[setMoves[si].toLowerCase().replace(/[\s\-\']+/g, '')] = true;
+                }
+            }
+
+            // Mon card
+            var monHidden = '';
+            html += '<div class="rsa-ls-mon' + monHidden + '" data-name="' + esc(m.name) + '">';
+
+            // Header
+            html += '<div class="rsa-ls-mon-header">';
+            html += '<img class="rsa-ls-mon-sprite" src="' + esc(m.sprite) + '" alt="' + esc(m.name) + '">';
+            html += '<span class="rsa-ls-mon-name">' + esc(m.name) + '</span>';
+
+            // Badges: current (normal) + potential (greyed)
+            html += '<div class="rsa-ls-mon-badges">';
+            for (var bi = 0; bi < badges.current.length; bi++) {
+                var b = badges.current[bi];
+                var tierCls = b.tier ? ' rsa-tag-tier-' + b.tier : '';
+                var catCls = ' rsa-tag-' + b.def.cat;
+                // Find contributing moves
+                var contribs = findBadgeMoveContributors(b.def, entry, learnset);
+                var contribTip = b.def.name + ': ' + b.def.desc;
+                if (contribs.length) contribTip += '\nMoves: ' + contribs.join(', ');
+                html += '<span class="rsa-tag-badge' + catCls + tierCls + '" data-tooltip="' + esc(contribTip) + '">' + b.def.emoji + '</span>';
+            }
+            for (var pi = 0; pi < badges.potential.length; pi++) {
+                var p = badges.potential[pi];
+                var contribs = findBadgeMoveContributors(p.def, entry, learnset);
+                var contribTip = '[Potential] ' + p.def.name + ': ' + p.def.desc;
+                if (contribs.length) contribTip += '\nMoves: ' + contribs.join(', ');
+                html += '<span class="rsa-tag-badge rsa-tag-' + p.def.cat + ' rsa-ls-badge-potential" data-tooltip="' + esc(contribTip) + '">' + p.def.emoji + '</span>';
+            }
+            html += '</div>';
+
+            html += '<span class="rsa-ls-mon-count">' + learnset.length + ' moves</span>';
+            html += '</div>'; // header
+
+            // Learnset table (collapsed by default, expanded if search active)
+            html += '<div class="rsa-ls-moves' + (search ? ' rsa-ls-open' : '') + '">';
+
+            // Split moves by acquisition method
+            var levelMoves = [], tmMoves = [], tutorMoves = [], eggMoves = [];
+            for (var li = 0; li < learnset.length; li++) {
+                var lm = learnset[li];
+                var hasLevel = false, hasTM = false, hasTutor = false, hasEgg = false;
+                var lvl = 999;
+                for (var si = 0; si < lm.sources.length; si++) {
+                    var src = lm.sources[si];
+                    var lmatch = src.match(/^9L(\d+)$/);
+                    if (lmatch) { hasLevel = true; lvl = Math.min(lvl, parseInt(lmatch[1])); }
+                    else if (src === '9M') hasTM = true;
+                    else if (src === '9T') hasTutor = true;
+                    else if (src === '9E') hasEgg = true;
+                }
+                var moveObj = { move: lm, lvl: lvl };
+                // Place in each relevant section
+                if (hasLevel) levelMoves.push(moveObj);
+                if (hasTM) tmMoves.push(moveObj);
+                if (hasTutor) tutorMoves.push(moveObj);
+                if (hasEgg) eggMoves.push(moveObj);
+            }
+            // Sort level moves by level
+            levelMoves.sort(function (a, b) { return a.lvl - b.lvl || a.move.name.localeCompare(b.move.name); });
+            // Sort others alphabetically
+            tmMoves.sort(function (a, b) { return a.move.name.localeCompare(b.move.name); });
+            tutorMoves.sort(function (a, b) { return a.move.name.localeCompare(b.move.name); });
+            eggMoves.sort(function (a, b) { return a.move.name.localeCompare(b.move.name); });
+
+            var sections = [
+                { label: 'Level Up', moves: levelMoves, showLvl: true },
+                { label: 'TM / HM', moves: tmMoves, showLvl: false },
+                { label: 'Tutor', moves: tutorMoves, showLvl: false },
+                { label: 'Egg Moves', moves: eggMoves, showLvl: false }
+            ];
+
+            for (var sec = 0; sec < sections.length; sec++) {
+                var section = sections[sec];
+                if (!section.moves.length) continue;
+
+                // Check if any move in this section matches search
+                if (search) {
+                    var secHasMatch = false;
+                    for (var smi = 0; smi < section.moves.length; smi++) {
+                        if (matchingMoveKeys[section.moves[smi].move.key]) { secHasMatch = true; break; }
+                    }
+                    if (!secHasMatch) continue;
+                }
+
+                html += '<div class="rsa-ls-section-header">' + esc(section.label) +
+                    ' <small>(' + section.moves.length + ')</small></div>';
+                html += '<table class="rsa-ls-move-table">';
+                html += '<thead><tr>';
+                if (section.showLvl) html += '<th>Lv</th>';
+                html += '<th>Type</th><th>Cat</th><th>Move</th><th>Pow</th><th>Acc</th><th>PP</th>' +
+                    '<th>Badges</th><th>Description</th>' +
+                    '</tr></thead><tbody>';
+
+                for (var smi = 0; smi < section.moves.length; smi++) {
+                    var smObj = section.moves[smi];
+                    var lm = smObj.move;
+                    var md = lookupMoveData(lm.name);
+                    var isInSet = setMoveKeys[lm.key] || false;
+                    var isMatch = matchingMoveKeys[lm.key] || false;
+                    var rowCls = '';
+                    if (isInSet) rowCls += ' rsa-ls-in-set';
+                    if (isMatch) rowCls += ' rsa-ls-search-match';
+
+                    html += '<tr class="' + rowCls + '">';
+                    // Level column (only for level-up section)
+                    if (section.showLvl) {
+                        html += '<td class="rsa-ls-lvl-cell">' + smObj.lvl + '</td>';
+                    }
+                    // Type icon
+                    if (md && md.type) {
+                        html += '<td><img class="rsa-ls-type-icon" src="./img/types/' + esc(md.type) + '.png" alt="' + esc(md.type) + '" title="' + esc(md.type) + '"></td>';
+                    } else {
+                        html += '<td>—</td>';
+                    }
+                    // Category icon
+                    if (md && md.category) {
+                        html += '<td><img class="rsa-ls-cat-icon" src="./img/categories/' + esc(md.category) + '.png" alt="' + esc(md.category) + '" title="' + esc(md.category) + '"></td>';
+                    } else {
+                        html += '<td>—</td>';
+                    }
+                    // Move name
+                    html += '<td>' + esc(lm.name) + '</td>';
+                    // Power
+                    html += '<td>' + (md && md.basePower ? md.basePower : '—') + '</td>';
+                    // Accuracy
+                    html += '<td>' + (md ? (md.accuracy === true ? '\u221e' : md.accuracy) : '—') + '</td>';
+                    // PP
+                    html += '<td>' + (md && md.pp ? md.pp : '—') + '</td>';
+                    // Move badges
+                    var moveBadges = getMoveBadges(lm.name, entry);
+                    html += '<td><div class="rsa-ls-move-badges">';
+                    for (var mb = 0; mb < moveBadges.length; mb++) {
+                        var mbd = moveBadges[mb];
+                        html += '<span class="rsa-tag-badge rsa-tag-' + mbd.def.cat + '" title="' + esc(mbd.def.name) + '">' + mbd.def.emoji + '</span>';
+                    }
+                    html += '</div></td>';
+                    // Description
+                    html += '<td>' + esc(md ? (md.shortDesc || md.desc || '') : '') + '</td>';
+                    html += '</tr>';
+                }
+
+                html += '</tbody></table>';
+            }
+
+            html += '</div>'; // moves
+            html += '</div>'; // mon card
+        }
+
+        if (!html) {
+            html = '<div class="rsa-ls-no-data">No Pokémon match the search "' + esc(searchTerm) + '".</div>';
+        }
+        return html;
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    //  Custom Calc
+    // ═══════════════════════════════════════════════════════════
+
+    var ALL_TYPES = ['Normal','Fire','Water','Electric','Grass','Ice','Fighting',
+        'Poison','Ground','Flying','Psychic','Bug','Rock','Ghost','Dragon','Dark','Steel','Fairy'];
+    var ALL_NATURES = ['Hardy','Adamant','Bold','Brave','Calm','Careful','Gentle','Hasty',
+        'Impish','Jolly','Lax','Lonely','Mild','Modest','Naive','Naughty','Quiet',
+        'Quirky','Rash','Relaxed','Sassy','Serious','Timid','Bashful','Docile'];
+    var ALL_STATUSES = [
+        { val:'', label:'Healthy' },
+        { val:'brn', label:'Burned' },
+        { val:'par', label:'Paralyzed' },
+        { val:'psn', label:'Poisoned' },
+        { val:'tox', label:'Badly Poisoned' },
+        { val:'slp', label:'Asleep' },
+        { val:'frz', label:'Frozen' }
+    ];
+    var STAT_KEYS = ['hp','atk','def','spa','spd','spe'];
+    var STAT_LABELS = { hp:'HP', atk:'Atk', def:'Def', spa:'SpA', spd:'SpD', spe:'Spe' };
+
+    /** Build one side of the Custom Calc form. */
+    function renderCCSide(side, entry) {
+        if (!entry) return '<div class="rsa-cc-side"><em>No Pokémon</em></div>';
+        var set = entry.setId ? lookupSet(entry.setId) : null;
+        var typeInfo = { types: [], ability: '' };
+        try { typeInfo = getMonTypeInfo(entry.name, entry.setId); } catch (e) {}
+        var sprite = getSprite(entry.name);
+        var nature = (set && set.nature) ? set.nature : 'Hardy';
+        var ability = entry.ability || typeInfo.ability || '';
+        var item = entry.item || (set && set.item ? set.item : '');
+        var curHP = entry.currentHP || entry.maxHP || 0;
+        var maxHP = entry.maxHP || curHP;
+        var status = entry.status || '';
+        var boosts = entry.boosts || {};
+
+        // Get IVs/EVs from set
+        var ivs = {}, evs = {};
+        for (var si = 0; si < STAT_KEYS.length; si++) {
+            var sk = STAT_KEYS[si];
+            ivs[sk] = 31; evs[sk] = 0;
+        }
+        if (set && set.ivs) {
+            var legacyMap = { HP:'hp', Atk:'atk', Def:'def', SpA:'spa', SpD:'spd', Spe:'spe', SAtk:'spa', SDef:'spd' };
+            for (var k in set.ivs) {
+                var mapped = legacyMap[k] || k;
+                if (typeof set.ivs[k] === 'number') ivs[mapped] = set.ivs[k];
+            }
+        }
+        if (set && set.evs) {
+            var legacyMap = { HP:'hp', Atk:'atk', Def:'def', SpA:'spa', SpD:'spd', Spe:'spe', SAtk:'spa', SDef:'spd' };
+            for (var k in set.evs) {
+                var mapped = legacyMap[k] || k;
+                if (typeof set.evs[k] === 'number') evs[mapped] = set.evs[k];
+            }
+        }
+
+        // Get learnset moves for the move dropdown
+        var learnset = getFullLearnset(entry.name);
+        var setMoves = getEntryMoves(entry);
+        // Build available moves: set moves first, then learnset
+        var movePool = [];
+        var seen = {};
+        for (var mi = 0; mi < setMoves.length; mi++) {
+            if (setMoves[mi] && setMoves[mi] !== '(No Move)' && !seen[setMoves[mi]]) {
+                movePool.push(setMoves[mi]);
+                seen[setMoves[mi]] = true;
+            }
+        }
+        for (var li = 0; li < learnset.length; li++) {
+            if (!seen[learnset[li].name]) {
+                movePool.push(learnset[li].name);
+                seen[learnset[li].name] = true;
+            }
+        }
+
+        // Build ability options from BattlePokedex
+        var abilOptions = [ability];
+        if (window.BattlePokedex) {
+            var pdKey = entry.name.toLowerCase().replace(/[\s\-\']+/g, '');
+            var pd = window.BattlePokedex[pdKey];
+            if (pd && pd.abilities) {
+                for (var ak in pd.abilities) {
+                    if (pd.abilities[ak] && abilOptions.indexOf(pd.abilities[ak]) < 0) {
+                        abilOptions.push(pd.abilities[ak]);
+                    }
+                }
+            }
+        }
+
+        var html = '<div class="rsa-cc-side" data-side="' + side + '">';
+        html += '<div class="rsa-cc-side-header">' +
+            '<img class="rsa-cc-side-sprite" src="' + esc(sprite) + '" alt="' + esc(entry.name) + '">' +
+            '<span>' + esc(entry.name) + '</span></div>';
+
+        // Typing
+        html += '<div class="rsa-cc-section-label">Typing</div>';
+        html += '<div class="rsa-cc-type-row">';
+        html += '<select class="rsa-cc-type1">';
+        for (var ti = 0; ti < ALL_TYPES.length; ti++) {
+            var sel = (typeInfo.types[0] === ALL_TYPES[ti]) ? ' selected' : '';
+            html += '<option' + sel + '>' + ALL_TYPES[ti] + '</option>';
+        }
+        html += '</select>';
+        html += '<select class="rsa-cc-type2"><option value="">— None —</option>';
+        for (var ti = 0; ti < ALL_TYPES.length; ti++) {
+            var sel = (typeInfo.types[1] === ALL_TYPES[ti]) ? ' selected' : '';
+            html += '<option' + sel + '>' + ALL_TYPES[ti] + '</option>';
+        }
+        html += '</select></div>';
+
+        // Ability / Item / Nature / Status
+        html += '<div class="rsa-cc-field-group">';
+        html += '<label>Ability</label><select class="rsa-cc-ability">';
+        for (var ai = 0; ai < abilOptions.length; ai++) {
+            html += '<option>' + esc(abilOptions[ai]) + '</option>';
+        }
+        html += '</select>';
+        html += '<label>Item</label><input type="text" class="rsa-cc-item" value="' + esc(item) + '" list="rsa-cc-items-' + side + '" />';
+        html += '<label>Nature</label><select class="rsa-cc-nature">';
+        for (var ni = 0; ni < ALL_NATURES.length; ni++) {
+            var sel = (nature === ALL_NATURES[ni]) ? ' selected' : '';
+            html += '<option' + sel + '>' + ALL_NATURES[ni] + '</option>';
+        }
+        html += '</select>';
+        html += '<label>Status</label><select class="rsa-cc-status">';
+        for (var sti = 0; sti < ALL_STATUSES.length; sti++) {
+            var sel = (status === ALL_STATUSES[sti].val) ? ' selected' : '';
+            html += '<option value="' + ALL_STATUSES[sti].val + '"' + sel + '>' + ALL_STATUSES[sti].label + '</option>';
+        }
+        html += '</select>';
+        html += '<label>HP</label><input type="number" class="rsa-cc-hp" value="' + curHP + '" min="0" max="' + maxHP + '" />';
+        html += '</div>';
+
+        // IVs
+        html += '<div class="rsa-cc-section-label">IVs</div>';
+        html += '<div class="rsa-cc-stat-row">';
+        for (var si = 0; si < STAT_KEYS.length; si++) {
+            var sk = STAT_KEYS[si];
+            html += '<div class="rsa-cc-stat-cell"><label>' + STAT_LABELS[sk] + '</label>' +
+                '<input type="number" class="rsa-cc-iv" data-stat="' + sk + '" value="' + ivs[sk] + '" min="0" max="31" /></div>';
+        }
+        html += '</div>';
+
+        // Boosts
+        html += '<div class="rsa-cc-section-label">Boosts</div>';
+        html += '<div class="rsa-cc-stat-row">';
+        for (var si = 1; si < STAT_KEYS.length; si++) { // skip HP
+            var sk = STAT_KEYS[si];
+            html += '<div class="rsa-cc-stat-cell"><label>' + STAT_LABELS[sk] + '</label>' +
+                '<input type="number" class="rsa-cc-boost" data-stat="' + sk + '" value="' + (boosts[sk] || 0) + '" min="-6" max="6" /></div>';
+        }
+        html += '</div>';
+
+        // Moves (4 slots) — each with move selector + BP override
+        html += '<div class="rsa-cc-section-label">Moves <small>(select from learnset, BP override optional)</small></div>';
+        for (var mi = 0; mi < 4; mi++) {
+            var curMove = setMoves[mi] || '';
+            html += '<div class="rsa-cc-move-row">';
+            html += '<select class="rsa-cc-move" data-slot="' + mi + '">';
+            html += '<option value="">(No Move)</option>';
+            for (var pi = 0; pi < movePool.length; pi++) {
+                var sel = (curMove === movePool[pi]) ? ' selected' : '';
+                html += '<option value="' + esc(movePool[pi]) + '"' + sel + '>' + esc(movePool[pi]) + '</option>';
+            }
+            html += '</select>';
+            var md = curMove ? lookupMoveData(curMove) : null;
+            var bp = md && md.basePower ? md.basePower : '';
+            html += '<input type="number" class="rsa-cc-bp" data-slot="' + mi + '" value="' + bp + '" placeholder="BP" min="0" max="999" title="Base Power override" />';
+            html += '</div>';
+        }
+
+        // Item datalist
+        html += '<datalist id="rsa-cc-items-' + side + '">';
+        if (window.BattleItems) {
+            for (var ik in window.BattleItems) {
+                html += '<option value="' + esc(window.BattleItems[ik].name) + '">';
+            }
+        }
+        html += '</datalist>';
+
+        html += '</div>'; // side
+        return html;
+    }
+
+    /** Build the Custom Calc modal body. */
+    function renderCustomCalcBody() {
+        var line = curLine();
+        var p1Team = line && line.teams ? line.teams.p1 : null;
+        var p2Team = line && line.teams ? line.teams.p2 : null;
+        var p1Active = p1Team ? (p1Team.activeIdx || 0) : 0;
+        var p2Active = p2Team ? (p2Team.activeIdx || 0) : 0;
+        var p1Roster = p1Team ? p1Team.roster : [];
+        var p2Roster = p2Team ? p2Team.roster : [];
+        var p1Entry = p1Roster[p1Active] || null;
+        var p2Entry = p2Roster[p2Active] || null;
+
+        // Mon selector dropdowns
+        var html = '<div class="rsa-cc-mon-selectors">';
+        html += '<div class="rsa-cc-mon-sel-group"><label>P1</label><select class="rsa-cc-mon-select" data-side="p1">';
+        for (var i = 0; i < p1Roster.length; i++) {
+            var sel = (i === p1Active) ? ' selected' : '';
+            html += '<option value="' + i + '"' + sel + '>' + esc(p1Roster[i].name) + '</option>';
+        }
+        html += '</select></div>';
+        html += '<div class="rsa-cc-mon-sel-group"><label>P2</label><select class="rsa-cc-mon-select" data-side="p2">';
+        for (var i = 0; i < p2Roster.length; i++) {
+            var sel = (i === p2Active) ? ' selected' : '';
+            html += '<option value="' + i + '"' + sel + '>' + esc(p2Roster[i].name) + '</option>';
+        }
+        html += '</select></div>';
+        html += '</div>';
+
+        html += '<div class="rsa-cc-columns">';
+        html += renderCCSide('p1', p1Entry);
+        html += renderCCSide('p2', p2Entry);
+        html += '</div>';
+        html += '<div class="rsa-cc-results" id="rsa-cc-results"></div>';
+        return html;
+    }
+
+    /** Read custom calc overrides from one side of the form. */
+    function readCCSide($side, entry) {
+        var set = entry.setId ? lookupSet(entry.setId) : null;
+        var nature = $side.find('.rsa-cc-nature').val() || 'Hardy';
+        var ability = $side.find('.rsa-cc-ability').val() || '';
+        var item = $side.find('.rsa-cc-item').val() || '';
+        var status = $side.find('.rsa-cc-status').val() || '';
+        var hp = parseInt($side.find('.rsa-cc-hp').val()) || 0;
+        var type1 = $side.find('.rsa-cc-type1').val();
+        var type2 = $side.find('.rsa-cc-type2').val();
+        var types = type2 ? [type1, type2] : [type1];
+
+        // IVs
+        var ivs = {};
+        $side.find('.rsa-cc-iv').each(function () {
+            ivs[$(this).data('stat')] = parseInt($(this).val()) || 0;
+        });
+        // EVs from set
+        var evs = {};
+        for (var si = 0; si < STAT_KEYS.length; si++) evs[STAT_KEYS[si]] = 0;
+        if (set && set.evs) {
+            var legacyMap = { HP:'hp', Atk:'atk', Def:'def', SpA:'spa', SpD:'spd', Spe:'spe', SAtk:'spa', SDef:'spd' };
+            for (var k in set.evs) {
+                var mapped = legacyMap[k] || k;
+                if (typeof set.evs[k] === 'number') evs[mapped] = set.evs[k];
+            }
+        }
+        // Boosts
+        var boosts = {};
+        $side.find('.rsa-cc-boost').each(function () {
+            boosts[$(this).data('stat')] = parseInt($(this).val()) || 0;
+        });
+        // Moves
+        var moves = [];
+        var bpOverrides = [];
+        $side.find('.rsa-cc-move').each(function () {
+            moves.push($(this).val() || '(No Move)');
+        });
+        $side.find('.rsa-cc-bp').each(function () {
+            bpOverrides.push(parseInt($(this).val()) || 0);
+        });
+
+        // Build calc objects
+        var calcMoves = [];
+        for (var i = 0; i < 4; i++) {
+            var mn = moves[i] || '(No Move)';
+            var opts = { ability: ability, item: item };
+            if (bpOverrides[i] > 0) opts.overrides = { basePower: bpOverrides[i] };
+            calcMoves.push(new calc.Move(gen || 9, mn, opts));
+        }
+
+        var poke = new calc.Pokemon(gen || 9, entry.name, {
+            level: set ? (set.level || 50) : 50,
+            ability: ability,
+            abilityOn: true,
+            item: item,
+            nature: nature,
+            ivs: ivs,
+            evs: evs,
+            boosts: boosts,
+            curHP: hp,
+            status: status,
+            moves: calcMoves,
+            overrides: { types: types }
+        });
+        return poke;
+    }
+
+    /** Run the custom calc and display results. */
+    function runCustomCalc() {
+        var $modal = $('#rsa-customcalc-modal');
+        var $sides = $modal.find('.rsa-cc-side');
+        var line = curLine();
+        // Read selected mon indices from dropdowns
+        var p1Idx = parseInt($modal.find('.rsa-cc-mon-select[data-side="p1"]').val()) || 0;
+        var p2Idx = parseInt($modal.find('.rsa-cc-mon-select[data-side="p2"]').val()) || 0;
+        var p1Entry = line.teams.p1.roster[p1Idx] || null;
+        var p2Entry = line.teams.p2.roster[p2Idx] || null;
+        if (!p1Entry || !p2Entry) {
+            $('#rsa-cc-results').html('<em>Missing Pokémon data.</em>');
+            return;
+        }
+
+        var p1 = readCCSide($sides.eq(0), p1Entry);
+        var p2 = readCCSide($sides.eq(1), p2Entry);
+        var field = _getField();
+        var field2 = field.clone().swap();
+
+        var html = '';
+
+        // P1 → P2
+        html += '<div class="rsa-cc-result-title">' + esc(p1Entry.name) + ' → ' + esc(p2Entry.name) + '</div>';
+        for (var i = 0; i < 4; i++) {
+            var mv = p1.moves[i];
+            if (!mv || mv.name === '(No Move)') continue;
+            try {
+                var res = calc.calculate(gen || 9, p1, p2, mv, field);
+                var rng = res.range();
+                var p2MaxHP = p2.rawStats.hp;
+                var minPct = p2MaxHP > 0 ? (rng[0] / p2MaxHP * 100).toFixed(1) : 0;
+                var maxPct = p2MaxHP > 0 ? (rng[1] / p2MaxHP * 100).toFixed(1) : 0;
+                html += '<div class="rsa-cc-result-row">' +
+                    '<span class="rsa-cc-result-move">' + esc(mv.name) + '</span>' +
+                    '<span class="rsa-cc-result-dmg">' + rng[0] + '–' + rng[1] + '</span>' +
+                    '<span class="rsa-cc-result-pct">(' + minPct + '% – ' + maxPct + '%)</span>' +
+                    '</div>';
+                try {
+                    var desc = res.moveDesc(notation);
+                    if (desc) html += '<div class="rsa-cc-result-desc">' + esc(desc) + '</div>';
+                } catch (e) {}
+            } catch (e) {
+                html += '<div class="rsa-cc-result-row"><span class="rsa-cc-result-move">' + esc(mv.name) + '</span> <em>error</em></div>';
+            }
+        }
+
+        // P2 → P1
+        html += '<div class="rsa-cc-result-title" style="margin-top:10px">' + esc(p2Entry.name) + ' → ' + esc(p1Entry.name) + '</div>';
+        for (var i = 0; i < 4; i++) {
+            var mv = p2.moves[i];
+            if (!mv || mv.name === '(No Move)') continue;
+            try {
+                var res = calc.calculate(gen || 9, p2, p1, mv, field2);
+                var rng = res.range();
+                var p1MaxHP = p1.rawStats.hp;
+                var minPct = p1MaxHP > 0 ? (rng[0] / p1MaxHP * 100).toFixed(1) : 0;
+                var maxPct = p1MaxHP > 0 ? (rng[1] / p1MaxHP * 100).toFixed(1) : 0;
+                html += '<div class="rsa-cc-result-row">' +
+                    '<span class="rsa-cc-result-move">' + esc(mv.name) + '</span>' +
+                    '<span class="rsa-cc-result-dmg">' + rng[0] + '–' + rng[1] + '</span>' +
+                    '<span class="rsa-cc-result-pct">(' + minPct + '% – ' + maxPct + '%)</span>' +
+                    '</div>';
+                try {
+                    var desc = res.moveDesc(notation);
+                    if (desc) html += '<div class="rsa-cc-result-desc">' + esc(desc) + '</div>';
+                } catch (e) {}
+            } catch (e) {
+                html += '<div class="rsa-cc-result-row"><span class="rsa-cc-result-move">' + esc(mv.name) + '</span> <em>error</em></div>';
+            }
+        }
+
+        $('#rsa-cc-results').html(html);
+    }
+
     /** Render the box tag coverage modal body — analyses all box Pokémon */
     function renderUtilityModal() {
         var mons = getBoxPokemon('p1');
@@ -2964,6 +3682,27 @@
 
         // activeIdx is now determined purely by round replay above.
         // Clicking team members to preview does NOT change activeIdx.
+
+        // Renumber rounds sequentially so round numbers stay contiguous after
+        // deletions. For main line (branchIdx < 0), renumber line.rounds and
+        // update line.roundCounter. For branches, continue from the last
+        // main-line round before the fork.
+        if (_branchObj && _branchObj.rounds) {
+            var _baseNum = 0;
+            if (_branchObj.forkRoundIdx > 0 && line.rounds.length >= _branchObj.forkRoundIdx) {
+                _baseNum = line.rounds[_branchObj.forkRoundIdx - 1].roundNum || _branchObj.forkRoundIdx;
+            }
+            for (var _bri = 0; _bri < _branchObj.rounds.length; _bri++) {
+                if (!_branchObj.rounds[_bri].isP2Switch) _baseNum++;
+                _branchObj.rounds[_bri].roundNum = _baseNum;
+            }
+        } else if (branchIdx < 0) {
+            line.roundCounter = 0;
+            for (var _mri = 0; _mri < line.rounds.length; _mri++) {
+                if (!line.rounds[_mri].isP2Switch) line.roundCounter++;
+                line.rounds[_mri].roundNum = line.roundCounter;
+            }
+        }
 
         // Restore user-set pre-damage HP for P1 entries not referenced in any
         // replayed round.  preDamageHP is set by the hp-edit handler and persists
@@ -9340,10 +10079,18 @@
                 showSaveToast('⏳ Form still loading — please wait a moment and try again.', 2000);
                 return;
             }
-            // Auto-sync the calc form to the field mons before capturing.
-            // This makes the inline Log Round independent of whatever mon
-            // the user may have previewed in the top calc panel.
-            syncFieldToForm(function () {
+            // Sync activeIdx to the form so captureRound uses the user's
+            // selected matchup. The inline controls stay independent because
+            // rebuildBranchTeams (from renderAll after capture) will replay
+            // rounds and set activeIdx from the logged data.
+            var _logLine = curLine();
+            var _formP1 = getP1Name();
+            var _formP2 = getP2Name();
+            var _p1i = findInRoster(_logLine.teams.p1, _formP1);
+            var _p2i = findInRoster(_logLine.teams.p2, _formP2);
+            if (_p1i >= 0) _logLine.teams.p1.activeIdx = _p1i;
+            if (_p2i >= 0) _logLine.teams.p2.activeIdx = _p2i;
+
             var comment = $('#rsa-comment').val().trim();
 
             function finishRound(rd) {
@@ -9519,7 +10266,6 @@
             }
 
             finishRound(doCaptureSingles());
-        }); // end syncFieldToForm callback
         });
 
         // ── Switch P1 in (takes the P2 move) ──
@@ -10911,6 +11657,64 @@
         });
         $(document).on('click', '#rsa-utility-close', function () {
             $('#rsa-utility-modal').hide();
+        });
+
+        // ── Learnset Explorer button ──
+        $(document).on('click', '#rsa-learnset-btn', function () {
+            var $modal = $('#rsa-learnset-modal');
+            $('#rsa-learnset-search').val('');
+            $modal.find('.rsa-learnset-body').html(renderLearnsetExplorer(''));
+            $modal.show();
+        });
+        $(document).on('click', '#rsa-learnset-close', function () {
+            $('#rsa-learnset-modal').hide();
+        });
+        // Search input — debounced re-render
+        var _lsSearchTimer = null;
+        $(document).on('input', '#rsa-learnset-search', function () {
+            var val = $(this).val();
+            clearTimeout(_lsSearchTimer);
+            _lsSearchTimer = setTimeout(function () {
+                $('#rsa-learnset-modal').find('.rsa-learnset-body').html(renderLearnsetExplorer(val));
+            }, 250);
+        });
+        // Toggle mon learnset expand/collapse
+        $(document).on('click', '.rsa-ls-mon-header', function () {
+            $(this).next('.rsa-ls-moves').toggleClass('rsa-ls-open');
+        });
+
+        // ── Custom Calc button (Log Round box) ──
+        $('#rsa-custom-calc').on('click', function () {
+            var $modal = $('#rsa-customcalc-modal');
+            $modal.find('.rsa-cc-body').html(renderCustomCalcBody());
+            $modal.show();
+        });
+        $(document).on('click', '#rsa-cc-close', function () {
+            $('#rsa-customcalc-modal').hide();
+        });
+        $(document).on('click', '#rsa-cc-run', function () {
+            runCustomCalc();
+        });
+        // Mon selector change — re-render that side
+        $(document).on('change', '.rsa-cc-mon-select', function () {
+            var side = $(this).data('side');
+            var idx = parseInt($(this).val()) || 0;
+            var line = curLine();
+            var team = side === 'p1' ? line.teams.p1 : line.teams.p2;
+            var entry = team && team.roster[idx] ? team.roster[idx] : null;
+            var $col = $('#rsa-customcalc-modal .rsa-cc-side[data-side="' + side + '"]');
+            $col.replaceWith(renderCCSide(side, entry));
+        });
+        // Update BP placeholder when move changes
+        $(document).on('change', '.rsa-cc-move', function () {
+            var moveName = $(this).val();
+            var $bp = $(this).closest('.rsa-cc-move-row').find('.rsa-cc-bp');
+            if (moveName && moveName !== '(No Move)') {
+                var md = lookupMoveData(moveName);
+                $bp.val(md && md.basePower ? md.basePower : '');
+            } else {
+                $bp.val('');
+            }
         });
 
         // ── Battle Tag Analysis button (P1 team header) ──
