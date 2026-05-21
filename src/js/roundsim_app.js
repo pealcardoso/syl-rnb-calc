@@ -1446,6 +1446,12 @@
             for (var bi2 = 0; bi2 < boundaryIdxs.length - 1; bi2++) {
                 var upperIdx = boundaryIdxs[bi2];
                 var lowerIdx = boundaryIdxs[bi2 + 1];
+                // For non-last bands, lowerIdx is the first index of the NEXT
+                // band's key region.  Step back by 1 so movesWithRange samples
+                // only HP values that belong to the current band's moveKey.
+                if (bi2 + 2 < boundaryIdxs.length) {
+                    lowerIdx = Math.max(upperIdx, lowerIdx - 1);
+                }
                 var bandUpper = groupHPs[upperIdx];
                 var bandLower = groupHPs[lowerIdx];
 
@@ -1469,31 +1475,35 @@
                     baitSprite: entry.sprite || getSprite(entry.name),
                     reason: winner.aiFaster ? 'Faster' : (winner.aiSlower ? 'Slower' : 'Tie'),
                     score: g.bestScore, faster: winner.aiFaster,
+                    moveKey: upperInfo.moveKey,
                     moves: movesWithRange
                 });
             }
         }
 
-        // Post-merge: collapse adjacent bands with the same P2 mon and same set of active moves
-        for (var mi = bands.length - 1; mi > 0; mi--) {
-            var cur = bands[mi], prev = bands[mi - 1];
-            if (cur.baitName !== prev.baitName) continue;
-            // Build sorted active-move keys for each band
-            var curMoves = cur.moves.filter(function(m) { return m.maxRate >= 0.005; })
-                .map(function(m) { return m.move; }).sort().join('+');
-            var prevMoves = prev.moves.filter(function(m) { return m.maxRate >= 0.005; })
-                .map(function(m) { return m.move; }).sort().join('+');
-            if (curMoves !== prevMoves) continue;
-            // Merge: extend prev to cover cur's HP range and widen rate ranges
-            prev.hpLower = cur.hpLower;
-            prev.pctLower = cur.pctLower;
-            for (var ri = 0; ri < prev.moves.length; ri++) {
-                if (cur.moves[ri]) {
-                    prev.moves[ri].minRate = Math.min(prev.moves[ri].minRate, cur.moves[ri].minRate);
-                    prev.moves[ri].maxRate = Math.max(prev.moves[ri].maxRate, cur.moves[ri].maxRate);
+        // Post-process: remove narrow "blip" bands caused by a move rate
+        // briefly crossing the 0.005 threshold at a single HP step.
+        // A blip is a band whose HP width <= step, sandwiched between two
+        // bands with the same baitName and moveKey.  Absorb the blip and the
+        // band after it into the band before it.
+        for (var mi = bands.length - 2; mi > 0; mi--) {
+            var blip = bands[mi];
+            if (blip.hpUpper - blip.hpLower > step) continue;        // not narrow
+            if (blip.baitName !== bands[mi - 1].baitName) continue;   // different mon
+            if (blip.baitName !== bands[mi + 1].baitName) continue;   // different mon
+            if (bands[mi - 1].moveKey !== bands[mi + 1].moveKey) continue; // neighbors differ
+            // Absorb blip + bands[mi+1] into bands[mi-1]
+            var dst = bands[mi - 1], src = bands[mi + 1];
+            dst.hpLower = src.hpLower;
+            dst.pctLower = src.pctLower;
+            for (var ri = 0; ri < dst.moves.length; ri++) {
+                if (src.moves[ri]) {
+                    dst.moves[ri].minRate = Math.min(dst.moves[ri].minRate, src.moves[ri].minRate);
+                    dst.moves[ri].maxRate = Math.max(dst.moves[ri].maxRate, src.moves[ri].maxRate);
                 }
             }
-            bands.splice(mi, 1);
+            bands.splice(mi, 2);
+            mi = Math.min(mi, bands.length - 1);
         }
 
         return bands;
