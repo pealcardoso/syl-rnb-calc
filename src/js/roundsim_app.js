@@ -7948,7 +7948,13 @@
             var label = (p1.moves && p1.moves[m]) ? p1.moves[m] : null;
             if (label && label !== '—' && label !== '(No Move)') {
                 var sel = (selectedP1Move === m) ? ' selected' : '';
-                p1MoveOpts += '<option value="' + m + '"' + sel + '>' + esc(label) + '</option>';
+                var dmgLabel = '';
+                var dmg = calcDamageDirect(p1, p2, label);
+                if (dmg && p2.maxHP > 0) {
+                    var pct = Math.round(dmg.maxDmg / p2.maxHP * 100);
+                    dmgLabel = pct + '% ';
+                }
+                p1MoveOpts += '<option value="' + m + '"' + sel + '>' + dmgLabel + esc(label) + '</option>';
             }
         }
 
@@ -7958,7 +7964,13 @@
             var label = (p2.moves && p2.moves[m]) ? p2.moves[m] : null;
             if (label && label !== '—' && label !== '(No Move)') {
                 var sel = (selectedP2Move === m) ? ' selected' : '';
-                p2MoveOpts += '<option value="' + m + '"' + sel + '>' + esc(label) + '</option>';
+                var dmgLabel = '';
+                var dmg = calcDamageDirect(p2, p1, label);
+                if (dmg && p1.maxHP > 0) {
+                    var pct = Math.round(dmg.maxDmg / p1.maxHP * 100);
+                    dmgLabel = pct + '% ';
+                }
+                p2MoveOpts += '<option value="' + m + '"' + sel + '>' + dmgLabel + esc(label) + '</option>';
             }
         }
 
