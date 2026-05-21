@@ -2962,26 +2962,8 @@
             line.teams.p2.activeIdx = _pendingIdx;
         }
 
-        // After replay, re-anchor both active indices to whatever pokemon is currently
-        // loaded in the calc form.  rebuildBranchTeams resets activeIdx = 0 before
-        // replay; if rounds exist but don't reference the loaded pokemon (e.g. user
-        // manually changed the form after the last logged round), activeIdx stays at
-        // the last-replayed index even though the form has a different pokemon.
-        // Only apply this when there are logged rounds — with 0 rounds the first
-        // pokemon in roster order (index 0) is always the correct active one, and
-        // re-anchoring to the form would pick up stale pokemon from a previous trainer.
-        if (rounds.length > 0) {
-            var _formP2Name = getP2Name ? getP2Name() : null;
-            if (_formP2Name) {
-                var _formP2i = findInRoster(line.teams.p2, _formP2Name);
-                if (_formP2i >= 0) line.teams.p2.activeIdx = _formP2i;
-            }
-            var _formP1Name = getP1Name ? getP1Name() : null;
-            if (_formP1Name) {
-                var _formP1i = findInRoster(line.teams.p1, _formP1Name);
-                if (_formP1i >= 0) line.teams.p1.activeIdx = _formP1i;
-            }
-        }
+        // activeIdx is now determined purely by round replay above.
+        // Clicking team members to preview does NOT change activeIdx.
 
         // Restore user-set pre-damage HP for P1 entries not referenced in any
         // replayed round.  preDamageHP is set by the hp-edit handler and persists
@@ -4098,11 +4080,6 @@
             injectMoveLabelSprites();
             // Re-render inline controls so damage % is up to date
             renderRoundLog();
-            // Restore activeIdx after rebuildBranchTeams may have reset it
-            var _loadedLine = curLine();
-            var _loadedTeam = _loadedLine.teams[side];
-            var _loadedIdx = findInRoster(_loadedTeam, entry.name);
-            if (_loadedIdx >= 0) _loadedTeam.activeIdx = _loadedIdx;
             // Update info strip so sprite/name reflects the newly loaded mon
             updateMovePickDisplay();
         }, 0);
@@ -6094,7 +6071,7 @@
                 '<div class="rsa-actor-info">' +
                     '<div class="rsa-actor-name">' + esc(f.name) + ' <span class="rsa-dbl-panel-slot-label ' + slotCls + '">' + slotLabel + '</span></div>' +
                     '<div class="rsa-actor-tags">' +
-                        '<span class="rsa-tag rsa-item-tag" title="' + esc(getItemDesc(f.item)) + '"><img class="rsa-item-sprite-sm" src="' + esc(getItemSpriteUrl(f.item)) + '" alt="" onerror="this.style.display=\'none\'"> ' + esc(f.item) + '</span>' +
+                        (f.item ? '<span class="rsa-tag rsa-item-tag" title="' + esc(getItemDesc(f.item)) + '"><img class="rsa-item-sprite-sm" src="' + esc(getItemSpriteUrl(f.item)) + '" alt="" onerror="this.style.display=\'none\'"> ' + esc(f.item) + '</span>' : '') +
                         '<span class="rsa-tag rsa-ability-tag" title="' + esc(getAbilityDesc(f.ability)) + '">' + esc(f.ability) + '</span>' +
                         (f.status ? '<span class="rsa-tag rsa-status-tag rsa-status-' + f.status.toLowerCase().replace(/\s+/g, '-') + '">' + esc(f.status) + '</span>' : '') +
                     '</div>' +
@@ -6623,7 +6600,16 @@
                     else if (actSide === 'p2') applyHazardMoves(null, act.move);
                 }
             } else {
-                applyHazardMoves(rd.p1 && rd.p1.move, rd.p2 && rd.p2.move);
+                var _rp1Move = rd.p1 && rd.p1.move && rd.p1.move !== '—' ? rd.p1.move : null;
+                var _rp2Move = rd.p2 && rd.p2.move && rd.p2.move !== '—' ? rd.p2.move : null;
+                // Skip hazard from a side that was outsped and KO'd
+                if (rd.speed && rd.p2 && rd.p2.hpAfter) {
+                    var _rp1F = rd.speed.faster === 'p1' || rd.speed.faster === 'tie';
+                    var _rp2F = rd.speed.faster === 'p2';
+                    if (_rp1F && _rp1Move && rd.p2.hpAfter.bestCase <= 0) _rp2Move = null;
+                    if (_rp2F && _rp2Move && rd.p1.hpAfter.current <= 0) _rp1Move = null;
+                }
+                applyHazardMoves(_rp1Move, _rp2Move);
             }
         }
         // Restore pre-damage HP for P1 entries not involved in any round
@@ -7900,7 +7886,7 @@
                 '<div class="rsa-actor-info">' +
                     '<div class="rsa-actor-name">' + esc(actor.name) + ' ' + (orderIndicator || '') + '</div>' +
                     '<div class="rsa-actor-tags">' +
-                        '<span class="rsa-tag rsa-item-tag" title="' + esc(getItemDesc(actor.item)) + '"><img class="rsa-item-sprite-sm" src="' + esc(getItemSpriteUrl(actor.item)) + '" alt="" onerror="this.style.display=\'none\'"> ' + esc(actor.item) + '</span>' +
+                        (actor.item ? '<span class="rsa-tag rsa-item-tag" title="' + esc(getItemDesc(actor.item)) + '"><img class="rsa-item-sprite-sm" src="' + esc(getItemSpriteUrl(actor.item)) + '" alt="" onerror="this.style.display=\'none\'"> ' + esc(actor.item) + '</span>' : '') +
                         '<span class="rsa-tag rsa-ability-tag" title="' + esc(getAbilityDesc(actor.ability)) + '">' + esc(actor.ability) + '</span>' +
                         (actor.status ? '<span class="rsa-tag rsa-status-tag rsa-status-' + actor.status.toLowerCase().replace(/\s+/g, '-') + '">' + esc(actor.status) + '</span>' : '') +
                         (actor.confused ? '<span class="rsa-tag rsa-status-tag rsa-status-confused" title="' + (actor.confuseSelfHitMax != null ? 'Max self-hit: ' + actor.confuseSelfHitMax + ' HP' : 'Confused') + '">Confused' + (actor.confuseRounds > 0 ? ' (' + actor.confuseRounds + ')' : '') + (actor.confuseSelfHitMax != null ? ' · -' + actor.confuseSelfHitMax : '') + '</span>' : '') +
@@ -9395,9 +9381,9 @@
                     var _p2Faster = rd.speed && rd.speed.faster === 'p2';
                     var _p1Attacked = rd.p1 && rd.p1.move && rd.p1.move !== '—';
                     var _p2Attacked = rd.p2 && rd.p2.move && rd.p2.move !== '—';
-                    // If P1 outspeeds and KOs P2, P2 never moved
-                    if (_p1Faster && _p1Attacked && rd.p2.hpAfter.current <= 0) p2Move = null;
-                    // If P2 outspeeds and KOs P1, P1 never moved
+                    // If P1 outspeeds and KOs P2 (max damage), P2 never moved
+                    if (_p1Faster && _p1Attacked && rd.p2.hpAfter.bestCase <= 0) p2Move = null;
+                    // If P2 outspeeds and KOs P1 (max damage), P1 never moved
                     if (_p2Faster && _p2Attacked && rd.p1.hpAfter.current <= 0) p1Move = null;
                     applyHazardMoves(p1Move, p2Move);
                 }
@@ -9425,7 +9411,7 @@
                     var _p1Md = (rd.p1 && rd.p1.move !== '—') ? lookupMoveData(rd.p1.move) : null;
                     var _p2Md = (rd.p2 && rd.p2.move !== '—') ? lookupMoveData(rd.p2.move) : null;
                     // Null out if KO'd before acting (same guards as hazards above)
-                    if (_p1Faster && _p1Attacked && rd.p2.hpAfter.current <= 0) _p2Md = null;
+                    if (_p1Faster && _p1Attacked && rd.p2.hpAfter.bestCase <= 0) _p2Md = null;
                     if (_p2Faster && _p2Attacked && rd.p1.hpAfter.current <= 0) _p1Md = null;
                     var _line = curLine();
                     var _p1Entry = _line.teams.p1 ? getActiveEntry(_line.teams.p1) : null;
