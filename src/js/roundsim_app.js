@@ -699,6 +699,24 @@
 
     // ── Custom dialog helpers (replace native alert / confirm / prompt) ──
     var _rsaDlgCb = null;
+
+    /**
+     * Compute effective accuracy for a move considering defender's item
+     * (Bright Powder / Lax Incense = ×0.9).
+     * Returns a number 0-100, or true for bypass-accuracy moves.
+     */
+    function getEffectiveAccuracy(moveData, defenderItem) {
+        if (!moveData || !moveData.accuracy) return 100;
+        if (moveData.accuracy === true) return true; // bypass accuracy check
+        var acc = moveData.accuracy;
+        if (defenderItem) {
+            var itemEff = getItemEffects(defenderItem);
+            if (itemEff && itemEff.defenderEvasionMod) {
+                acc = Math.floor(acc * itemEff.defenderEvasionMod);
+            }
+        }
+        return acc;
+    }
     function _rsaDlgShow(msg, mode, defVal) {
         $('#rsa-dlg-msg').text(msg);
         var isPrompt = (mode === 'prompt');
@@ -1296,11 +1314,13 @@
             var fakeP1 = $.extend(true, {}, p1Entry);
             fakeP1.currentHP = hp;
             var moveRates = calcP2MoveRates(entry, fakeP1);
-            var activeMoveCount = 0;
+            // Build key from actual active move names (not just count)
+            var activeNames = [];
             for (var ri = 0; ri < moveRates.rates.length; ri++) {
-                if (moveRates.rates[ri].rate >= 0.005) activeMoveCount++;
+                if (moveRates.rates[ri].rate >= 0.005) activeNames.push(moveRates.rates[ri].move);
             }
-            return { moveKey: entry.name + '|' + activeMoveCount, rates: moveRates };
+            activeNames.sort();
+            return { moveKey: entry.name + '|' + activeNames.join('+'), rates: moveRates };
         }
 
         // Pass 1: Score candidates at each HP step to find winner at each HP
@@ -1452,6 +1472,28 @@
                     moves: movesWithRange
                 });
             }
+        }
+
+        // Post-merge: collapse adjacent bands with the same P2 mon and same set of active moves
+        for (var mi = bands.length - 1; mi > 0; mi--) {
+            var cur = bands[mi], prev = bands[mi - 1];
+            if (cur.baitName !== prev.baitName) continue;
+            // Build sorted active-move keys for each band
+            var curMoves = cur.moves.filter(function(m) { return m.maxRate >= 0.005; })
+                .map(function(m) { return m.move; }).sort().join('+');
+            var prevMoves = prev.moves.filter(function(m) { return m.maxRate >= 0.005; })
+                .map(function(m) { return m.move; }).sort().join('+');
+            if (curMoves !== prevMoves) continue;
+            // Merge: extend prev to cover cur's HP range and widen rate ranges
+            prev.hpLower = cur.hpLower;
+            prev.pctLower = cur.pctLower;
+            for (var ri = 0; ri < prev.moves.length; ri++) {
+                if (cur.moves[ri]) {
+                    prev.moves[ri].minRate = Math.min(prev.moves[ri].minRate, cur.moves[ri].minRate);
+                    prev.moves[ri].maxRate = Math.max(prev.moves[ri].maxRate, cur.moves[ri].maxRate);
+                }
+            }
+            bands.splice(mi, 1);
         }
 
         return bands;
@@ -3910,7 +3952,7 @@
     // ════════════════════════════════════════════════════════════
 
     function calcRoundProbability(p2MoveIdx, p2Crit, p1MoveData, p2MoveData,
-        p1ApplySec, p2ApplySec, p1Guaranteed, p2Guaranteed, p2AllAIPcts) {
+        p1ApplySec, p2ApplySec, p1Guaranteed, p2Guaranteed, p2AllAIPcts, p1Item) {
         var factors = [];
         var totalProb = 1.0;
 
@@ -3956,9 +3998,10 @@
             totalProb *= p2EffChance;
         }
 
-        // 5. P2 accuracy (miss chance)
-        if (p2MoveData && p2MoveData.accuracy && p2MoveData.accuracy !== true) {
-            var accProb = p2MoveData.accuracy / 100;
+        // 5. P2 accuracy (miss chance, including defender evasion items)
+        var effAcc = getEffectiveAccuracy(p2MoveData, p1Item || '');
+        if (effAcc !== true && effAcc < 100) {
+            var accProb = effAcc / 100;
             factors.push({ name: 'P2 Move Hits', prob: accProb });
             totalProb *= accProb;
         }
@@ -5281,7 +5324,7 @@
         // ── Round probability calculation ──
         var roundProb = calcRoundProbability(p2MoveIdx, p2Crit, p1MoveData, p2MoveData,
             p1ApplySecondary, p2ApplySecondary, p1Guaranteed, p2Guaranteed,
-            p2AllAIPcts);
+            p2AllAIPcts, p1Entry.item || '');
 
         // Build round data
         var _activeBranchObj = (line.branches && line.activeBranchIdx >= 0) ? line.branches[line.activeBranchIdx] : null;
@@ -7403,9 +7446,10 @@
             }
         }
 
-        // 3. P2 miss (accuracy < 100%)
-        if (!p2KOdBeforeAttack && p2MoveData && p2MoveData.accuracy && p2MoveData.accuracy !== true && p2MoveData.accuracy < 100 && !rd.p2.flinched) {
-            var missChance = 100 - p2MoveData.accuracy;
+        // 3. P2 miss (accuracy < 100%, including Bright Powder / Lax Incense evasion)
+        var _p2EffAcc = getEffectiveAccuracy(p2MoveData, rd.p1.item || '');
+        if (!p2KOdBeforeAttack && _p2EffAcc !== true && _p2EffAcc < 100 && !rd.p2.flinched) {
+            var missChance = 100 - _p2EffAcc;
             forks.push({
                 icon: '🎯', label: 'P2 miss ' + missChance + '%',
                 detail: 'P1 stays at ' + p1HP + ' HP',
@@ -7508,9 +7552,10 @@
             }
         }
 
-        // 9. P1 miss (accuracy < 100%)
-        if (p1Attacked && !p1KOdBeforeAttack && p1MoveData && p1MoveData.accuracy && p1MoveData.accuracy !== true && p1MoveData.accuracy < 100) {
-            var p1MissChance = 100 - p1MoveData.accuracy;
+        // 9. P1 miss (accuracy < 100%, including defender evasion items)
+        var _p1EffAcc = getEffectiveAccuracy(p1MoveData, rd.p2.item || '');
+        if (p1Attacked && !p1KOdBeforeAttack && _p1EffAcc !== true && _p1EffAcc < 100) {
+            var p1MissChance = 100 - _p1EffAcc;
             forks.push({
                 icon: '🎯', label: 'P1 miss ' + p1MissChance + '%',
                 detail: 'P1 misses — P2 takes no damage',
@@ -9323,6 +9368,7 @@
                 };
 
                 // Auto-detect hazard-setting/clearing moves and update field state
+                // Skip a side's move if that mon was outsped and KO'd before acting
                 if (rd.isDoubles && rd.actions) {
                     for (var ai = 0; ai < rd.actions.length; ai++) {
                         var act = rd.actions[ai];
@@ -9335,6 +9381,14 @@
                 } else {
                     var p1Move = (rd.p1 && rd.p1.move !== '—') ? rd.p1.move : null;
                     var p2Move = (rd.p2 && rd.p2.move !== '—') ? rd.p2.move : null;
+                    var _p1Faster = rd.speed && (rd.speed.faster === 'p1' || rd.speed.faster === 'tie');
+                    var _p2Faster = rd.speed && rd.speed.faster === 'p2';
+                    var _p1Attacked = rd.p1 && rd.p1.move && rd.p1.move !== '—';
+                    var _p2Attacked = rd.p2 && rd.p2.move && rd.p2.move !== '—';
+                    // If P1 outspeeds and KOs P2, P2 never moved
+                    if (_p1Faster && _p1Attacked && rd.p2.hpAfter.current <= 0) p2Move = null;
+                    // If P2 outspeeds and KOs P1, P1 never moved
+                    if (_p2Faster && _p2Attacked && rd.p1.hpAfter.current <= 0) p1Move = null;
                     applyHazardMoves(p1Move, p2Move);
                 }
 
@@ -9360,6 +9414,9 @@
                 } else {
                     var _p1Md = (rd.p1 && rd.p1.move !== '—') ? lookupMoveData(rd.p1.move) : null;
                     var _p2Md = (rd.p2 && rd.p2.move !== '—') ? lookupMoveData(rd.p2.move) : null;
+                    // Null out if KO'd before acting (same guards as hazards above)
+                    if (_p1Faster && _p1Attacked && rd.p2.hpAfter.current <= 0) _p2Md = null;
+                    if (_p2Faster && _p2Attacked && rd.p1.hpAfter.current <= 0) _p1Md = null;
                     var _line = curLine();
                     var _p1Entry = _line.teams.p1 ? getActiveEntry(_line.teams.p1) : null;
                     var _p2Entry = _line.teams.p2 ? getActiveEntry(_line.teams.p2) : null;
@@ -11870,11 +11927,11 @@
                 }
             }
 
-            // P2 miss
-            if (!p2KOdBeforeAttack && p2MoveData && p2MoveData.accuracy &&
-                p2MoveData.accuracy !== true && p2MoveData.accuracy < 100) {
+            // P2 miss (including defender evasion items)
+            var _preEffAcc = getEffectiveAccuracy(p2MoveData, rd.p1.item || '');
+            if (!p2KOdBeforeAttack && _preEffAcc !== true && _preEffAcc < 100) {
                 vars.p2Miss = {
-                    prob: (100 - p2MoveData.accuracy) / 100,
+                    prob: (100 - _preEffAcc) / 100,
                     applicable: true, mainState: false
                 };
             }
@@ -11951,8 +12008,9 @@
                             _alt.p2Sec = { prob: _altMD.secondary.chance / 100, applicable: true, mainState: false, effect: _altSecEff };
                         }
                     }
-                    if (_altMD.accuracy && _altMD.accuracy !== true && _altMD.accuracy < 100) {
-                        _alt.p2Miss = { prob: (100 - _altMD.accuracy) / 100, applicable: true, mainState: false };
+                    var _altEffAcc = getEffectiveAccuracy(_altMD, rd.p1.item || '');
+                    if (_altEffAcc !== true && _altEffAcc < 100) {
+                        _alt.p2Miss = { prob: (100 - _altEffAcc) / 100, applicable: true, mainState: false };
                     }
                     if (_altMD.flags && _altMD.flags.contact && rd.p1.ability) {
                         var _altAe = getAbilityEffects(rd.p1.ability);
@@ -12750,7 +12808,8 @@
 
                 var isDamaging = moveData && moveData.category !== 'Status';
                 var isContact = moveData && moveData.flags && moveData.flags.contact;
-                var canMiss = moveData && moveData.accuracy && moveData.accuracy !== true && moveData.accuracy < 100;
+                var _forkEffAcc = getEffectiveAccuracy(moveData, rd.p1.item || '');
+                var canMiss = _forkEffAcc !== true && _forkEffAcc < 100;
 
                 // P2 secondary info
                 var hasP2Sec = !p2KOdBeforeAttack && moveData && moveData.secondary &&
@@ -12779,7 +12838,7 @@
                 }
                 var contactAbilChance = contactAbil ? contactAbil.chance / 100 : 0;
 
-                var hitProb = canMiss ? moveData.accuracy / 100 : 1;
+                var hitProb = canMiss ? _forkEffAcc / 100 : 1;
                 var missProb = 1 - hitProb;
                 var flinchProb = flinchInfo ? flinchInfo.prob : 0;
                 var idBase = 'R' + (rd.roundNum || roundIdx + 1);
@@ -12975,10 +13034,10 @@
                 } catch (e) { /* skip P1 crit fork */ }
             }
 
-            // P1 miss — P2 takes no damage from P1
-            if (p1Attacked && p1MoveData && p1MoveData.accuracy &&
-                p1MoveData.accuracy !== true && p1MoveData.accuracy < 100) {
-                var _p1MissChance = (100 - p1MoveData.accuracy) / 100;
+            // P1 miss — P2 takes no damage from P1 (including defender evasion items)
+            var _p1ForkEffAcc = getEffectiveAccuracy(p1MoveData, rd.p2.item || '');
+            if (p1Attacked && _p1ForkEffAcc !== true && _p1ForkEffAcc < 100) {
+                var _p1MissChance = (100 - _p1ForkEffAcc) / 100;
                 var _p1MissFork = {
                     id: idBaseP1 + '-p1miss',
                     type: 'p1miss',

@@ -104,6 +104,7 @@
  *   eotDamage:                 { frac }    — Sticky Barb chip
  *   hazardImmunity:            true        — Heavy-Duty Boots
  *   contactAvoidance:          true        — Protective Pads (skip contact effects)
+ *   defenderEvasionMod:        number      — Bright Powder / Lax Incense (0.9 = 10% miss)
  *
  * --- USAGE BY ENGINE ---
  *   Lookups go via slug:
@@ -333,6 +334,10 @@ window.EffectsRegistry = {
     /* --- Contact Avoidance (skip contact effects) --- */
     protectivepads:  { contactAvoidance: true },
     punchingglove:   { contactAvoidance: true /* punch-only — calc handles power, sim gates contact */ },
+
+    /* --- Defender Evasion (accuracy penalty for attacker) --- */
+    brightpowder:    { defenderEvasionMod: 0.9 },
+    laxincense:      { defenderEvasionMod: 0.9 },
   }
 };
 
