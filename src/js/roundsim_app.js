@@ -4817,8 +4817,6 @@
             // Re-inject damage badges now that the new pokemon is loaded
             injectDamageBadges();
             injectMoveLabelSprites();
-            // Re-render inline controls so damage % is up to date
-            renderRoundLog();
             // Update info strip so sprite/name reflects the newly loaded mon
             updateMovePickDisplay();
         }, 0);
