@@ -7949,10 +7949,10 @@
                 var dmgLabel = '';
                 var dmg = calcDamageDirect(p1, p2, label);
                 if (dmg && p2.maxHP > 0) {
-                    var pct = Math.round(dmg.maxDmg / p2.maxHP * 100);
-                    dmgLabel = pct + '% ';
+                    var pct = Math.round(dmg.minDmg / p2.maxHP * 100);
+                    dmgLabel = ' ' + pct + '%';
                 }
-                p1MoveOpts += '<option value="' + m + '"' + sel + '>' + dmgLabel + esc(label) + '</option>';
+                p1MoveOpts += '<option value="' + m + '"' + sel + '>' + esc(label) + dmgLabel + '</option>';
             }
         }
 
@@ -7966,9 +7966,9 @@
                 var dmg = calcDamageDirect(p2, p1, label);
                 if (dmg && p1.maxHP > 0) {
                     var pct = Math.round(dmg.maxDmg / p1.maxHP * 100);
-                    dmgLabel = pct + '% ';
+                    dmgLabel = ' ' + pct + '%';
                 }
-                p2MoveOpts += '<option value="' + m + '"' + sel + '>' + dmgLabel + esc(label) + '</option>';
+                p2MoveOpts += '<option value="' + m + '"' + sel + '>' + esc(label) + dmgLabel + '</option>';
             }
         }
 
