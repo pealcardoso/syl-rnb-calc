@@ -7096,11 +7096,15 @@
     /** Apply stat boost changes to a roster entry, clamping to ±6 */
     function applyBoosts(entry, boosts) {
         if (!entry || !boosts) return;
+        // Contrary inverts all stat changes applied to this pokemon
+        var contrary = entry.ability && entry.ability.toLowerCase().replace(/[\s\-]+/g, '') === 'contrary';
         var map = { atk: 'at', def: 'df', spa: 'sa', spd: 'sd', spe: 'sp' };
         for (var stat in boosts) {
             var key = map[stat] || stat;
             if (entry.boosts[key] !== undefined) {
-                entry.boosts[key] = Math.max(-6, Math.min(6, (entry.boosts[key] || 0) + boosts[stat]));
+                var val = boosts[stat];
+                if (contrary) val = -val;
+                entry.boosts[key] = Math.max(-6, Math.min(6, (entry.boosts[key] || 0) + val));
             }
         }
     }
