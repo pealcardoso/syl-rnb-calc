@@ -7852,11 +7852,43 @@
         syncInlineControls();
     }
 
+    /**
+     * Derive who is currently on the field from the round log.
+     * Walks the active rounds to find the last P1/P2 names, then looks them up
+     * in the roster. This is the authoritative source — it ignores activeIdx
+     * and whatever is loaded in the calc form.
+     * Exception: if the last round's P2 was KO'd (HP 0), fall back to activeIdx
+     * for P2 since a pending switch-in may not be logged yet.
+     */
+    function getFieldMonsFromLog() {
+        var line = curLine();
+        var rounds = getBranchRounds(line, line.activeBranchIdx != null ? line.activeBranchIdx : -1);
+        var p1Name = null, p2Name = null;
+        var p2KOd = false;
+        for (var i = rounds.length - 1; i >= 0; i--) {
+            var rd = rounds[i];
+            if (!p2Name && rd.p2 && rd.p2.name) {
+                p2Name = rd.p2.name;
+                // Check if P2 was KO'd in this round
+                if (rd.p2.hpAfter && rd.p2.hpAfter.current <= 0) p2KOd = true;
+            }
+            if (!p1Name && rd.p1 && rd.p1.name) p1Name = rd.p1.name;
+            if (p1Name && p2Name) break;
+        }
+        var p1Idx = p1Name ? findInRoster(line.teams.p1, p1Name) : -1;
+        var p2Idx = p2Name && !p2KOd ? findInRoster(line.teams.p2, p2Name) : -1;
+        // Fall back to activeIdx if no rounds exist or if P2 was KO'd (pending switch-in)
+        var p1Entry = p1Idx >= 0 ? line.teams.p1.roster[p1Idx] : getActiveEntry(line.teams.p1);
+        var p2Entry = p2Idx >= 0 ? line.teams.p2.roster[p2Idx] : getActiveEntry(line.teams.p2);
+        return { p1: p1Entry, p2: p2Entry };
+    }
+
     /** Render inline quick-controls at the bottom of the round log */
     function renderInlineControls() {
         var line = curLine();
-        var p1 = getActiveEntry(line.teams.p1);
-        var p2 = getActiveEntry(line.teams.p2);
+        var field = getFieldMonsFromLog();
+        var p1 = field.p1;
+        var p2 = field.p2;
         if (!p1 || p1.currentHP <= 0) return '';
 
         // ── P2 KO panel: P2 is fainted, pick who comes in ────────────
