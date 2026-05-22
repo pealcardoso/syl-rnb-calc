@@ -8771,28 +8771,29 @@
         var headerDiv = subgroup.querySelector('.result-move-header');
         if (!headerDiv) return;
 
-        var line = curLine();
-        if (!line || !line.teams) {
-            headerDiv.textContent = isP1 ? 'Select a P1 move' : 'Select a P2 move';
-            return;
-        }
-        var team = isP1 ? line.teams.p1 : line.teams.p2;
-        var entry = getActiveEntry(team);
-        if (!entry) {
+        // Read from the calc form — this reflects whatever mon the user is previewing
+        var formName = isP1 ? getP1Name() : getP2Name();
+        if (!formName) {
             headerDiv.textContent = isP1 ? 'Select a P1 move' : 'Select a P2 move';
             return;
         }
 
-        var spriteUrl = entry.sprite || getSprite(entry.name);
-        var types = entry.types || [];
-        var item = entry.item || '';
-        var ability = entry.ability || '';
+        var sideId = isP1 ? 'p1' : 'p2';
+        var spriteUrl = getSprite(formName);
+        var ability = getAbility(sideId);
+        var item = getItem(sideId);
+        // Read types from the form
+        var types = [];
+        var formType1 = $('#' + sideId + ' .type1').val();
+        var formType2 = $('#' + sideId + ' .type2').val();
+        if (formType1) types.push(formType1);
+        if (formType2) types.push(formType2);
         var spd = getSpeedInfo();
         var spdVal = isP1 ? spd.p1 : spd.p2;
 
         var html = '<div class="rsa-move-info-strip">';
-        html += '<img class="rsa-move-info-sprite" src="' + esc(spriteUrl) + '" alt="' + esc(entry.name) + '" onerror="this.style.display=\'none\'">';
-        html += '<span class="rsa-move-info-name">' + esc(entry.name) + '</span>';
+        html += '<img class="rsa-move-info-sprite" src="' + esc(spriteUrl) + '" alt="' + esc(formName) + '" onerror="this.style.display=\'none\'">';
+        html += '<span class="rsa-move-info-name">' + esc(formName) + '</span>';
         for (var t = 0; t < types.length; t++) {
             if (types[t]) {
                 html += '<img class="rsa-move-info-type" src="' + getTypeSpriteUrl(types[t]) + '" alt="' + esc(types[t]) + '" title="' + esc(types[t]) + '">';
