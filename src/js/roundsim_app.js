@@ -5637,6 +5637,25 @@
         var p1ItemConsumed = null; // item name string
         var p2ItemConsumed = null;
 
+        // ── First mover pre-existing status block (Sleep/Freeze) ──
+        // If the first mover entered the round Asleep or Frozen, they can't act:
+        // no damage, no secondary effects, no self-switch.
+        var firstMoverBlocked = false;
+        var firstMoverBlockReason = '';
+        if (firstEntry.status === 'Asleep') {
+            firstMoverBlocked = true;
+            firstMoverBlockReason = 'sleep';
+        } else if (firstEntry.status === 'Frozen') {
+            firstMoverBlocked = true;
+            firstMoverBlockReason = 'freeze';
+        }
+        // Disable first mover's effects/damage when blocked
+        if (firstMoverBlocked) {
+            firstEff = null;
+            if (firstMover === 'p1') { p1SecondaryApplied = null; }
+            else { p2SecondaryApplied = null; }
+        }
+
         // Apply first mover's secondary effects
         var secondMoverBlocked = false;
         var secondMoverBlockReason = '';
@@ -5716,6 +5735,12 @@
         // Set blocked flags for HP calculation
         var p1Flinched = secondMoverBlocked && (secondMover === 'p1');
         var p2Flinched = secondMoverBlocked && (secondMover === 'p2');
+        // Add first-mover blocking (sleep/freeze) to the flinch flags so existing
+        // damage/secondary checks bail out correctly for the blocked attacker.
+        if (firstMoverBlocked) {
+            if (firstMover === 'p1') p1Flinched = true;
+            else p2Flinched = true;
+        }
 
         // ── Contact/hit ability effects ──
         // Cotton Down: when hit by a damaging move, -1 Speed to all other pokemon on the field
@@ -5807,9 +5832,15 @@
         // Best case: P2 min damage to P1, P1 max damage to P2
         // If P2 crits: worst = crit max, best = non-crit min (per user request)
         // Multi-hit partial crits: blend normal and crit per-hit damage
+        // Pivot defer: if P1 went first and used a self-switch move (and was not blocked),
+        // P2's damage will hit the incoming mon — defer entirely until pivot confirm.
+        var p1SelfSwitchFirst = !p1Flinched && p1MoveData && p1MoveData.selfSwitch &&
+                                (speed.faster === 'p1' || speed.faster === 'tie');
+        var p2SelfSwitchFirst = !p2Flinched && p2MoveData && p2MoveData.selfSwitch &&
+                                speed.faster === 'p2';
         var p2DmgToP1Max = 0;
         var p2DmgToP1Min = 0;
-        if (p2Dmg && !p2Flinched) {
+        if (p2Dmg && !p2Flinched && !p1SelfSwitchFirst) {
             var _totalHits = p2Hits || 1;
             var _critHits = p2CritHits || 0;
             if (p2Crit && _critHits > 0 && _critHits < _totalHits && p2CritInfo && _totalHits > 1) {
@@ -5825,8 +5856,8 @@
             }
             p2DmgToP1Min = p2Dmg.minDmg; // best case always non-crit min
         }
-        var p1DmgToP2Min = (p1Dmg && !p1Flinched) ? p1Dmg.minDmg : 0;
-        var p1DmgToP2Max = (p1Dmg && !p1Flinched) ? p1Dmg.maxDmg : 0;
+        var p1DmgToP2Min = (p1Dmg && !p1Flinched && !p2SelfSwitchFirst) ? p1Dmg.minDmg : 0;
+        var p1DmgToP2Max = (p1Dmg && !p1Flinched && !p2SelfSwitchFirst) ? p1Dmg.maxDmg : 0;
 
         // Apply in speed order with inline survival checks (Focus Sash, Sturdy)
         // Survival must fire BEFORE deciding if the second mover can attack
@@ -6277,11 +6308,11 @@
 
         // ── Self-switch (pivot) moves: U-turn, Volt Switch, Flip Turn, Parting Shot ──
         // Store on rd so inline controls can show a pivot-switch prompt.
-        // Only triggers if the user survived the round (can't switch if KO'd).
-        if (p1MoveData && p1MoveData.selfSwitch && p1HPAfter > 0) {
+        // Only triggers if the user survived the round AND was not blocked (sleep/freeze/flinch).
+        if (p1MoveData && p1MoveData.selfSwitch && p1HPAfter > 0 && !p1Flinched) {
             rd.p1SelfSwitch = true;
         }
-        if (p2MoveData && p2MoveData.selfSwitch && p2HPAfter > 0) {
+        if (p2MoveData && p2MoveData.selfSwitch && p2HPAfter > 0 && !p2Flinched) {
             rd.p2SelfSwitch = true;
         }
 
