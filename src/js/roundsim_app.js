@@ -11826,6 +11826,12 @@
             var val = $('.rsa-inline-switch').val();
             if (!val) return;
             $('#rsa-switch-p1').val(val);
+            // Sync inline P2 move to main radio (form may have stale selection)
+            var inlineP2Val = $('.rsa-inline-p2-move').val();
+            if (inlineP2Val && inlineP2Val !== 'none') {
+                var p2Idx = parseInt(inlineP2Val);
+                $('input#resultMoveR' + (p2Idx + 1)).prop('checked', true).trigger('change');
+            }
             // Sync crit/eff from inline
             var inlineP2Crit = $('.rsa-inline-p2-crit').is(':checked');
             var inlineP2Eff  = $('.rsa-inline-p2-eff').is(':checked');
