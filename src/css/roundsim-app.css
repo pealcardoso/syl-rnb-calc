@@ -280,6 +280,35 @@
     pointer-events: none;
 }
 
+/* Dual-card layout: box slot showing BOTH base and mega side-by-side.
+   Used when the user owns a matching mega stone for a box mon. */
+.rsa-box-slot.rsa-mega-dual { grid-column: span 2; min-width: 0; }
+.rsa-box-dual-halves {
+    display: flex; align-items: flex-start; justify-content: center;
+    gap: 4px; width: 100%;
+}
+.rsa-box-dual-half {
+    flex: 1 1 0; min-width: 0;
+    display: flex; flex-direction: column; align-items: center;
+    padding: 1px 2px;
+}
+.rsa-box-dual-half + .rsa-box-dual-half {
+    border-left: 1px dashed #d946ef;
+}
+.rsa-box-dual-label {
+    font-size: var(--rsa-fs-2xs);
+    color: var(--rsa-text-secondary);
+    line-height: 1; margin-top: 1px;
+    text-transform: uppercase; letter-spacing: 0.5px;
+}
+.rsa-box-dual-mega .rsa-box-dual-label { color: #d946ef; font-weight: 700; }
+
+/* Pending mega evolution (button highlighted, will activate next round) */
+.rsa-mega-pending {
+    background: linear-gradient(135deg, #f59e0b 0%, #d946ef 100%) !important;
+    box-shadow: 0 0 6px rgba(217,70,239,0.6);
+}
+
 /* Inline "Mega Evolve" button */
 .rsa-inline-mega-btn {
     background: linear-gradient(135deg, #d946ef 0%, #8b5cf6 100%);

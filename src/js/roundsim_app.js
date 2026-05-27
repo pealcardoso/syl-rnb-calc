@@ -1608,6 +1608,31 @@
             var offMax = 0, defDmg = null, defAllMax = null, speed = 0, isImmune = false, isImmuneAll = false;
             try {
                 var p1 = createPokemon(m.setId);
+
+                // ── Mega-by-default rule for box rankings ───────────────────────
+                // If the user owns a mega stone for this mon's base species, all
+                // ranking computations (offense / defense / speed) use the MEGA
+                // form's stats & ability. The base form remains available for
+                // dual-card display via renderBox.
+                var _baseSpeciesName = (typeof p1.species === 'object' && p1.species.baseSpecies) || p1.name || m.name;
+                var _baseStripped = String(_baseSpeciesName).replace(/-Mega(-[XY])?$/, '');
+                var _ownedMega = pickOwnedMegaFor(_baseStripped, p1.item || '');
+                if (_ownedMega) {
+                    try {
+                        var _megaP1 = new calc.Pokemon(gen, _ownedMega.megaName, {
+                            level: p1.level,
+                            ability: _ownedMega.ability,
+                            abilityOn: true,
+                            item: _ownedMega.stone,
+                            nature: p1.nature,
+                            ivs: p1.ivs,
+                            evs: p1.evs,
+                            moves: p1.moves
+                        });
+                        p1 = _megaP1;
+                    } catch (eMg) { /* fallback: keep base form */ }
+                }
+
                 var p2 = createPokemon(p2Info);
                 var p1field = createField();
                 var p2field = p1field.clone().swap();
@@ -1795,6 +1820,8 @@
             if (!team || team.megaActivated) return null;
             var entry = team.roster[team.activeIdx];
             if (!entry || !entry.item) return null;
+            // Already a mega forme? (shouldn't happen if megaActivated is true, but guard)
+            if (entry.baseName && entry.name !== entry.baseName) return null;
             var mg = pickOwnedMegaFor(entry.name, entry.item);
             if (!mg) return null;
             // Stone must actually be the equipped item (mega evolves only with required stone)
@@ -1802,70 +1829,72 @@
             return mg;
         } catch (e) { return null; }
     }
-    /** Activate mega evolution for the side's active roster entry. Mutates the
-     *  entry's species/sprite/ability/types, flags the line's team as mega'd,
-     *  and refreshes the calc form + UI. Persists for the rest of the match. */
-    function activateMega(side) {
-        var line = curLine();
-        var team = line && line.teams && line.teams[side];
-        if (!team || team.megaActivated) return false;
-        var entry = team.roster[team.activeIdx];
-        if (!entry) return false;
-        var mg = pickOwnedMegaFor(entry.name, entry.item);
-        if (!mg) return false;
 
-        // Preserve original base name + ability for potential revert / replay
-        if (!entry.baseName) entry.baseName = entry.name;
+    // ── Pending mega activation per line (queued; applied at start of next round capture) ──
+    // Map keyed by line.id so flag survives line-switching. Cleared after round capture.
+    var _pendingMega = {}; // { lineId: { p1: bool, p2: bool } }
+    function getPendingMegaMap() {
+        var line = curLine(); if (!line) return null;
+        if (!_pendingMega[line.id]) _pendingMega[line.id] = { p1: false, p2: false };
+        return _pendingMega[line.id];
+    }
+    function isMegaPending(side) {
+        var m = getPendingMegaMap(); return !!(m && m[side]);
+    }
+    function setMegaPending(side, val) {
+        var m = getPendingMegaMap(); if (m) m[side] = !!val;
+    }
+
+    /** Mutate a roster entry into its mega forme (in place). Preserves base form
+     *  fields on entry.baseName/baseAbility/baseTypes/baseSprite for revert. */
+    function applyMegaToEntry(entry, megaInfo) {
+        if (!entry || !megaInfo) return;
+        if (!entry.baseName)    entry.baseName    = entry.name;
         if (!entry.baseAbility) entry.baseAbility = entry.ability;
-        if (!entry.baseTypes) entry.baseTypes = (entry.types || []).slice();
-
-        entry.name   = mg.megaName;
-        entry.sprite = getSprite(mg.megaName);
-        if (mg.ability) entry.ability = mg.ability;
+        if (!entry.baseTypes)   entry.baseTypes   = (entry.types || []).slice();
+        if (!entry.baseSprite)  entry.baseSprite  = entry.sprite;
+        entry.name   = megaInfo.megaName;
+        entry.sprite = getSprite(megaInfo.megaName);
+        if (megaInfo.ability) entry.ability = megaInfo.ability;
         try {
-            var pkey = mg.megaName.toLowerCase().replace(/[\s\-\']+/g, '');
+            var pkey = megaInfo.megaName.toLowerCase().replace(/[\s\-\']+/g, '');
             var pd = window.BattlePokedex && window.BattlePokedex[pkey];
             if (pd && pd.types) entry.types = pd.types.slice();
         } catch (e) {}
-
-        team.megaActivated = true;
-        team.megaRosterIdx = team.activeIdx;
-
-        // Refresh calc form for this side via the forme dropdown
-        var $forme = $('#' + side + ' .forme');
-        if ($forme.length) {
-            // If the option doesn't exist (form was loaded for base species without
-            // populated otherFormes options), reload via loadPokemonIntoForm.
-            if ($forme.find('option[value="' + mg.megaName + '"]').length) {
-                window.NO_CALC = true;
-                $forme.val(mg.megaName).trigger('change');
-                if (entry.currentHP != null) $('#' + side + ' .current-hp').val(entry.currentHP);
-                if (entry.ability) $('#' + side + ' .ability').val(entry.ability);
-                window.NO_CALC = false;
-                try { performCalculations(); } catch (eC) {}
-            } else {
-                loadPokemonIntoForm(side, entry);
-            }
-        }
-
-        try { renderTeamPanel(side); } catch (e) {}
+    }
+    /** Revert a roster entry back to its base form (used during rebuild reset). */
+    function revertMegaOnEntry(entry) {
+        if (!entry || !entry.baseName) return;
+        entry.name    = entry.baseName;
+        entry.sprite  = entry.baseSprite || getSprite(entry.baseName);
+        entry.ability = entry.baseAbility || entry.ability;
+        entry.types   = (entry.baseTypes || []).slice();
+    }
+    /** Toggle the queued mega activation for the side. Visual button refresh. */
+    function toggleMegaPending(side) {
+        if (!getMegaEligibility(side)) { setMegaPending(side, false); return false; }
+        setMegaPending(side, !isMegaPending(side));
         try { refreshInlineControls(); } catch (e) {}
-        try { renderBox('p1'); } catch (e) {}
-        try { updateMovePickDisplay(); } catch (e) {}
         try { refreshMegaButton(); } catch (e) {}
-        return true;
+        return isMegaPending(side);
     }
 
-    /** Show/hide & label the main log-row "Mega Evolve" button based on P1 eligibility. */
+    /** Show/hide & label the main log-row Mega button based on P1 eligibility +
+     *  pending state. (Pending means user queued mega; will trigger on next round.) */
     function refreshMegaButton() {
         var $btn = $('#rsa-mega-activate');
         if (!$btn.length) return;
         try {
             var mg = getMegaEligibility('p1');
             if (mg) {
-                $btn.show().attr('title', 'Mega Evolve into ' + mg.megaName + ' (' + mg.ability + ')');
+                var pending = isMegaPending('p1');
+                $btn.show().attr('title',
+                    (pending ? 'Cancel queued ' : 'Queue ') +
+                    'Mega Evolution into ' + mg.megaName + ' (' + mg.ability + ')');
+                $btn.text(pending ? '✨ Mega Queued (cancel)' : '✨ Mega Evolve');
+                $btn.toggleClass('rsa-mega-pending', pending);
             } else {
-                $btn.hide();
+                $btn.hide().removeClass('rsa-mega-pending');
             }
         } catch (e) { $btn.hide(); }
     }
@@ -3781,6 +3810,9 @@
         for (var s = 0; s < 2; s++) {
             var side = s === 0 ? 'p1' : 'p2';
             var team = line.teams[side];
+            // Reset mega state — re-applied during replay when an activation round is hit
+            team.megaActivated = false;
+            team.megaRosterIdx = -1;
             // Reset active indices to first pokemon — replay will advance them correctly
             team.activeIdx = team.roster.length > 0 ? 0 : -1;
             if (team.activeIdxB !== undefined) {
@@ -3790,6 +3822,7 @@
             }
             for (var ri = 0; ri < team.roster.length; ri++) {
                 var entry = team.roster[ri];
+                if (entry.baseName) revertMegaOnEntry(entry);
                 entry.currentHP = entry.maxHP;
                 entry.bestCaseHP = entry.maxHP;
                 entry.status = '';
@@ -3813,6 +3846,35 @@
         // Replay this branch's rounds
         for (var i = 0; i < rounds.length; i++) {
             var rd = rounds[i];
+            // Replay mega activation BEFORE applying damage for this round
+            if (rd.p1MegaActivated && !line.teams.p1.megaActivated) {
+                var _bre1 = (rd.p1 && rd.p1.baseName) ? findInRoster(line.teams.p1, rd.p1.baseName) : line.teams.p1.activeIdx;
+                if (_bre1 < 0) _bre1 = line.teams.p1.activeIdx;
+                var _bre1E = line.teams.p1.roster[_bre1];
+                if (_bre1E) {
+                    var _bre1M = pickOwnedMegaFor(_bre1E.baseName || _bre1E.name, _bre1E.item) ||
+                                 (rd.p1MegaName ? { megaName: rd.p1MegaName, ability: rd.p1.ability, stone: _bre1E.item } : null);
+                    if (_bre1M) {
+                        applyMegaToEntry(_bre1E, _bre1M);
+                        line.teams.p1.megaActivated = true;
+                        line.teams.p1.megaRosterIdx = _bre1;
+                    }
+                }
+            }
+            if (rd.p2MegaActivated && !line.teams.p2.megaActivated) {
+                var _bre2 = (rd.p2 && rd.p2.baseName) ? findInRoster(line.teams.p2, rd.p2.baseName) : line.teams.p2.activeIdx;
+                if (_bre2 < 0) _bre2 = line.teams.p2.activeIdx;
+                var _bre2E = line.teams.p2.roster[_bre2];
+                if (_bre2E) {
+                    var _bre2M = pickOwnedMegaFor(_bre2E.baseName || _bre2E.name, _bre2E.item) ||
+                                 (rd.p2MegaName ? { megaName: rd.p2MegaName, ability: rd.p2.ability, stone: _bre2E.item } : null);
+                    if (_bre2M) {
+                        applyMegaToEntry(_bre2E, _bre2M);
+                        line.teams.p2.megaActivated = true;
+                        line.teams.p2.megaRosterIdx = _bre2;
+                    }
+                }
+            }
             if (rd.isDoubles && rd.fighters) {
                 var slotToTeam = {
                     p1a: { team: line.teams.p1, idxKey: 'activeIdx' },
@@ -3958,6 +4020,15 @@
     function findInRoster(team, name) {
         for (var i = 0; i < team.roster.length; i++) {
             if (team.roster[i].name === name) return i;
+        }
+        // Fallback: match against base form (handles mega state mismatches between
+        // rebuild reset state and the recorded round name).
+        // 1) Strip mega suffix from looked-up name and match entry.name or entry.baseName.
+        var stripped = String(name || '').replace(/-Mega(-[XY])?$/, '');
+        for (var i = 0; i < team.roster.length; i++) {
+            var e = team.roster[i];
+            if (e.name === stripped) return i;
+            if (e.baseName && (e.baseName === name || e.baseName === stripped)) return i;
         }
         return -1;
     }
@@ -5567,6 +5638,62 @@
             return null;
         }
 
+        // ── Round-based Mega Evolution ────────────────────────────
+        // Mega activation happens at the START of the round (before damage calc),
+        // so this round already benefits from mega ability/stats. The flag is
+        // queued by the user via the inline/main "Mega Evolve" button.
+        // Only one Pokémon per side can mega evolve per battle.
+        // We record `rdMegaActivated{P1,P2}` on the round for stable replay,
+        // and persist mutation on the entry (entry.baseName etc. preserved).
+        var _p1MegaActivatedThisRound = false, _p1MegaName = null;
+        var _p2MegaActivatedThisRound = false, _p2MegaName = null;
+        try {
+            if (isMegaPending('p1')) {
+                var mg1 = getMegaEligibility('p1');
+                if (mg1) {
+                    applyMegaToEntry(p1Entry, mg1);
+                    line.teams.p1.megaActivated = true;
+                    line.teams.p1.megaRosterIdx = line.teams.p1.activeIdx;
+                    _p1MegaActivatedThisRound = true;
+                    _p1MegaName = mg1.megaName;
+                    // Refresh calc form so damage uses mega stats this round
+                    var $f1 = $('#p1 .forme');
+                    if ($f1.length && $f1.find('option[value="' + mg1.megaName + '"]').length) {
+                        window.NO_CALC = true;
+                        $f1.val(mg1.megaName).trigger('change');
+                        if (p1Entry.currentHP != null) $('#p1 .current-hp').val(p1Entry.currentHP);
+                        if (p1Entry.ability) $('#p1 .ability').val(p1Entry.ability);
+                        window.NO_CALC = false;
+                    } else {
+                        // Fallback: reload form fully (shared_controls .forme change)
+                        try { loadPokemonIntoForm('p1', p1Entry); } catch (e) {}
+                    }
+                }
+                setMegaPending('p1', false);
+            }
+            if (isMegaPending('p2')) {
+                var mg2 = getMegaEligibility('p2');
+                if (mg2) {
+                    applyMegaToEntry(p2Entry, mg2);
+                    line.teams.p2.megaActivated = true;
+                    line.teams.p2.megaRosterIdx = line.teams.p2.activeIdx;
+                    _p2MegaActivatedThisRound = true;
+                    _p2MegaName = mg2.megaName;
+                    var $f2 = $('#p2 .forme');
+                    if ($f2.length && $f2.find('option[value="' + mg2.megaName + '"]').length) {
+                        window.NO_CALC = true;
+                        $f2.val(mg2.megaName).trigger('change');
+                        if (p2Entry.currentHP != null) $('#p2 .current-hp').val(p2Entry.currentHP);
+                        if (p2Entry.ability) $('#p2 .ability').val(p2Entry.ability);
+                        window.NO_CALC = false;
+                    } else {
+                        try { loadPokemonIntoForm('p2', p2Entry); } catch (e) {}
+                    }
+                }
+                setMegaPending('p2', false);
+            }
+        } catch (eMega) { /* swallow — mega is non-critical, calc continues */ }
+
         // Get damage info (always compute; will be nulled out below if charge/invuln rules apply)
         var p1Dmg = (p1MoveIdx !== 'none' && p1MoveIdx !== -1) ? getDamageInfo(0, p1MoveIdx) : null;
         var p2Dmg = (p2MoveIdx !== 'none' && p2MoveIdx !== -1) ? getDamageInfo(1, p2MoveIdx) : null;
@@ -6368,6 +6495,8 @@
             },
             p1: {
                 name: p1Entry.name,
+                baseName: p1Entry.baseName || p1Entry.name,
+                megaActive: !!p1Entry.baseName,
                 sprite: p1Entry.sprite,
                 item: p1Entry.item,
                 ability: p1Entry.ability,
@@ -6405,6 +6534,8 @@
             },
             p2: {
                 name: p2Entry.name,
+                baseName: p2Entry.baseName || p2Entry.name,
+                megaActive: !!p2Entry.baseName,
                 sprite: p2Entry.sprite,
                 item: p2Entry.item,
                 ability: p2Entry.ability,
@@ -6499,6 +6630,10 @@
             p1Entry.chargingMove   = null;
             p1Entry.semiInvulnType = null;
         }
+
+        // Stamp mega activation flags on the round for replay/rebuild
+        if (_p1MegaActivatedThisRound) { rd.p1MegaActivated = true; rd.p1MegaName = _p1MegaName; }
+        if (_p2MegaActivatedThisRound) { rd.p2MegaActivated = true; rd.p2MegaName = _p2MegaName; }
 
         return rd;
     }
@@ -7532,8 +7667,13 @@
         for (var s = 0; s < 2; s++) {
             var side = s === 0 ? 'p1' : 'p2';
             var team = line.teams[side];
+            // Reset mega state — will be re-applied below as activation rounds are replayed
+            team.megaActivated = false;
+            team.megaRosterIdx = -1;
             for (var i = 0; i < team.roster.length; i++) {
                 var entry = team.roster[i];
+                // Revert to base form if this entry was mega'd in a previous build
+                if (entry.baseName) revertMegaOnEntry(entry);
                 entry.currentHP = entry.maxHP;
                 entry.bestCaseHP = entry.maxHP;
                 entry.status = '';
@@ -7561,6 +7701,41 @@
         // Replay rounds to reconstruct HP/status/boosts/items
         for (var i = 0; i < line.rounds.length; i++) {
             var rd = line.rounds[i];
+
+            // Replay mega activation (round-based; activates BEFORE damage propagation)
+            if (rd.p1MegaActivated && !line.teams.p1.megaActivated) {
+                var _re1 = (rd.p1 && rd.p1.baseName) ? findInRoster(line.teams.p1, rd.p1.baseName) : line.teams.p1.activeIdx;
+                if (_re1 < 0) _re1 = line.teams.p1.activeIdx;
+                var _re1Entry = line.teams.p1.roster[_re1];
+                if (_re1Entry) {
+                    var _re1Mg = pickOwnedMegaFor(_re1Entry.baseName || _re1Entry.name, _re1Entry.item);
+                    if (!_re1Mg && rd.p1MegaName) {
+                        // Fall back: synthesize from rd.p1MegaName + recorded ability
+                        _re1Mg = { megaName: rd.p1MegaName, ability: rd.p1.ability, stone: _re1Entry.item };
+                    }
+                    if (_re1Mg) {
+                        applyMegaToEntry(_re1Entry, _re1Mg);
+                        line.teams.p1.megaActivated = true;
+                        line.teams.p1.megaRosterIdx = _re1;
+                    }
+                }
+            }
+            if (rd.p2MegaActivated && !line.teams.p2.megaActivated) {
+                var _re2 = (rd.p2 && rd.p2.baseName) ? findInRoster(line.teams.p2, rd.p2.baseName) : line.teams.p2.activeIdx;
+                if (_re2 < 0) _re2 = line.teams.p2.activeIdx;
+                var _re2Entry = line.teams.p2.roster[_re2];
+                if (_re2Entry) {
+                    var _re2Mg = pickOwnedMegaFor(_re2Entry.baseName || _re2Entry.name, _re2Entry.item);
+                    if (!_re2Mg && rd.p2MegaName) {
+                        _re2Mg = { megaName: rd.p2MegaName, ability: rd.p2.ability, stone: _re2Entry.item };
+                    }
+                    if (_re2Mg) {
+                        applyMegaToEntry(_re2Entry, _re2Mg);
+                        line.teams.p2.megaActivated = true;
+                        line.teams.p2.megaRosterIdx = _re2;
+                    }
+                }
+            }
 
             if (rd.isDoubles && rd.fighters) {
                 // Doubles round: each fighter slot has hpAfter, item, status
@@ -7688,12 +7863,17 @@
         var p1Active = getActiveEntry(line.teams.p1);
         var p2Active = getActiveEntry(line.teams.p2);
         if (p1Active) {
+            // Reload form fully if mega state may differ (entry has mega base preserved)
+            try { if (p1Active.baseName) loadPokemonIntoForm('p1', p1Active); } catch (e) {}
             $('#p1 .current-hp').val(p1Active.currentHP);
             $('#p1 .item').val(p1Active.item || '');
+            if (p1Active.ability) $('#p1 .ability').val(p1Active.ability);
         }
         if (p2Active) {
+            try { if (p2Active.baseName) loadPokemonIntoForm('p2', p2Active); } catch (e) {}
             $('#p2 .current-hp').val(p2Active.currentHP);
             $('#p2 .item').val(p2Active.item || '');
+            if (p2Active.ability) $('#p2 .ability').val(p2Active.ability);
         }
         window.NO_CALC = false;
         // Sync boosts to calc form
@@ -8460,14 +8640,19 @@
             p2HitsHtml += '</select>';
         }
 
-        // Mega evolution button — show only if P1 active mon is mega-eligible
+        // Mega evolution button — show only if P1 active mon is mega-eligible.
+        // Activation is round-based: clicking queues mega; it is applied at the
+        // start of the next captureRound and persists for the rest of the match.
         var megaBtnHtml = '';
         try {
             var _megaInfo = getMegaEligibility('p1');
             if (_megaInfo) {
-                megaBtnHtml = '<button class="rsa-inline-mega-btn rsa-inline-mega-activate" ' +
-                    'title="Mega Evolve into ' + esc(_megaInfo.megaName) + ' (' + esc(_megaInfo.ability) + ')">' +
-                    '✨ Mega Evolve</button>';
+                var _pending = isMegaPending('p1');
+                megaBtnHtml = '<button class="rsa-inline-mega-btn rsa-inline-mega-activate' +
+                    (_pending ? ' rsa-mega-pending' : '') + '" ' +
+                    'title="' + (_pending ? 'Cancel queued ' : 'Queue ') +
+                    'Mega Evolution into ' + esc(_megaInfo.megaName) + ' (' + esc(_megaInfo.ability) + ')">' +
+                    (_pending ? '✨ Mega Queued' : '✨ Mega Evolve') + '</button>';
             } else if (line.teams.p1 && line.teams.p1.megaActivated) {
                 megaBtnHtml = '<span class="rsa-inline-mega-active" title="Mega activated">✨ Mega</span>';
             }
@@ -10072,6 +10257,9 @@
             var deleteX = (side === 'p1' && boxDeleteMode)
                 ? '<button class="rsa-box-delete-x" data-set-id="' + esc(m.setId) + '" title="Remove from box">×</button>'
                 : '';
+            // Determine mega availability once for this slot
+            var _slotMega = null;
+            try { _slotMega = pickOwnedMegaFor(m.name); } catch (eMg0) {}
 
             // Tag badges for this box card
             var boxTagBadgesHtml = '';
@@ -10104,26 +10292,34 @@
                     }
                 } catch(ex4) {}
             }
-            html += '<div class="rsa-box-slot' + inTeam + ccClass + (function(){
-                    try {
-                        var mg = pickOwnedMegaFor(m.name);
-                        return mg ? ' rsa-mega-available' : '';
-                    } catch(eMg) { return ''; }
-                })() + '" draggable="true" data-side="' + side + '" data-set-id="' + esc(m.setId) + '" data-name="' + esc(m.name) + '">' +
+            html += '<div class="rsa-box-slot' + inTeam + ccClass + (_slotMega ? ' rsa-mega-available rsa-mega-dual' : '') + '" draggable="true" data-side="' + side + '" data-set-id="' + esc(m.setId) + '" data-name="' + esc(m.name) + '">' +
                 deleteX +
                 speedHtml +
-                '<div class="rsa-box-sprite-wrap' + (dmgCls ? ' ' + dmgCls : '') + '">' +
-                    '<img class="rsa-box-sprite" src="' + esc(m.sprite) + '" alt="' + esc(m.name) + '" title="' + esc(tooltip) + '">' +
-                    (function(){
-                        try {
-                            var mg = pickOwnedMegaFor(m.name);
-                            if (!mg) return '';
-                            return '<span class="rsa-box-mega-badge" title="Mega: ' + esc(mg.megaName) + '">✨</span>' +
-                                   '<img class="rsa-box-mega-overlay" src="' + esc(getSprite(mg.megaName)) + '" alt="' + esc(mg.megaName) + '" title="' + esc(mg.megaName) + ' (' + esc(mg.stone) + ')">';
-                        } catch(eMg2) { return ''; }
-                    })() +
-                '</div>' +
-                '<span class="rsa-box-name">' + esc(m.name) + '</span>' +
+                (_slotMega
+                    ? // Dual-card: base on left, mega on right; rankings reflect mega stats
+                      '<div class="rsa-box-dual-halves">' +
+                          '<div class="rsa-box-dual-half rsa-box-dual-base">' +
+                              '<div class="rsa-box-sprite-wrap' + (dmgCls ? ' ' + dmgCls : '') + '">' +
+                                  '<img class="rsa-box-sprite" src="' + esc(m.sprite) + '" alt="' + esc(m.name) + '" title="' + esc(tooltip) + '">' +
+                              '</div>' +
+                              '<span class="rsa-box-dual-label">Base</span>' +
+                              '<span class="rsa-box-name">' + esc(m.name) + '</span>' +
+                          '</div>' +
+                          '<div class="rsa-box-dual-half rsa-box-dual-mega">' +
+                              '<div class="rsa-box-sprite-wrap">' +
+                                  '<img class="rsa-box-sprite" src="' + esc(getSprite(_slotMega.megaName)) + '" alt="' + esc(_slotMega.megaName) + '" title="' + esc(_slotMega.megaName) + ' (' + esc(_slotMega.stone) + ')">' +
+                                  '<span class="rsa-box-mega-badge" title="Mega Evolution">✨</span>' +
+                              '</div>' +
+                              '<span class="rsa-box-dual-label">Mega · ' + esc(_slotMega.stone) + '</span>' +
+                              '<span class="rsa-box-name">' + esc(_slotMega.megaName) + '</span>' +
+                          '</div>' +
+                      '</div>'
+                    : // Single card (existing layout)
+                      '<div class="rsa-box-sprite-wrap' + (dmgCls ? ' ' + dmgCls : '') + '">' +
+                          '<img class="rsa-box-sprite" src="' + esc(m.sprite) + '" alt="' + esc(m.name) + '" title="' + esc(tooltip) + '">' +
+                      '</div>' +
+                      '<span class="rsa-box-name">' + esc(m.name) + '</span>'
+                ) +
                 rankHtml +
                 baitHtml +
                 boxTagBadgesHtml +
@@ -12061,14 +12257,14 @@
             $('input#resultMoveR' + (idx + 1)).prop('checked', true).trigger('change');
         });
 
-        // Mega Evolve via inline button
+        // Queue / cancel Mega Evolution via inline button
         $(document).on('click', '.rsa-inline-mega-activate', function () {
-            try { activateMega('p1'); } catch (e) {}
+            try { toggleMegaPending('p1'); } catch (e) {}
         });
 
-        // Mega Evolve via main log-row button
+        // Queue / cancel Mega Evolution via main log-row button
         $(document).on('click', '#rsa-mega-activate', function () {
-            try { activateMega('p1'); refreshMegaButton(); } catch (e) {}
+            try { toggleMegaPending('p1'); } catch (e) {}
         });
 
         // Log round via inline button
