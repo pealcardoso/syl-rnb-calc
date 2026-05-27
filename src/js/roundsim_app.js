@@ -1718,15 +1718,156 @@
     var boxCalcSettings = {
         ignoreSelfdestruct: false,  // skip Explosion / Self-Destruct in offense calcs
         burnGuts: false,            // apply 1.5× Atk multiplier for Guts mons
-        simItem: ''                 // '', 'choice', 'lifeorb', 'typeenhance', 'band'
+        simItem: '',                // '', 'choice', 'lifeorb', 'typeenhance', 'band'
+        ownedMegaStones: []         // array of mega-stone item names the user owns (e.g. ["Beedrillite"])
     };
     // Attempt to restore from localStorage
     try {
         var _bcs = JSON.parse(localStorage.getItem('rsa-box-calc-settings'));
         if (_bcs) boxCalcSettings = _bcs;
     } catch (e) {}
+    // Ensure new fields exist after upgrade from older stored settings
+    if (!Array.isArray(boxCalcSettings.ownedMegaStones)) boxCalcSettings.ownedMegaStones = [];
     function saveBoxCalcSettings() {
         try { localStorage.setItem('rsa-box-calc-settings', JSON.stringify(boxCalcSettings)); } catch (e) {}
+    }
+
+    // ────────────────────────────────────────────────────────────
+    // MEGA EVOLUTION SUPPORT
+    // ────────────────────────────────────────────────────────────
+    // Cached catalog: { baseToMegas: { baseName: [{megaName, stone, ability}] },
+    //                   stoneToBase:  { stone: baseName } }
+    var _megaCatalog = null;
+    function getMegaCatalog() {
+        if (_megaCatalog) return _megaCatalog;
+        var baseToMegas = {}, stoneToBase = {};
+        if (window.BattlePokedex) {
+            for (var k in window.BattlePokedex) {
+                var p = window.BattlePokedex[k];
+                if (!p || p.forme !== 'Mega' || !p.requiredItem || !p.baseSpecies) continue;
+                var ab = (p.abilities && p.abilities['0']) || '';
+                var info = { megaName: p.name, stone: p.requiredItem, ability: ab };
+                if (!baseToMegas[p.baseSpecies]) baseToMegas[p.baseSpecies] = [];
+                baseToMegas[p.baseSpecies].push(info);
+                stoneToBase[p.requiredItem] = p.baseSpecies;
+            }
+        }
+        _megaCatalog = { baseToMegas: baseToMegas, stoneToBase: stoneToBase };
+        return _megaCatalog;
+    }
+    /** Returns true if the user owns the given mega stone. */
+    function hasOwnedStone(stone) {
+        if (!stone) return false;
+        return (boxCalcSettings.ownedMegaStones || []).indexOf(stone) >= 0;
+    }
+    /** Returns array of mega-forme info entries for a given base species (or []). */
+    function getMegasForBase(baseName) {
+        if (!baseName) return [];
+        var cat = getMegaCatalog();
+        // Strip any existing -Mega/-Mega-X/-Mega-Y suffix to find true base
+        var clean = baseName.replace(/-Mega(-[XY])?$/, '');
+        return cat.baseToMegas[clean] || [];
+    }
+    /** Pick a single mega for a base (returns null if none owned). For X/Y formes
+     *  prefers the first one whose stone is currently equipped on `equippedItem`,
+     *  otherwise the first owned. */
+    function pickOwnedMegaFor(baseName, equippedItem) {
+        var megas = getMegasForBase(baseName);
+        if (!megas.length) return null;
+        // Prefer the forme matching the equipped stone
+        if (equippedItem) {
+            for (var i = 0; i < megas.length; i++) {
+                if (megas[i].stone === equippedItem && hasOwnedStone(megas[i].stone)) return megas[i];
+            }
+        }
+        for (var j = 0; j < megas.length; j++) {
+            if (hasOwnedStone(megas[j].stone)) return megas[j];
+        }
+        return null;
+    }
+    /** Whether a side's active mon can mega-evolve right now:
+     *  user owns matching stone, stone is equipped, and side hasn't mega'd yet
+     *  in this line. Returns the mega info or null. */
+    function getMegaEligibility(side) {
+        try {
+            var line = curLine();
+            var team = line && line.teams && line.teams[side];
+            if (!team || team.megaActivated) return null;
+            var entry = team.roster[team.activeIdx];
+            if (!entry || !entry.item) return null;
+            var mg = pickOwnedMegaFor(entry.name, entry.item);
+            if (!mg) return null;
+            // Stone must actually be the equipped item (mega evolves only with required stone)
+            if (mg.stone !== entry.item) return null;
+            return mg;
+        } catch (e) { return null; }
+    }
+    /** Activate mega evolution for the side's active roster entry. Mutates the
+     *  entry's species/sprite/ability/types, flags the line's team as mega'd,
+     *  and refreshes the calc form + UI. Persists for the rest of the match. */
+    function activateMega(side) {
+        var line = curLine();
+        var team = line && line.teams && line.teams[side];
+        if (!team || team.megaActivated) return false;
+        var entry = team.roster[team.activeIdx];
+        if (!entry) return false;
+        var mg = pickOwnedMegaFor(entry.name, entry.item);
+        if (!mg) return false;
+
+        // Preserve original base name + ability for potential revert / replay
+        if (!entry.baseName) entry.baseName = entry.name;
+        if (!entry.baseAbility) entry.baseAbility = entry.ability;
+        if (!entry.baseTypes) entry.baseTypes = (entry.types || []).slice();
+
+        entry.name   = mg.megaName;
+        entry.sprite = getSprite(mg.megaName);
+        if (mg.ability) entry.ability = mg.ability;
+        try {
+            var pkey = mg.megaName.toLowerCase().replace(/[\s\-\']+/g, '');
+            var pd = window.BattlePokedex && window.BattlePokedex[pkey];
+            if (pd && pd.types) entry.types = pd.types.slice();
+        } catch (e) {}
+
+        team.megaActivated = true;
+        team.megaRosterIdx = team.activeIdx;
+
+        // Refresh calc form for this side via the forme dropdown
+        var $forme = $('#' + side + ' .forme');
+        if ($forme.length) {
+            // If the option doesn't exist (form was loaded for base species without
+            // populated otherFormes options), reload via loadPokemonIntoForm.
+            if ($forme.find('option[value="' + mg.megaName + '"]').length) {
+                window.NO_CALC = true;
+                $forme.val(mg.megaName).trigger('change');
+                if (entry.currentHP != null) $('#' + side + ' .current-hp').val(entry.currentHP);
+                if (entry.ability) $('#' + side + ' .ability').val(entry.ability);
+                window.NO_CALC = false;
+                try { performCalculations(); } catch (eC) {}
+            } else {
+                loadPokemonIntoForm(side, entry);
+            }
+        }
+
+        try { renderTeamPanel(side); } catch (e) {}
+        try { refreshInlineControls(); } catch (e) {}
+        try { renderBox('p1'); } catch (e) {}
+        try { updateMovePickDisplay(); } catch (e) {}
+        try { refreshMegaButton(); } catch (e) {}
+        return true;
+    }
+
+    /** Show/hide & label the main log-row "Mega Evolve" button based on P1 eligibility. */
+    function refreshMegaButton() {
+        var $btn = $('#rsa-mega-activate');
+        if (!$btn.length) return;
+        try {
+            var mg = getMegaEligibility('p1');
+            if (mg) {
+                $btn.show().attr('title', 'Mega Evolve into ' + mg.megaName + ' (' + mg.ability + ')');
+            } else {
+                $btn.hide();
+            }
+        } catch (e) { $btn.hide(); }
     }
 
     // ════════════════════════════════════════════════════════════
@@ -3578,8 +3719,8 @@
             rounds: [],
             roundCounter: 0,
             teams: {
-                p1: { roster: [], activeIdx: -1, activeIdxB: -1 },
-                p2: { roster: [], activeIdx: -1, activeIdxB: -1 }
+                p1: { roster: [], activeIdx: -1, activeIdxB: -1, megaActivated: false, megaRosterIdx: -1 },
+                p2: { roster: [], activeIdx: -1, activeIdxB: -1, megaActivated: false, megaRosterIdx: -1 }
             },
             fieldState: {},  // track field conditions per line
             teamSplit: null,  // for doubles-2t: { left: number } — first N mons are left team
@@ -4826,7 +4967,19 @@
         // Sync the forme dropdown so it reflects the loaded species (it isn't
         // set by shared_controls when the species has no alternate formes).
         var _formeFix = entry.name || entry.setId.substring(0, entry.setId.indexOf(' ('));
-        if (_formeFix) $('#' + side + ' .forme').val(_formeFix);
+        if (_formeFix) {
+            var $forme = $('#' + side + ' .forme');
+            $forme.val(_formeFix);
+            // For mega/alternate formes, trigger change so types/baseStats/ability
+            // are swapped by shared_controls' forme handler.
+            try {
+                var _pdKey = _formeFix.toLowerCase().replace(/[\s\-\']+/g, '');
+                var _pd = window.BattlePokedex && window.BattlePokedex[_pdKey];
+                if (_pd && _pd.baseSpecies && _pd.baseSpecies !== _formeFix) {
+                    $forme.trigger('change');
+                }
+            } catch (eFm) {}
+        }
 
         // Immediately calculate so move labels show the new pokemon's moves right away.
         // .set-selector.change() already set NO_CALC = false before returning, so
@@ -7586,6 +7739,8 @@
         var $panel = $('#rsa-team-' + side);
         var $active = $('#rsa-active-' + side);
         if (!$panel.length) return;
+        // Update Mega Evolve button when P1 team renders
+        if (side === 'p1') { try { refreshMegaButton(); } catch (e) {} }
 
         // In doubles, render the active field slots
         if (isDoubles() && $active.length) {
@@ -8305,11 +8460,25 @@
             p2HitsHtml += '</select>';
         }
 
+        // Mega evolution button — show only if P1 active mon is mega-eligible
+        var megaBtnHtml = '';
+        try {
+            var _megaInfo = getMegaEligibility('p1');
+            if (_megaInfo) {
+                megaBtnHtml = '<button class="rsa-inline-mega-btn rsa-inline-mega-activate" ' +
+                    'title="Mega Evolve into ' + esc(_megaInfo.megaName) + ' (' + esc(_megaInfo.ability) + ')">' +
+                    '✨ Mega Evolve</button>';
+            } else if (line.teams.p1 && line.teams.p1.megaActivated) {
+                megaBtnHtml = '<span class="rsa-inline-mega-active" title="Mega activated">✨ Mega</span>';
+            }
+        } catch (eMb) {}
+
         return '<div class="rsa-inline-controls">' +
             '<div class="rsa-inline-header">Next Round</div>' +
             '<div class="rsa-inline-row">' +
                 p1Sprite +
                 '<span class="rsa-inline-name">' + esc(p1.name) + '</span>' +
+                megaBtnHtml +
                 '<select class="rsa-inline-p1-move" title="P1 Move">' +
                     '<option value="none">— P1 Move —</option>' +
                     p1MoveOpts +
@@ -9935,11 +10104,24 @@
                     }
                 } catch(ex4) {}
             }
-            html += '<div class="rsa-box-slot' + inTeam + ccClass + '" draggable="true" data-side="' + side + '" data-set-id="' + esc(m.setId) + '" data-name="' + esc(m.name) + '">' +
+            html += '<div class="rsa-box-slot' + inTeam + ccClass + (function(){
+                    try {
+                        var mg = pickOwnedMegaFor(m.name);
+                        return mg ? ' rsa-mega-available' : '';
+                    } catch(eMg) { return ''; }
+                })() + '" draggable="true" data-side="' + side + '" data-set-id="' + esc(m.setId) + '" data-name="' + esc(m.name) + '">' +
                 deleteX +
                 speedHtml +
                 '<div class="rsa-box-sprite-wrap' + (dmgCls ? ' ' + dmgCls : '') + '">' +
                     '<img class="rsa-box-sprite" src="' + esc(m.sprite) + '" alt="' + esc(m.name) + '" title="' + esc(tooltip) + '">' +
+                    (function(){
+                        try {
+                            var mg = pickOwnedMegaFor(m.name);
+                            if (!mg) return '';
+                            return '<span class="rsa-box-mega-badge" title="Mega: ' + esc(mg.megaName) + '">✨</span>' +
+                                   '<img class="rsa-box-mega-overlay" src="' + esc(getSprite(mg.megaName)) + '" alt="' + esc(mg.megaName) + '" title="' + esc(mg.megaName) + ' (' + esc(mg.stone) + ')">';
+                        } catch(eMg2) { return ''; }
+                    })() +
                 '</div>' +
                 '<span class="rsa-box-name">' + esc(m.name) + '</span>' +
                 rankHtml +
@@ -11879,6 +12061,16 @@
             $('input#resultMoveR' + (idx + 1)).prop('checked', true).trigger('change');
         });
 
+        // Mega Evolve via inline button
+        $(document).on('click', '.rsa-inline-mega-activate', function () {
+            try { activateMega('p1'); } catch (e) {}
+        });
+
+        // Mega Evolve via main log-row button
+        $(document).on('click', '#rsa-mega-activate', function () {
+            try { activateMega('p1'); refreshMegaButton(); } catch (e) {}
+        });
+
         // Log round via inline button
         $(document).on('click', '.rsa-inline-log', function () {
             // Sync inline P1 & P2 move selections to main controls
@@ -12707,6 +12899,56 @@
             saveBoxCalcSettings();
             cachedRankings = []; try { cachedRankings = computeBoxRankings(); } catch (e) {}
             renderBox('p1');
+        });
+
+        // ── Mega Stones inventory panel ──
+        function renderMegaStonesPanel() {
+            var cat = getMegaCatalog();
+            // Build a flat list of all mega stones (sorted by base species name)
+            var rows = [];
+            for (var baseName in cat.baseToMegas) {
+                var arr = cat.baseToMegas[baseName];
+                for (var i = 0; i < arr.length; i++) {
+                    rows.push({ base: baseName, mega: arr[i].megaName, stone: arr[i].stone });
+                }
+            }
+            rows.sort(function (a, b) { return a.base.localeCompare(b.base); });
+            var owned = boxCalcSettings.ownedMegaStones || [];
+            var html = '<div class="rsa-mega-stones-grid">';
+            for (var r = 0; r < rows.length; r++) {
+                var row = rows[r];
+                var isOwned = owned.indexOf(row.stone) >= 0;
+                html += '<label class="rsa-mega-stone-item' + (isOwned ? ' owned' : '') + '" title="' + esc(row.mega) + '">' +
+                    '<input type="checkbox" class="rsa-mega-stone-cb" data-stone="' + esc(row.stone) + '"' + (isOwned ? ' checked' : '') + ' />' +
+                    '<img class="rsa-mega-stone-sprite" src="' + esc(getSprite(row.mega)) + '" alt="' + esc(row.mega) + '" />' +
+                    '<span class="rsa-mega-stone-name">' + esc(row.stone) + '</span>' +
+                    '</label>';
+            }
+            html += '</div>';
+            $('#rsa-mega-stones-panel').html(html);
+        }
+        $('#rsa-mega-stones-toggle').on('click', function () {
+            var $p = $('#rsa-mega-stones-panel');
+            if ($p.is(':visible')) { $p.hide(); return; }
+            renderMegaStonesPanel();
+            $p.show();
+        });
+        $(document).on('change', '.rsa-mega-stone-cb', function () {
+            var stone = $(this).data('stone');
+            var owned = boxCalcSettings.ownedMegaStones || [];
+            var idx = owned.indexOf(stone);
+            if ($(this).is(':checked')) {
+                if (idx < 0) owned.push(stone);
+            } else {
+                if (idx >= 0) owned.splice(idx, 1);
+            }
+            boxCalcSettings.ownedMegaStones = owned;
+            saveBoxCalcSettings();
+            $(this).closest('.rsa-mega-stone-item').toggleClass('owned', $(this).is(':checked'));
+            // Refresh box so mega indicators update
+            renderBox('p1');
+            // Refresh inline controls if the live mon's mega availability changed
+            try { refreshInlineControls(); } catch (e) {}
         });
 
         // ── Refresh rankings when P2 changes ──
