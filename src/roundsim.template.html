@@ -312,6 +312,16 @@
             <div class="rsa-crit-group">
                 <input type="checkbox" id="rsa-p2-crit" />
                 <label for="rsa-p2-crit">P2 Crits</label>
+                <select id="rsa-p2-crit-hits" class="rsa-hits-select" style="display:none;" title="How many hits crit"></select>
+            </div>
+            <div class="rsa-crit-group" id="rsa-p2-hits-group" style="display:none;">
+                <label for="rsa-p2-hits">Hits:</label>
+                <select id="rsa-p2-hits" class="rsa-hits-select" title="Number of hits">
+                    <option value="2">2</option>
+                    <option value="3" selected>3</option>
+                    <option value="4">4</option>
+                    <option value="5">5</option>
+                </select>
             </div>
             <div class="rsa-crit-group">
                 <input type="checkbox" id="rsa-p1-apply-secondary" />

@@ -1357,6 +1357,23 @@
         return window.BattleMovedex[key] || null;
     }
 
+    /** Returns { min, max, variable } for multi-hit moves, or null */
+    function getMultiHitInfo(moveName) {
+        if (!moveName) return null;
+        var md = lookupMoveData(moveName);
+        if (!md || !md.multihit) return null;
+        if (Array.isArray(md.multihit)) return { min: md.multihit[0], max: md.multihit[1], variable: true };
+        return { min: md.multihit, max: md.multihit, variable: false };
+    }
+
+    /** Default hit count: 5 for Skill Link, 3 otherwise, or fixed count */
+    function getDefaultHits(moveName, ability) {
+        var info = getMultiHitInfo(moveName);
+        if (!info) return 1;
+        if (!info.variable) return info.min;
+        return ability === 'Skill Link' ? 5 : 3;
+    }
+
     function lookupItemData(itemName) {
         if (!itemName || !window.BattleItems) return null;
         var key = itemName.toLowerCase().replace(/[\s\-\']+/g, '');
@@ -5360,7 +5377,7 @@
     // CAPTURE ROUND
     // ════════════════════════════════════════════════════════════
 
-    function captureRound(p1MoveIdx, p2MoveIdx, p2Crit, p1PreDmg, p1PreStatus, comment, p1ApplySecondary, p2ApplySecondary) {
+    function captureRound(p1MoveIdx, p2MoveIdx, p2Crit, p1PreDmg, p1PreStatus, comment, p1ApplySecondary, p2ApplySecondary, p2Hits, p2CritHits) {
         var line = curLine();
 
         // Decrement trick room counter at the start of each singles round
@@ -5789,8 +5806,25 @@
         // Worst case: P2 max damage to P1, P1 min damage to P2
         // Best case: P2 min damage to P1, P1 max damage to P2
         // If P2 crits: worst = crit max, best = non-crit min (per user request)
-        var p2DmgToP1Max = (p2Dmg && !p2Flinched) ? (p2Crit && p2CritInfo ? p2CritInfo.maxDmg : p2Dmg.maxDmg) : 0;
-        var p2DmgToP1Min = (p2Dmg && !p2Flinched) ? (p2Crit ? p2Dmg.minDmg : p2Dmg.minDmg) : 0;
+        // Multi-hit partial crits: blend normal and crit per-hit damage
+        var p2DmgToP1Max = 0;
+        var p2DmgToP1Min = 0;
+        if (p2Dmg && !p2Flinched) {
+            var _totalHits = p2Hits || 1;
+            var _critHits = p2CritHits || 0;
+            if (p2Crit && _critHits > 0 && _critHits < _totalHits && p2CritInfo && _totalHits > 1) {
+                // Partial crit on multi-hit move: blend per-hit damage
+                var _phNormMax = p2Dmg.maxDmg / _totalHits;
+                var _phCritMax = p2CritInfo.maxDmg / _totalHits;
+                p2DmgToP1Max = Math.round((_totalHits - _critHits) * _phNormMax + _critHits * _phCritMax);
+            } else if (p2Crit && p2CritInfo) {
+                // All hits crit
+                p2DmgToP1Max = p2CritInfo.maxDmg;
+            } else {
+                p2DmgToP1Max = p2Dmg.maxDmg;
+            }
+            p2DmgToP1Min = p2Dmg.minDmg; // best case always non-crit min
+        }
         var p1DmgToP2Min = (p1Dmg && !p1Flinched) ? p1Dmg.minDmg : 0;
         var p1DmgToP2Max = (p1Dmg && !p1Flinched) ? p1Dmg.maxDmg : 0;
 
@@ -6130,6 +6164,8 @@
             terrain: getTerrain(),
             trickRoom: speed.trickRoom,
             p2Crit: p2Crit,
+            p2Hits: p2Hits || 0,
+            p2CritHits: p2CritHits || 0,
             p1Charging: p1ChargeTurn,
             p2Charging: p2ChargeTurn,
             p1StrikeTurn: p1StrikeTurn,
@@ -8225,6 +8261,19 @@
                 '<input type="checkbox" class="rsa-inline-qc-proc" /> 🐾 QC/QD</label>';
         }
 
+        // Build multi-hit selector for the default P2 move
+        var _defaultP2Move = (p2.moves && p2.moves[_bestP2Idx]) ? p2.moves[_bestP2Idx] : null;
+        var _mhInfo = getMultiHitInfo(_defaultP2Move);
+        var p2HitsHtml = '';
+        if (_mhInfo && _mhInfo.variable) {
+            var _defHits = getDefaultHits(_defaultP2Move, p2.ability);
+            p2HitsHtml = ' <select class="rsa-inline-p2-hits rsa-hits-select" title="Number of hits">';
+            for (var h = _mhInfo.min; h <= _mhInfo.max; h++) {
+                p2HitsHtml += '<option value="' + h + '"' + (h === _defHits ? ' selected' : '') + '>' + h + ' hits</option>';
+            }
+            p2HitsHtml += '</select>';
+        }
+
         return '<div class="rsa-inline-controls">' +
             '<div class="rsa-inline-header">Next Round</div>' +
             '<div class="rsa-inline-row">' +
@@ -8242,9 +8291,11 @@
                     '<option value="none">— P2 Move —</option>' +
                     p2MoveOpts +
                 '</select>' +
+                p2HitsHtml +
             '</div>' +
             '<div class="rsa-inline-row">' +
                 '<label class="rsa-inline-check"><input type="checkbox" class="rsa-inline-p2-crit" /> P2 Crit</label>' +
+                '<select class="rsa-inline-p2-crit-hits rsa-hits-select" style="display:none;" title="How many hits crit"></select>' +
                 '<label class="rsa-inline-check"><input type="checkbox" class="rsa-inline-p1-eff" /> P1 Eff</label>' +
                 '<label class="rsa-inline-check"><input type="checkbox" class="rsa-inline-p2-eff" checked /> P2 Eff</label>' +
                 qcToggleHtml +
@@ -10539,9 +10590,11 @@
                 var p2Crit = $('#rsa-p2-crit').is(':checked');
                 var p1ApplySec = $('#rsa-p1-apply-secondary').is(':checked');
                 var p2ApplySec = $('#rsa-p2-apply-secondary').is(':checked');
+                var p2Hits = +$('#rsa-p2-hits').val() || 0;
+                var p2CritHits = p2Crit ? (+$('#rsa-p2-crit-hits').val() || 0) : 0;
                 // p1PreDmg and p1PreStatus are now edited directly on the P1 card;
                 // entry.currentHP and entry.status already reflect any changes.
-                return captureRound(p1MoveIdx, p2MoveIdx, p2Crit, 0, '', comment, p1ApplySec, p2ApplySec);
+                return captureRound(p1MoveIdx, p2MoveIdx, p2Crit, 0, '', comment, p1ApplySec, p2ApplySec, p2Hits, p2CritHits);
             }
 
             if (isDoubles()) {
@@ -10641,6 +10694,8 @@
             var p2MoveIdx = selectedP2Move;
             var p2Crit = $('#rsa-p2-crit').is(':checked');
             var p2ApplySec = $('#rsa-p2-apply-secondary').is(':checked');
+            var p2Hits = +$('#rsa-p2-hits').val() || 0;
+            var p2CritHits = p2Crit ? (+$('#rsa-p2-crit-hits').val() || 0) : 0;
             var comment = $('#rsa-comment').val().trim();
             var switchName = line.teams.p1.roster[switchIdx].name;
 
@@ -10664,7 +10719,7 @@
                 }
 
                 var rd = captureRound('none', p2MoveIdx, p2Crit, hazResult.damage, hazResult.status,
-                    comment ? comment : 'Switch in: ' + switchName, false, p2ApplySec);
+                    comment ? comment : 'Switch in: ' + switchName, false, p2ApplySec, p2Hits, p2CritHits);
                 if (!rd) return;
                 rd.isSwitch = true;
 
@@ -11815,6 +11870,14 @@
             $('#rsa-p1-apply-secondary').prop('checked', inlineP1Eff);
             $('#rsa-p2-apply-secondary').prop('checked', inlineP2Eff);
             $('#rsa-comment').val(inlineComment);
+            // Sync multi-hit selectors from inline to main
+            var inlineHits = +$('.rsa-inline-p2-hits').val() || 0;
+            if (inlineHits) {
+                $('#rsa-p2-hits').val(inlineHits);
+                syncP2HitsToForm(inlineHits);
+            }
+            var inlineCritHits = inlineP2Crit ? (+$('.rsa-inline-p2-crit-hits').val() || 0) : 0;
+            if (inlineCritHits) $('#rsa-p2-crit-hits').val(inlineCritHits);
             // Sync Quick Claw/Draw proc toggle
             window._rsaQCProc = $('.rsa-inline-qc-proc').is(':checked');
             // Trigger the main log button
@@ -11839,8 +11902,148 @@
             $('#rsa-p2-crit').prop('checked', inlineP2Crit);
             $('#rsa-p2-apply-secondary').prop('checked', inlineP2Eff);
             $('#rsa-comment').val(inlineComment);
+            // Sync multi-hit selectors from inline to main
+            var inlineHits = +$('.rsa-inline-p2-hits').val() || 0;
+            if (inlineHits) {
+                $('#rsa-p2-hits').val(inlineHits);
+                syncP2HitsToForm(inlineHits);
+            }
+            var inlineCritHits = inlineP2Crit ? (+$('.rsa-inline-p2-crit-hits').val() || 0) : 0;
+            if (inlineCritHits) $('#rsa-p2-crit-hits').val(inlineCritHits);
             // Trigger the main switch button
             $('#rsa-do-switch').trigger('click');
+        });
+
+        // ── Multi-hit move helpers & handlers ──
+
+        /** Sync hit count to the form's .move-hits for the selected P2 move */
+        function syncP2HitsToForm(hits) {
+            if (selectedP2Move === 'none' || selectedP2Move < 0) return;
+            var $mh = $('#p2 .move' + (selectedP2Move + 1) + ' .move-hits');
+            if ($mh.length) $mh.val(hits);
+        }
+
+        /** Populate crit-hits dropdown with options 1..N */
+        function populateCritHitsSelector($sel, maxHits) {
+            $sel.empty();
+            for (var i = 1; i <= maxHits; i++) {
+                $sel.append('<option value="' + i + '">' + i + '</option>');
+            }
+            $sel.val(maxHits);
+        }
+
+        /** Update main-area multi-hit selectors based on selected P2 move */
+        function updateMainMultiHitUI() {
+            var moveName = getMoveNames(1, selectedP2Move);
+            var mhInfo = getMultiHitInfo(moveName);
+            if (mhInfo && mhInfo.variable) {
+                var ability = $('#p2 .ability').val();
+                var defHits = getDefaultHits(moveName, ability);
+                $('#rsa-p2-hits').val(defHits);
+                $('#rsa-p2-hits-group').show();
+                syncP2HitsToForm(defHits);
+                // Update crit-hits visibility
+                if ($('#rsa-p2-crit').is(':checked')) {
+                    populateCritHitsSelector($('#rsa-p2-crit-hits'), defHits);
+                    $('#rsa-p2-crit-hits').show();
+                }
+            } else {
+                $('#rsa-p2-hits-group').hide();
+                $('#rsa-p2-crit-hits').hide();
+            }
+        }
+
+        // When selected P2 move changes via main radio, update multi-hit UI
+        $(document).on('change', 'input[name="resultMoveR"]', function () {
+            updateMainMultiHitUI();
+        });
+
+        // When P2 Crit checkbox changes, show/hide crit-hits selector
+        $(document).on('change', '#rsa-p2-crit', function () {
+            var moveName = getMoveNames(1, selectedP2Move);
+            var mhInfo = getMultiHitInfo(moveName);
+            if ($(this).is(':checked') && mhInfo && mhInfo.variable) {
+                var hits = +$('#rsa-p2-hits').val() || 3;
+                populateCritHitsSelector($('#rsa-p2-crit-hits'), hits);
+                $('#rsa-p2-crit-hits').show();
+            } else {
+                $('#rsa-p2-crit-hits').hide();
+            }
+        });
+
+        // When main hit count changes, update crit-hits max and sync to form
+        $(document).on('change', '#rsa-p2-hits', function () {
+            var hits = +$(this).val() || 3;
+            syncP2HitsToForm(hits);
+            if ($('#rsa-p2-crit').is(':checked')) {
+                var curCritHits = +$('#rsa-p2-crit-hits').val() || 1;
+                populateCritHitsSelector($('#rsa-p2-crit-hits'), hits);
+                if (curCritHits > hits) $('#rsa-p2-crit-hits').val(hits);
+                else $('#rsa-p2-crit-hits').val(curCritHits);
+            }
+        });
+
+        // Inline: when P2 move changes, update inline hit selector
+        $(document).on('change', '.rsa-inline-p2-move', function () {
+            var $panel = $(this).closest('.rsa-inline-controls');
+            var val = $(this).val();
+            var $oldHits = $panel.find('.rsa-inline-p2-hits');
+            var $oldCritHits = $panel.find('.rsa-inline-p2-crit-hits');
+            $oldHits.remove();
+            $oldCritHits.remove();
+            if (val === 'none') return;
+            var idx = parseInt(val);
+            // Get P2 move name from the option label
+            var moveName = $(this).find('option:selected').text().replace(/\s*\[.*$/, '').replace(/\s+\d+%\s+dmg$/, '').trim();
+            var mhInfo = getMultiHitInfo(moveName);
+            if (mhInfo && mhInfo.variable) {
+                // Need to get P2's ability from field state
+                var line = curLine();
+                var p2Entry = line ? getActiveEntry(line.teams.p2) : null;
+                var p2Ability = p2Entry ? p2Entry.ability : '';
+                var defHits = getDefaultHits(moveName, p2Ability);
+                var hitsHtml = '<select class="rsa-inline-p2-hits rsa-hits-select" title="Number of hits">';
+                for (var h = mhInfo.min; h <= mhInfo.max; h++) {
+                    hitsHtml += '<option value="' + h + '"' + (h === defHits ? ' selected' : '') + '>' + h + ' hits</option>';
+                }
+                hitsHtml += '</select>';
+                $(this).after(hitsHtml);
+            }
+        });
+
+        // Inline: when P2 crit changes, show/hide crit-hits
+        $(document).on('change', '.rsa-inline-p2-crit', function () {
+            var $panel = $(this).closest('.rsa-inline-controls');
+            var $critHits = $panel.find('.rsa-inline-p2-crit-hits');
+            var $hitsSelect = $panel.find('.rsa-inline-p2-hits');
+            if ($(this).is(':checked') && $hitsSelect.length) {
+                var hits = +$hitsSelect.val() || 3;
+                if (!$critHits.length) {
+                    var chHtml = '<select class="rsa-inline-p2-crit-hits rsa-hits-select" title="How many hits crit">';
+                    for (var i = 1; i <= hits; i++) chHtml += '<option value="' + i + '">' + i + '</option>';
+                    chHtml += '</select>';
+                    $(this).closest('label').after(chHtml);
+                    $panel.find('.rsa-inline-p2-crit-hits').val(hits);
+                } else {
+                    populateCritHitsSelector($critHits, hits);
+                    $critHits.show();
+                }
+            } else {
+                $critHits.hide();
+            }
+        });
+
+        // Inline: when hit count changes, update crit-hits max
+        $(document).on('change', '.rsa-inline-p2-hits', function () {
+            var $panel = $(this).closest('.rsa-inline-controls');
+            var $critHits = $panel.find('.rsa-inline-p2-crit-hits');
+            if ($critHits.length && $critHits.is(':visible')) {
+                var hits = +$(this).val() || 3;
+                var curCritHits = +$critHits.val() || 1;
+                populateCritHitsSelector($critHits, hits);
+                if (curCritHits > hits) $critHits.val(hits);
+                else $critHits.val(curCritHits);
+            }
         });
 
         // ── Pivot switch handlers ──

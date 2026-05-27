@@ -3609,6 +3609,27 @@ fieldset {
     background: var(--rsa-red-dim) !important;
 }
 
+/* Multi-hit selectors */
+.rsa-hits-select {
+    font-size: var(--rsa-fs-sm);
+    padding: 2px 6px;
+    border-radius: 6px;
+    border: 1px solid var(--rsa-border);
+    background: var(--rsa-bg-raised);
+    color: var(--rsa-text);
+    cursor: pointer;
+}
+#rsa-p2-hits-group label {
+    font-size: var(--rsa-fs-sm);
+    color: var(--rsa-text-muted);
+}
+.rsa-inline-p2-hits {
+    margin-left: 6px;
+}
+.rsa-inline-p2-crit-hits {
+    margin-left: 4px;
+}
+
 /* ── Move Preview Panel Polish ─────────────────────────────── */
 .rsa-move-previews {
     gap: 10px;
