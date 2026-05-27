@@ -3735,6 +3735,7 @@
     var selectedP2Move = 'none';
     var suppressP2Sync = false;  // Prevent syncP2Team during intentional switches
     var _loadingForm = false;      // Suppress calc-trigger handler during batch form loads
+    var _inlineMegaSimOverride = null; // null = default (mega when available), true/false = user override
 
     // Battle format: 'singles' | 'doubles-1t' | 'doubles-2t'
     var battleFormat = 'singles';
@@ -8548,6 +8549,29 @@
         var p1Sprite = p1.sprite ? '<img class="rsa-inline-sprite" src="' + esc(p1.sprite) + '" alt="">' : '';
         var p2Sprite = p2.sprite ? '<img class="rsa-inline-sprite" src="' + esc(p2.sprite) + '" alt="">' : '';
 
+        // Check if P1 has a mega form available for the damage sim toggle
+        var _inlineMega = null;
+        try { _inlineMega = pickOwnedMegaFor(p1.baseName || p1.name, p1.item); } catch (eIM) {}
+        // Default to mega form for damage sims when stone is owned AND team hasn't mega'd yet
+        var _p1AlreadyMega = p1.baseName && p1.name !== p1.baseName; // already in mega form
+        // Use override if set (user toggled), otherwise default to mega
+        var _simAsMega;
+        if (_inlineMegaSimOverride !== null) {
+            _simAsMega = _inlineMega && !_p1AlreadyMega && _inlineMegaSimOverride;
+        } else {
+            _simAsMega = _inlineMega && !_p1AlreadyMega;
+        }
+
+        // Build a mega-version of the p1 entry for damage calcs (shares setId but overrides ability/item)
+        var _p1Mega = null;
+        if (_inlineMega) {
+            _p1Mega = $.extend({}, p1);
+            _p1Mega.ability = _inlineMega.ability;
+            _p1Mega.item = _inlineMega.stone;
+            _p1Mega.name = _inlineMega.megaName;
+        }
+        var _p1ForDmg = (_simAsMega && _p1Mega) ? _p1Mega : p1;
+
         // Build P1 move options — use roster entry moves (independent of calc form)
         var p1MoveOpts = '';
         for (var m = 0; m < 4; m++) {
@@ -8555,7 +8579,7 @@
             if (label && label !== '—' && label !== '(No Move)') {
                 var sel = (selectedP1Move === m) ? ' selected' : '';
                 var dmgLabel = '';
-                var dmg = calcDamageDirect(p1, p2, label);
+                var dmg = calcDamageDirect(_p1ForDmg, p2, label);
                 if (dmg && p2.maxHP > 0) {
                     var pct = Math.round(dmg.minDmg / p2.maxHP * 100);
                     dmgLabel = ' ' + pct + '% dmg';
@@ -8590,9 +8614,9 @@
                 // the calc form which may show a different P1 than the field mon
                 var sel = (m === _bestP2Idx) ? ' selected' : '';
                 var dmgLabel = '';
-                var dmg = calcDamageDirect(p2, p1, label);
-                if (dmg && p1.maxHP > 0) {
-                    var pct = Math.round(dmg.maxDmg / p1.maxHP * 100);
+                var dmg = calcDamageDirect(p2, _p1ForDmg, label);
+                if (dmg && (_p1ForDmg.maxHP || p1.maxHP) > 0) {
+                    var pct = Math.round(dmg.maxDmg / (p1.maxHP || _p1ForDmg.maxHP) * 100);
                     dmgLabel = ' ' + pct + '% dmg';
                 }
                 var aiPct = '';
@@ -8658,6 +8682,14 @@
             }
         } catch (eMb) {}
 
+        // Mega damage sim toggle — defaults to mega when a stone is owned & not already mega'd
+        var megaSimToggleHtml = '';
+        if (_inlineMega && !_p1AlreadyMega) {
+            megaSimToggleHtml = '<label class="rsa-inline-check rsa-inline-mega-sim-label" title="Simulate move damage as ' +
+                esc(_inlineMega.megaName) + ' (Mega)">' +
+                '<input type="checkbox" class="rsa-inline-mega-sim"' + (_simAsMega ? ' checked' : '') + ' /> ✨ Mega Sim</label>';
+        }
+
         return '<div class="rsa-inline-controls">' +
             '<div class="rsa-inline-header">Next Round</div>' +
             '<div class="rsa-inline-row">' +
@@ -8684,6 +8716,7 @@
                 '<label class="rsa-inline-check"><input type="checkbox" class="rsa-inline-p1-eff" /> P1 Eff</label>' +
                 '<label class="rsa-inline-check"><input type="checkbox" class="rsa-inline-p2-eff" checked /> P2 Eff</label>' +
                 qcToggleHtml +
+                megaSimToggleHtml +
             '</div>' +
             '<div class="rsa-inline-row">' +
                 '<input type="text" class="rsa-inline-comment" placeholder="Comment..." />' +
@@ -10292,29 +10325,19 @@
                     }
                 } catch(ex4) {}
             }
-            html += '<div class="rsa-box-slot' + inTeam + ccClass + (_slotMega ? ' rsa-mega-available rsa-mega-dual' : '') + '" draggable="true" data-side="' + side + '" data-set-id="' + esc(m.setId) + '" data-name="' + esc(m.name) + '">' +
+            html += '<div class="rsa-box-slot' + inTeam + ccClass + (_slotMega ? ' rsa-mega-available' : '') + '" draggable="true" data-side="' + side + '" data-set-id="' + esc(m.setId) + '" data-name="' + esc(m.name) + '"' +
+                (_slotMega ? ' data-mega-name="' + esc(_slotMega.megaName) + '" data-mega-stone="' + esc(_slotMega.stone) + '" data-mega-ability="' + esc(_slotMega.ability) + '"' : '') + '>' +
                 deleteX +
                 speedHtml +
                 (_slotMega
-                    ? // Dual-card: base on left, mega on right; rankings reflect mega stats
-                      '<div class="rsa-box-dual-halves">' +
-                          '<div class="rsa-box-dual-half rsa-box-dual-base">' +
-                              '<div class="rsa-box-sprite-wrap' + (dmgCls ? ' ' + dmgCls : '') + '">' +
-                                  '<img class="rsa-box-sprite" src="' + esc(m.sprite) + '" alt="' + esc(m.name) + '" title="' + esc(tooltip) + '">' +
-                              '</div>' +
-                              '<span class="rsa-box-dual-label">Base</span>' +
-                              '<span class="rsa-box-name">' + esc(m.name) + '</span>' +
-                          '</div>' +
-                          '<div class="rsa-box-dual-half rsa-box-dual-mega">' +
-                              '<div class="rsa-box-sprite-wrap">' +
-                                  '<img class="rsa-box-sprite" src="' + esc(getSprite(_slotMega.megaName)) + '" alt="' + esc(_slotMega.megaName) + '" title="' + esc(_slotMega.megaName) + ' (' + esc(_slotMega.stone) + ')">' +
-                                  '<span class="rsa-box-mega-badge" title="Mega Evolution">✨</span>' +
-                              '</div>' +
-                              '<span class="rsa-box-dual-label">Mega · ' + esc(_slotMega.stone) + '</span>' +
-                              '<span class="rsa-box-name">' + esc(_slotMega.megaName) + '</span>' +
-                          '</div>' +
-                      '</div>'
-                    : // Single card (existing layout)
+                    ? // Default to mega sprite+name; toggle switches to base
+                      '<div class="rsa-box-sprite-wrap' + (dmgCls ? ' ' + dmgCls : '') + '">' +
+                          '<img class="rsa-box-sprite" src="' + esc(getSprite(_slotMega.megaName)) + '" alt="' + esc(_slotMega.megaName) + '" title="' + esc(_slotMega.megaName) + ' (' + esc(_slotMega.stone) + ')" data-mega-src="' + esc(getSprite(_slotMega.megaName)) + '" data-base-src="' + esc(m.sprite) + '">' +
+                          '<span class="rsa-box-mega-badge" title="Mega Evolution">✨</span>' +
+                      '</div>' +
+                      '<span class="rsa-box-name" data-mega-name="' + esc(_slotMega.megaName) + '" data-base-name="' + esc(m.name) + '">' + esc(_slotMega.megaName) + '</span>' +
+                      '<button class="rsa-box-mega-toggle" data-form="mega" title="Toggle base / mega form">Base ⇄</button>'
+                    : // Normal slot (no mega stone owned)
                       '<div class="rsa-box-sprite-wrap' + (dmgCls ? ' ' + dmgCls : '') + '">' +
                           '<img class="rsa-box-sprite" src="' + esc(m.sprite) + '" alt="' + esc(m.name) + '" title="' + esc(tooltip) + '">' +
                       '</div>' +
@@ -12267,6 +12290,12 @@
             try { toggleMegaPending('p1'); } catch (e) {}
         });
 
+        // Mega Sim toggle — re-render inline controls with recalculated damage %
+        $(document).on('change', '.rsa-inline-mega-sim', function () {
+            _inlineMegaSimOverride = $(this).is(':checked');
+            refreshInlineControls();
+        });
+
         // Log round via inline button
         $(document).on('click', '.rsa-inline-log', function () {
             // Sync inline P1 & P2 move selections to main controls
@@ -12750,7 +12779,31 @@
         });
 
         // Click box slot to add to P1 team (alternative to drag)
-        $(document).on('click', '.rsa-box-slot', function () {
+        // ── Box mega form toggle (base ⇄ mega) ──
+        $(document).on('click', '.rsa-box-mega-toggle', function (e) {
+            e.stopPropagation(); // don't trigger the parent box-slot click
+            var $slot = $(this).closest('.rsa-box-slot');
+            var $img = $slot.find('.rsa-box-sprite');
+            var $name = $slot.find('.rsa-box-name');
+            var currentForm = $(this).data('form'); // 'mega' or 'base'
+            if (currentForm === 'mega') {
+                // Switch to base
+                $img.attr('src', $img.data('base-src'));
+                $name.text($name.data('base-name'));
+                $(this).data('form', 'base').text('Mega ⇄');
+                $slot.find('.rsa-box-mega-badge').hide();
+            } else {
+                // Switch to mega
+                $img.attr('src', $img.data('mega-src'));
+                $name.text($name.data('mega-name'));
+                $(this).data('form', 'mega').text('Base ⇄');
+                $slot.find('.rsa-box-mega-badge').show();
+            }
+        });
+
+        $(document).on('click', '.rsa-box-slot', function (e) {
+            // Ignore clicks on the mega form toggle button itself
+            if ($(e.target).hasClass('rsa-box-mega-toggle')) return;
             if ($(this).hasClass('rsa-in-team')) return;
             var setId = $(this).data('set-id');
             var name = $(this).data('name');
@@ -12763,11 +12816,21 @@
             if (team.roster.length >= MAX_TEAM_SIZE) return;
             var set = lookupSet(setId);
             var maxHP = set ? calcMaxHP(name, set) : 100;
+
+            // If the slot is showing mega form and has a mega stone, auto-equip it
+            var megaStone = $(this).data('mega-stone') || '';
+            var megaName = $(this).data('mega-name') || '';
+            var megaAbility = $(this).data('mega-ability') || '';
+            var $toggle = $(this).find('.rsa-box-mega-toggle');
+            var showingMega = $toggle.length && $toggle.data('form') === 'mega';
+            var itemToUse = showingMega && megaStone ? megaStone : (set ? (set.item || '') : '');
+            var abilityToUse = set ? (set.ability || '') : '';
+
             var entry = createRosterEntry(
                 name, setId,
                 getSprite(name),
-                set ? (set.item || '') : '',
-                set ? (set.ability || '') : '',
+                itemToUse,
+                abilityToUse,
                 set ? (set.moves || []) : [],
                 maxHP, []
             );

@@ -280,28 +280,16 @@
     pointer-events: none;
 }
 
-/* Dual-card layout: box slot showing BOTH base and mega side-by-side.
-   Used when the user owns a matching mega stone for a box mon. */
-.rsa-box-slot.rsa-mega-dual { grid-column: span 2; min-width: 0; }
-.rsa-box-dual-halves {
-    display: flex; align-items: flex-start; justify-content: center;
-    gap: 4px; width: 100%;
+/* Dual-card layout removed in favor of single-card with toggle */
+/* Box mega form toggle button */
+.rsa-box-mega-toggle {
+    display: block; margin: 1px auto 0; padding: 0 6px;
+    font-size: var(--rsa-fs-2xs); cursor: pointer;
+    background: rgba(217,70,239,0.15); color: #d946ef;
+    border: 1px solid rgba(217,70,239,0.3); border-radius: 3px;
+    line-height: 1.4; font-weight: 700;
 }
-.rsa-box-dual-half {
-    flex: 1 1 0; min-width: 0;
-    display: flex; flex-direction: column; align-items: center;
-    padding: 1px 2px;
-}
-.rsa-box-dual-half + .rsa-box-dual-half {
-    border-left: 1px dashed #d946ef;
-}
-.rsa-box-dual-label {
-    font-size: var(--rsa-fs-2xs);
-    color: var(--rsa-text-secondary);
-    line-height: 1; margin-top: 1px;
-    text-transform: uppercase; letter-spacing: 0.5px;
-}
-.rsa-box-dual-mega .rsa-box-dual-label { color: #d946ef; font-weight: 700; }
+.rsa-box-mega-toggle:hover { background: rgba(217,70,239,0.3); }
 
 /* Pending mega evolution (button highlighted, will activate next round) */
 .rsa-mega-pending {
