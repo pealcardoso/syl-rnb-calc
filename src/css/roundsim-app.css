@@ -1058,6 +1058,8 @@
 .rsa-trickroom { background: var(--rsa-purple); color: #fff; }
 .rsa-crit-tag { background: var(--rsa-red-strong); color: #fff; }
 .rsa-switch-tag { background: var(--rsa-purple); color: #fff; }
+.rsa-qc-tag { background: #805ad5; color: #fff; }
+.rsa-pivot-tag { background: #2b6cb0; color: #fff; }
 /* Hazard badges in round log */
 .rsa-hazard-p1 { background: var(--rsa-yellow-dim); color: #fff; }
 .rsa-hazard-p2 { background: var(--rsa-purple-dim); color: #fff; }
@@ -1115,6 +1117,12 @@
 .rsa-inline-p2ko .rsa-inline-header {
     color: var(--rsa-red);
 }
+.rsa-inline-pivot .rsa-inline-header {
+    color: #2b6cb0; font-weight: 700;
+}
+.rsa-inline-pivot select { max-width: 220px; }
+.rsa-inline-pivot-skip { font-size: var(--rsa-fs-xs) !important; padding: 2px 8px !important; opacity: 0.7; }
+.rsa-inline-qc-label { color: #805ad5 !important; font-weight: 600; }
 .rsa-inline-p2-confirm { font-size: var(--rsa-fs-sm) !important; padding: 3px 10px !important; flex-shrink: 0; }
 .rsa-inline-check {
     color: var(--rsa-text-secondary); font-size: var(--rsa-fs-sm); display: flex; align-items: center; gap: 3px;

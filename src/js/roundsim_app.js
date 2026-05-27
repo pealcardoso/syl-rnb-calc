@@ -456,6 +456,18 @@
         window.__rsaTest.captureRound = captureRound;
         window.__rsaTest.createBranch = createBranch;
         window.__rsaTest.rebuildLineTeams = rebuildLineTeams;
+        window.__rsaTest.rebuildBranchTeams = rebuildBranchTeams;
+        window.__rsaTest.getActiveEntry = getActiveEntry;
+        window.__rsaTest.getFieldMonsFromLog = getFieldMonsFromLog;
+        window.__rsaTest.renderInlineControls = renderInlineControls;
+        window.__rsaTest.switchActive = switchActive;
+        window.__rsaTest.loadPokemonIntoForm = loadPokemonIntoForm;
+        window.__rsaTest.getActiveRounds = getActiveRounds;
+        window.__rsaTest.renderAll = renderAll;
+        window.__rsaTest.syncActiveStateToForm = syncActiveStateToForm;
+        window.__rsaTest.saveFormToRoster = saveFormToRoster;
+        window.__rsaTest.calcDamageDirect = calcDamageDirect;
+        window.__rsaTest.refreshInlineControls = refreshInlineControls;
     }
 
     /** Sort tag results: gold first, then threat (red), then util (blue), then silver. */
@@ -1795,7 +1807,7 @@
      * @param {string} [forSlot]      'p2a' or 'p2b' — used in doubles-2t to restrict candidates
      *                                to only the trainer whose slot fainted.
      */
-    function predictSwitchIn(p1SetIdOrCalc, forSlot) {
+    function predictSwitchIn(p1SetIdOrCalc, forSlot, opts) {
         var line = curLine();
         var team = line.teams.p2;
         if (team.roster.length < 2) return null;
@@ -1809,6 +1821,11 @@
                 p1 = createPokemon(p1SetIdOrCalc);
             }
         } catch (e) { return null; }
+
+        // Apply HP override so scoring uses P1's actual HP, not full HP
+        if (opts && opts.p1HP != null && p1.originalCurHP != null) {
+            p1.originalCurHP = opts.p1HP;
+        }
 
         var activeP2 = getActiveEntry(team);
         var activeP2B = getActiveEntryB(team); // in doubles, second active slot must also be excluded
@@ -3623,6 +3640,18 @@
                 if (entry.initialItem !== undefined) entry.item = entry.initialItem;
             }
         }
+        // Apply user-set pre-damage HP and pre-status for P1 before round
+        // replay, so delta-based replay starts from the correct baseline.
+        for (var _bpi2 = 0; _bpi2 < line.teams.p1.roster.length; _bpi2++) {
+            var _bpe2 = line.teams.p1.roster[_bpi2];
+            if (_bpe2.preDamageHP !== undefined && _bpe2.preDamageHP < _bpe2.maxHP) {
+                _bpe2.currentHP  = _bpe2.preDamageHP;
+                _bpe2.bestCaseHP = _bpe2.preDamageHP;
+            }
+            if (_bpe2.preStatus) {
+                _bpe2.status = _bpe2.preStatus;
+            }
+        }
         // Replay this branch's rounds
         for (var i = 0; i < rounds.length; i++) {
             var rd = rounds[i];
@@ -3641,8 +3670,17 @@
                     if (idx >= 0) {
                         var fHpCur = typeof f.hpAfter === 'object' ? f.hpAfter.current : f.hpAfter;
                         var fHpBest = typeof f.hpAfter === 'object' ? (f.hpAfter.bestCase != null ? f.hpAfter.bestCase : fHpCur) : fHpCur;
-                        mapping.team.roster[idx].currentHP = fHpCur;
-                        mapping.team.roster[idx].bestCaseHP = fHpBest;
+                        // P1 fighters use delta-based HP so pre-damage propagates
+                        if (sid.substring(0, 2) === 'p1') {
+                            var _fBefore = typeof f.hpBefore === 'object' ? f.hpBefore.current : (f.hpBefore || 0);
+                            var _fCurDelta  = _fBefore - fHpCur;
+                            var _fBestDelta = _fBefore - fHpBest;
+                            mapping.team.roster[idx].currentHP  = Math.max(0, mapping.team.roster[idx].currentHP  - _fCurDelta);
+                            mapping.team.roster[idx].bestCaseHP = Math.max(0, mapping.team.roster[idx].bestCaseHP - _fBestDelta);
+                        } else {
+                            mapping.team.roster[idx].currentHP = fHpCur;
+                            mapping.team.roster[idx].bestCaseHP = fHpBest;
+                        }
                         if (f.item !== undefined) mapping.team.roster[idx].item = f.item;
                         if (f.status !== undefined) mapping.team.roster[idx].status = f.status;
                         mapping.team[mapping.idxKey] = idx;
@@ -3651,12 +3689,32 @@
             } else {
                 var p1i = findInRoster(line.teams.p1, rd.p1.name);
                 if (p1i >= 0) {
-                    line.teams.p1.roster[p1i].currentHP = rd.p1.hpAfter.current;
-                    line.teams.p1.roster[p1i].bestCaseHP = rd.p1.hpAfter.bestCase != null ? rd.p1.hpAfter.bestCase : rd.p1.hpAfter.current;
+                    // Delta-based HP: apply damage dealt so pre-damage adjustments propagate
+                    var _p1CurDelta = rd.p1.hpBefore.current - rd.p1.hpAfter.current;
+                    var _p1BestBefore = rd.p1.hpBefore.bestCase != null ? rd.p1.hpBefore.bestCase : rd.p1.hpBefore.current;
+                    var _p1BestAfter  = rd.p1.hpAfter.bestCase  != null ? rd.p1.hpAfter.bestCase  : rd.p1.hpAfter.current;
+                    var _p1BestDelta  = _p1BestBefore - _p1BestAfter;
+                    line.teams.p1.roster[p1i].currentHP  = Math.max(0, line.teams.p1.roster[p1i].currentHP  - _p1CurDelta);
+                    line.teams.p1.roster[p1i].bestCaseHP = Math.max(0, line.teams.p1.roster[p1i].bestCaseHP - _p1BestDelta);
                     if (rd.p1.status) line.teams.p1.roster[p1i].status = rd.p1.status;
                     if (rd.p1.boosts) line.teams.p1.roster[p1i].boosts = $.extend({}, rd.p1.boosts);
                     if (rd.p1.item !== undefined) line.teams.p1.roster[p1i].item = rd.p1.item;
                     line.teams.p1.activeIdx = p1i;
+
+                    // EOT status damage for P1 (branch rebuild)
+                    var _p1e = line.teams.p1.roster[p1i];
+                    if (_p1e.status && _p1e.currentHP > 0) {
+                        var _eotAlready = (rd.p1.eot || []).some(function(e) {
+                            return e.source === 'Burn' || e.source === 'Poison' || /^Toxic/.test(e.source);
+                        });
+                        if (!_eotAlready) {
+                            var _eotExtra = calcEndOfTurnDamage(_p1e, getWeather());
+                            for (var _ei = 0; _ei < _eotExtra.length; _ei++) {
+                                if (_p1e.currentHP > 0) _p1e.currentHP = Math.max(0, Math.min(_p1e.maxHP, _p1e.currentHP - _eotExtra[_ei].damage));
+                                if (_p1e.bestCaseHP > 0) _p1e.bestCaseHP = Math.max(0, Math.min(_p1e.maxHP, _p1e.bestCaseHP - _eotExtra[_ei].damage));
+                            }
+                        }
+                    }
                 }
                 var p2i = findInRoster(line.teams.p2, rd.p2.name);
                 if (p2i >= 0) {
@@ -3666,6 +3724,17 @@
                     if (rd.p2.boosts) line.teams.p2.roster[p2i].boosts = $.extend({}, rd.p2.boosts);
                     if (rd.p2.item !== undefined) line.teams.p2.roster[p2i].item = rd.p2.item;
                     line.teams.p2.activeIdx = p2i;
+                }
+                // Pivot switch: apply recalculated damage to the incoming mon
+                if (rd.pivotSwitch && rd.pivotSwitch.recalcDamage) {
+                    var _pvt = rd.pivotSwitch;
+                    var _pvtSide = _pvt.side === 'p1' ? line.teams.p1 : line.teams.p2;
+                    var _pvtIdx = findInRoster(_pvtSide, _pvt.incoming);
+                    if (_pvtIdx >= 0) {
+                        _pvtSide.roster[_pvtIdx].currentHP  = Math.max(0, _pvtSide.roster[_pvtIdx].currentHP  - _pvt.recalcDamage.maxDmg);
+                        _pvtSide.roster[_pvtIdx].bestCaseHP = Math.max(0, _pvtSide.roster[_pvtIdx].bestCaseHP - _pvt.recalcDamage.minDmg);
+                        _pvtSide.activeIdx = _pvtIdx;
+                    }
                 }
             }
         }
@@ -3701,28 +3770,6 @@
             for (var _mri = 0; _mri < line.rounds.length; _mri++) {
                 if (!line.rounds[_mri].isP2Switch) line.roundCounter++;
                 line.rounds[_mri].roundNum = line.roundCounter;
-            }
-        }
-
-        // Restore user-set pre-damage HP for P1 entries not referenced in any
-        // replayed round.  preDamageHP is set by the hp-edit handler and persists
-        // until the user explicitly changes it to a new value.
-        for (var _bpi = 0; _bpi < line.teams.p1.roster.length; _bpi++) {
-            var _bpe = line.teams.p1.roster[_bpi];
-            if (_bpe.preDamageHP !== undefined && _bpe.preDamageHP < _bpe.maxHP) {
-                var _bInRound = rounds.some(function(rd) {
-                    if (rd.isDoubles && rd.fighters) {
-                        for (var _bs in rd.fighters) {
-                            if (rd.fighters[_bs] && rd.fighters[_bs].name === _bpe.name) return true;
-                        }
-                        return false;
-                    }
-                    return rd.p1 && rd.p1.name === _bpe.name;
-                });
-                if (!_bInRound) {
-                    _bpe.currentHP  = _bpe.preDamageHP;
-                    _bpe.bestCaseHP = _bpe.preDamageHP;
-                }
             }
         }
     }
@@ -4759,6 +4806,10 @@
         ($inputSel.length ? $inputSel : $sel).change();
         // Update the Select2 display text to match
         $('#' + side + ' .set-selector').closest('.select2-container').find('.select2-chosen').text(entry.setId);
+        // Sync the forme dropdown so it reflects the loaded species (it isn't
+        // set by shared_controls when the species has no alternate formes).
+        var _formeFix = entry.name || entry.setId.substring(0, entry.setId.indexOf(' ('));
+        if (_formeFix) $('#' + side + ' .forme').val(_formeFix);
 
         // Immediately calculate so move labels show the new pokemon's moves right away.
         // .set-selector.change() already set NO_CALC = false before returning, so
@@ -5452,6 +5503,22 @@
             // If both or neither, keep speed.faster as-is
         }
         // If same priority bracket, speed.faster from getSpeedInfo() is used as-is
+
+        // ── Quick Claw / Quick Draw priority proc ──
+        // When the inline toggle is checked, the slower mon with QC/QD moves first.
+        // Only applies within the same priority bracket (QC/QD doesn't change brackets).
+        if (window._rsaQCProc && p1Priority === p2Priority) {
+            var p1HasQC = (p1Entry.item === 'Quick Claw' || p1Entry.ability === 'Quick Draw');
+            var p2HasQC = (p2Entry.item === 'Quick Claw' || p2Entry.ability === 'Quick Draw');
+            // Only flip speed if the slower mon has QC/QD (proc lets them go first)
+            if (p1HasQC && speed.faster === 'p2') {
+                speed.faster = 'p1';
+                speed.qcProc = 'p1';
+            } else if (p2HasQC && (speed.faster === 'p1' || speed.faster === 'tie')) {
+                speed.faster = 'p2';
+                speed.qcProc = 'p2';
+            }
+        }
 
         // Capture all P2 AI percentages and move names for display in the round log
         var p2AllMoves = [], p2AllAIPcts = [];
@@ -6171,6 +6238,23 @@
         // Re-sync first-turn-out so the next round's AI percentages are correct
         // (P2 has now appeared, so firstTurnOut should become false after this round)
         setTimeout(syncFirstTurnOut, 50);
+
+        // ── Self-switch (pivot) moves: U-turn, Volt Switch, Flip Turn, Parting Shot ──
+        // Store on rd so inline controls can show a pivot-switch prompt.
+        // Only triggers if the user survived the round (can't switch if KO'd).
+        if (p1MoveData && p1MoveData.selfSwitch && p1HPAfter > 0) {
+            rd.p1SelfSwitch = true;
+        }
+        if (p2MoveData && p2MoveData.selfSwitch && p2HPAfter > 0) {
+            rd.p2SelfSwitch = true;
+        }
+
+        // ── Quick Claw / Quick Draw proc flag ──
+        // Stored from the inline toggle at capture time so the round card
+        // and fork summary can reference it.
+        if (window._rsaQCProc) {
+            rd.quickClawProc = true;
+        }
 
         // If P2 is KO'd, predict who switches in next
         if (p2HPAfter <= 0) {
@@ -7224,33 +7308,6 @@
     }
 
     function rebuildLineTeams(line) {
-        // For P1 entries not involved in any logged round (pre-first-round or after
-        // round deletion), preserve their serialized currentHP so user-set pre-damage
-        // survives the reset+replay cycle.
-        // Critically: do NOT read HP from the calc form here — the calc persists its
-        // own form state independently and may still show stale HP from a deleted round
-        // even though RSA's localStorage already has the correct value.
-        var _preDamageHP = {};
-        var _p1Roster = line.teams.p1.roster;
-        for (var _pi = 0; _pi < _p1Roster.length; _pi++) {
-            var _pe = _p1Roster[_pi];
-            var _inAnyRound = line.rounds.some(function (rd) {
-                if (rd.isDoubles && rd.fighters) {
-                    for (var _s in rd.fighters) {
-                        if (rd.fighters[_s] && rd.fighters[_s].name === _pe.name) return true;
-                    }
-                    return false;
-                }
-                return rd.p1 && rd.p1.name === _pe.name;
-            });
-            // Only preserve HP if the user explicitly set it as pre-damage
-            // (preDamageHP is set by the HP-edit handler and cleared when a
-            // round is captured).  Never restore stale post-round HP.
-            if (!_inAnyRound && _pe.preDamageHP !== undefined && _pe.preDamageHP < _pe.maxHP) {
-                _preDamageHP[_pe.name] = { current: _pe.preDamageHP, best: _pe.preDamageHP };
-            }
-        }
-
         // Reset all roster HP/status/items to initial state
         for (var s = 0; s < 2; s++) {
             var side = s === 0 ? 'p1' : 'p2';
@@ -7266,6 +7323,19 @@
                 if (entry.initialItem !== undefined) {
                     entry.item = entry.initialItem;
                 }
+            }
+        }
+        // Apply user-set pre-damage HP and pre-status for P1 before round
+        // replay, so delta-based replay starts from the correct baseline.
+        // preDamageHP / preStatus persist on the entry object across resets.
+        for (var _pi = 0; _pi < line.teams.p1.roster.length; _pi++) {
+            var _pe = line.teams.p1.roster[_pi];
+            if (_pe.preDamageHP !== undefined && _pe.preDamageHP < _pe.maxHP) {
+                _pe.currentHP  = _pe.preDamageHP;
+                _pe.bestCaseHP = _pe.preDamageHP;
+            }
+            if (_pe.preStatus) {
+                _pe.status = _pe.preStatus;
             }
         }
         // Replay rounds to reconstruct HP/status/boosts/items
@@ -7288,23 +7358,52 @@
                     if (ri >= 0) {
                         var fHpCur = typeof f.hpAfter === 'object' ? f.hpAfter.current : f.hpAfter;
                         var fHpBest = typeof f.hpAfter === 'object' ? (f.hpAfter.bestCase != null ? f.hpAfter.bestCase : fHpCur) : fHpCur;
-                        mapping.team.roster[ri].currentHP = fHpCur;
-                        mapping.team.roster[ri].bestCaseHP = fHpBest;
+                        // P1 fighters use delta-based HP so pre-damage propagates
+                        if (sid.substring(0, 2) === 'p1') {
+                            var _fBefore = typeof f.hpBefore === 'object' ? f.hpBefore.current : (f.hpBefore || 0);
+                            var _fCurDelta  = _fBefore - fHpCur;
+                            var _fBestDelta = _fBefore - fHpBest;
+                            mapping.team.roster[ri].currentHP  = Math.max(0, mapping.team.roster[ri].currentHP  - _fCurDelta);
+                            mapping.team.roster[ri].bestCaseHP = Math.max(0, mapping.team.roster[ri].bestCaseHP - _fBestDelta);
+                        } else {
+                            mapping.team.roster[ri].currentHP = fHpCur;
+                            mapping.team.roster[ri].bestCaseHP = fHpBest;
+                        }
                         if (f.item !== undefined) mapping.team.roster[ri].item = f.item;
                         if (f.status !== undefined) mapping.team.roster[ri].status = f.status;
                         mapping.team[mapping.idxKey] = ri;
                     }
                 }
             } else {
-                // Singles round
+                // Singles round — P1 uses delta-based HP so pre-damage propagates
                 var p1i = findInRoster(line.teams.p1, rd.p1.name);
                 if (p1i >= 0) {
-                    line.teams.p1.roster[p1i].currentHP = rd.p1.hpAfter.current;
-                    line.teams.p1.roster[p1i].bestCaseHP = rd.p1.hpAfter.bestCase != null ? rd.p1.hpAfter.bestCase : rd.p1.hpAfter.current;
+                    var _p1CurDelta = rd.p1.hpBefore.current - rd.p1.hpAfter.current;
+                    var _p1BestBefore = rd.p1.hpBefore.bestCase != null ? rd.p1.hpBefore.bestCase : rd.p1.hpBefore.current;
+                    var _p1BestAfter  = rd.p1.hpAfter.bestCase  != null ? rd.p1.hpAfter.bestCase  : rd.p1.hpAfter.current;
+                    var _p1BestDelta  = _p1BestBefore - _p1BestAfter;
+                    line.teams.p1.roster[p1i].currentHP  = Math.max(0, line.teams.p1.roster[p1i].currentHP  - _p1CurDelta);
+                    line.teams.p1.roster[p1i].bestCaseHP = Math.max(0, line.teams.p1.roster[p1i].bestCaseHP - _p1BestDelta);
                     if (rd.p1.status) line.teams.p1.roster[p1i].status = rd.p1.status;
                     if (rd.p1.boosts) line.teams.p1.roster[p1i].boosts = $.extend({}, rd.p1.boosts);
                     if (rd.p1.item !== undefined) line.teams.p1.roster[p1i].item = rd.p1.item;
                     line.teams.p1.activeIdx = p1i;
+
+                    // EOT status damage for P1: if the entry has a status (e.g. from
+                    // preStatus) that wasn't present at record time, apply EOT now.
+                    var _p1e = line.teams.p1.roster[p1i];
+                    if (_p1e.status && _p1e.currentHP > 0) {
+                        var _eotAlready = (rd.p1.eot || []).some(function(e) {
+                            return e.source === 'Burn' || e.source === 'Poison' || /^Toxic/.test(e.source);
+                        });
+                        if (!_eotAlready) {
+                            var _eotExtra = calcEndOfTurnDamage(_p1e, getWeather());
+                            for (var _ei = 0; _ei < _eotExtra.length; _ei++) {
+                                if (_p1e.currentHP > 0) _p1e.currentHP = Math.max(0, Math.min(_p1e.maxHP, _p1e.currentHP - _eotExtra[_ei].damage));
+                                if (_p1e.bestCaseHP > 0) _p1e.bestCaseHP = Math.max(0, Math.min(_p1e.maxHP, _p1e.bestCaseHP - _eotExtra[_ei].damage));
+                            }
+                        }
+                    }
                 }
                 var p2i = findInRoster(line.teams.p2, rd.p2.name);
                 if (p2i >= 0) {
@@ -7314,6 +7413,17 @@
                     if (rd.p2.boosts) line.teams.p2.roster[p2i].boosts = $.extend({}, rd.p2.boosts);
                     if (rd.p2.item !== undefined) line.teams.p2.roster[p2i].item = rd.p2.item;
                     line.teams.p2.activeIdx = p2i;
+                }
+                // Pivot switch: apply recalculated damage to the incoming mon
+                if (rd.pivotSwitch && rd.pivotSwitch.recalcDamage) {
+                    var _pvt = rd.pivotSwitch;
+                    var _pvtSide = _pvt.side === 'p1' ? line.teams.p1 : line.teams.p2;
+                    var _pvtIdx = findInRoster(_pvtSide, _pvt.incoming);
+                    if (_pvtIdx >= 0) {
+                        _pvtSide.roster[_pvtIdx].currentHP  = Math.max(0, _pvtSide.roster[_pvtIdx].currentHP  - _pvt.recalcDamage.maxDmg);
+                        _pvtSide.roster[_pvtIdx].bestCaseHP = Math.max(0, _pvtSide.roster[_pvtIdx].bestCaseHP - _pvt.recalcDamage.minDmg);
+                        _pvtSide.activeIdx = _pvtIdx;
+                    }
                 }
             }
         }
@@ -7353,15 +7463,6 @@
                 applyHazardMoves(_rp1Move, _rp2Move);
             }
         }
-        // Restore pre-damage HP for P1 entries not involved in any round
-        for (var _ri = 0; _ri < _p1Roster.length; _ri++) {
-            var _re = _p1Roster[_ri];
-            if (_preDamageHP[_re.name]) {
-                _re.currentHP  = _preDamageHP[_re.name].current;
-                _re.bestCaseHP = _preDamageHP[_re.name].best;
-            }
-        }
-
         // Sync the updated HP and item to calc form
         window.NO_CALC = true;
         var p1Active = getActiveEntry(line.teams.p1);
@@ -7572,7 +7673,10 @@
         var $el = $('#rsa-switch-pred');
         if (!$el.length) return;
         try {
-            cachedSwitchPred = predictSwitchIn('$p1');
+            var _field = getFieldMonsFromLog();
+            var _p1SetId = (_field && _field.p1) ? _field.p1.setId : null;
+            var _p1HP = (_field && _field.p1) ? _field.p1.currentHP : null;
+            cachedSwitchPred = _p1SetId ? predictSwitchIn(_p1SetId, null, { p1HP: _p1HP }) : predictSwitchIn('$p1');
         } catch (e) { cachedSwitchPred = null; }
         if (!cachedSwitchPred) { $el.html(''); return; }
         var pred = cachedSwitchPred;
@@ -7869,19 +7973,27 @@
         var rounds = getBranchRounds(line, line.activeBranchIdx != null ? line.activeBranchIdx : -1);
         var p1Name = null, p2Name = null;
         var p2KOd = false;
+        var p1Pivot = false, p2Pivot = false;
         for (var i = rounds.length - 1; i >= 0; i--) {
             var rd = rounds[i];
             if (!p2Name && rd.p2 && rd.p2.name) {
                 p2Name = rd.p2.name;
                 // Check if P2 was KO'd in this round
                 if (rd.p2.hpAfter && rd.p2.hpAfter.current <= 0) p2KOd = true;
+                // Check if P2 pivoted (selfSwitch done → activeIdx has the new mon)
+                if (rd.p2SelfSwitch && rd.p2PivotDone) p2Pivot = true;
             }
-            if (!p1Name && rd.p1 && rd.p1.name) p1Name = rd.p1.name;
+            if (!p1Name && rd.p1 && rd.p1.name) {
+                p1Name = rd.p1.name;
+                // Check if P1 pivoted
+                if (rd.p1SelfSwitch && rd.p1PivotDone) p1Pivot = true;
+            }
             if (p1Name && p2Name) break;
         }
-        var p1Idx = p1Name ? findInRoster(line.teams.p1, p1Name) : -1;
-        var p2Idx = p2Name && !p2KOd ? findInRoster(line.teams.p2, p2Name) : -1;
-        // Fall back to activeIdx if no rounds exist or if P2 was KO'd (pending switch-in)
+        // If a pivot was completed, use activeIdx (which was updated by switchActive)
+        var p1Idx = (p1Name && !p1Pivot) ? findInRoster(line.teams.p1, p1Name) : -1;
+        var p2Idx = (p2Name && !p2KOd && !p2Pivot) ? findInRoster(line.teams.p2, p2Name) : -1;
+        // Fall back to activeIdx if no rounds exist, P2 was KO'd, or pivot was done
         var p1Entry = p1Idx >= 0 ? line.teams.p1.roster[p1Idx] : getActiveEntry(line.teams.p1);
         var p2Entry = p2Idx >= 0 ? line.teams.p2.roster[p2Idx] : getActiveEntry(line.teams.p2);
         return { p1: p1Entry, p2: p2Entry };
@@ -7910,9 +8022,9 @@
                 '</div>';
             }
 
-            // Predict who P2 sends in
+            // Predict who P2 sends in (use field P1's setId + current HP, not the form)
             var pred = null;
-            try { pred = predictSwitchIn('$p1'); } catch (e) {}
+            try { pred = predictSwitchIn(p1.setId, null, { p1HP: p1.currentHP }); } catch (e) {}
 
             // Build P2 roster options (available mons)
             var p2SendOpts = '<option value="">— P2 sends... —</option>';
@@ -7972,6 +8084,64 @@
             '</div>';
         }
 
+        // ── Pivot-switch panel: last round had a selfSwitch move ─────
+        // Check if the most recent round used a pivot move (U-turn, Volt Switch, etc.)
+        var rounds = getBranchRounds(line, line.activeBranchIdx != null ? line.activeBranchIdx : -1);
+        var lastRd = rounds.length ? rounds[rounds.length - 1] : null;
+        var p1Pivot = lastRd && lastRd.p1SelfSwitch && !lastRd.p1PivotDone;
+        var p2Pivot = lastRd && lastRd.p2SelfSwitch && !lastRd.p2PivotDone;
+
+        if (p1Pivot || p2Pivot) {
+            var pivotHtml = '<div class="rsa-inline-controls rsa-inline-pivot">';
+
+            if (p1Pivot) {
+                // P1 used a pivot move — pick who switches in
+                var p1PivotOpts = '<option value="">— P1 switches to... —</option>';
+                for (var si = 0; si < line.teams.p1.roster.length; si++) {
+                    var se = line.teams.p1.roster[si];
+                    if (se.name === p1.name) continue; // can't switch to self
+                    if (se.currentHP <= 0) continue;
+                    p1PivotOpts += '<option value="' + si + '">' + esc(se.name) +
+                        ' (' + se.currentHP + '/' + se.maxHP + ')</option>';
+                }
+                pivotHtml += '<div class="rsa-inline-header">⇄ ' + esc(p1.name) + ' used ' +
+                    esc(lastRd.p1.move) + ' — select switch-in</div>' +
+                    '<div class="rsa-inline-row">' +
+                        '<select class="rsa-inline-p1-pivot-send">' + p1PivotOpts + '</select>' +
+                        '<button class="rsa-btn rsa-btn-primary rsa-inline-p1-pivot-confirm">Confirm P1 →</button>' +
+                    '</div>';
+            }
+
+            if (p2Pivot) {
+                // P2 used a pivot move — pick who switches in
+                var p2PivotOpts = '<option value="">— P2 switches to... —</option>';
+                var p2Pred = null;
+                try { p2Pred = predictSwitchIn(p1.setId, null, { p1HP: p1.currentHP }); } catch (e) {}
+                for (var si = 0; si < line.teams.p2.roster.length; si++) {
+                    var se = line.teams.p2.roster[si];
+                    if (se.name === p2.name) continue;
+                    if (se.currentHP <= 0) continue;
+                    var sel = (p2Pred && p2Pred.name === se.name) ? ' selected' : '';
+                    p2PivotOpts += '<option value="' + si + '"' + sel + '>' + esc(se.name) +
+                        ' (' + se.currentHP + '/' + se.maxHP + ')</option>';
+                }
+                pivotHtml += '<div class="rsa-inline-header">⇄ ' + esc(p2.name) + ' used ' +
+                    esc(lastRd.p2.move) + ' — select switch-in</div>' +
+                    '<div class="rsa-inline-row">' +
+                        '<select class="rsa-inline-p2-pivot-send">' + p2PivotOpts + '</select>' +
+                        '<button class="rsa-btn rsa-btn-primary rsa-inline-p2-pivot-confirm">Confirm P2 →</button>' +
+                    '</div>';
+            }
+
+            // Skip button — user can skip pivot if e.g. no valid targets
+            pivotHtml += '<div class="rsa-inline-row">' +
+                '<button class="rsa-btn rsa-btn-switch rsa-inline-pivot-skip">Skip pivot →</button>' +
+            '</div>';
+
+            pivotHtml += '</div>';
+            return pivotHtml;
+        }
+
         // ── Normal panel: both mons alive ────────────────────────────
         var p1Sprite = p1.sprite ? '<img class="rsa-inline-sprite" src="' + esc(p1.sprite) + '" alt="">' : '';
         var p2Sprite = p2.sprite ? '<img class="rsa-inline-sprite" src="' + esc(p2.sprite) + '" alt="">' : '';
@@ -7986,35 +8156,73 @@
                 var dmg = calcDamageDirect(p1, p2, label);
                 if (dmg && p2.maxHP > 0) {
                     var pct = Math.round(dmg.minDmg / p2.maxHP * 100);
-                    dmgLabel = ' ' + pct + '%';
+                    dmgLabel = ' ' + pct + '% dmg';
                 }
                 p1MoveOpts += '<option value="' + m + '"' + sel + '>' + esc(label) + dmgLabel + '</option>';
             }
         }
 
-        // Build P2 move options — use roster entry moves (independent of calc form)
+        // Build P2 move options — show AI selection probability + damage
         var p2MoveOpts = '';
+        var p2MoveRates = null;
+        try { p2MoveRates = calcP2MoveRates(p2, p1); } catch (e) {}
+        var _p2RateMap = {};
+        if (p2MoveRates && p2MoveRates.rates) {
+            for (var ri = 0; ri < p2MoveRates.rates.length; ri++) {
+                _p2RateMap[p2MoveRates.rates[ri].move] = p2MoveRates.rates[ri].rate;
+            }
+        }
+        // Find the highest-rate move index for default selection
+        var _bestP2Rate = -1, _bestP2Idx = -1;
         for (var m = 0; m < 4; m++) {
             var label = (p2.moves && p2.moves[m]) ? p2.moves[m] : null;
             if (label && label !== '—' && label !== '(No Move)') {
-                var sel = (selectedP2Move === m) ? ' selected' : '';
+                var rate = _p2RateMap[label] || 0;
+                if (rate > _bestP2Rate) { _bestP2Rate = rate; _bestP2Idx = m; }
+            }
+        }
+        for (var m = 0; m < 4; m++) {
+            var label = (p2.moves && p2.moves[m]) ? p2.moves[m] : null;
+            if (label && label !== '—' && label !== '(No Move)') {
+                // Always default to the highest AI rate — selectedP2Move tracks
+                // the calc form which may show a different P1 than the field mon
+                var sel = (m === _bestP2Idx) ? ' selected' : '';
                 var dmgLabel = '';
                 var dmg = calcDamageDirect(p2, p1, label);
                 if (dmg && p1.maxHP > 0) {
                     var pct = Math.round(dmg.maxDmg / p1.maxHP * 100);
-                    dmgLabel = ' ' + pct + '%';
+                    dmgLabel = ' ' + pct + '% dmg';
                 }
-                p2MoveOpts += '<option value="' + m + '"' + sel + '>' + esc(label) + dmgLabel + '</option>';
+                var aiPct = '';
+                var rate = _p2RateMap[label];
+                if (rate != null) {
+                    aiPct = ' [AI ' + Math.round(rate * 100) + '%]';
+                }
+                p2MoveOpts += '<option value="' + m + '"' + sel + '>' + esc(label) + dmgLabel + aiPct + '</option>';
             }
         }
 
-        // Build P1 switch options
+        // Build P1 switch options — skip the mon currently on the field
         var switchOpts = '<option value="">— Switch P1 —</option>';
         for (var si = 0; si < line.teams.p1.roster.length; si++) {
             var se = line.teams.p1.roster[si];
-            if (si === line.teams.p1.activeIdx) continue;
+            if (se.name === p1.name) continue; // skip the mon on the field
             if (se.currentHP <= 0) continue;
             switchOpts += '<option value="' + si + '">' + esc(se.name) + ' (' + se.currentHP + '/' + se.maxHP + ')</option>';
+        }
+
+        // Detect Quick Claw / Quick Draw for toggle
+        var p1HasQC = (p1.item === 'Quick Claw' || p1.ability === 'Quick Draw');
+        var p2HasQC = (p2.item === 'Quick Claw' || p2.ability === 'Quick Draw');
+        var qcToggleHtml = '';
+        if (p1HasQC || p2HasQC) {
+            var qcHolder = p1HasQC ? p1.name : p2.name;
+            var qcSource = '';
+            if (p1HasQC) qcSource = p1.item === 'Quick Claw' ? 'Quick Claw' : 'Quick Draw';
+            else qcSource = p2.item === 'Quick Claw' ? 'Quick Claw' : 'Quick Draw';
+            qcToggleHtml = '<label class="rsa-inline-check rsa-inline-qc-label" title="' +
+                esc(qcHolder) + ' has ' + esc(qcSource) + '">' +
+                '<input type="checkbox" class="rsa-inline-qc-proc" /> 🐾 QC/QD</label>';
         }
 
         return '<div class="rsa-inline-controls">' +
@@ -8039,6 +8247,7 @@
                 '<label class="rsa-inline-check"><input type="checkbox" class="rsa-inline-p2-crit" /> P2 Crit</label>' +
                 '<label class="rsa-inline-check"><input type="checkbox" class="rsa-inline-p1-eff" /> P1 Eff</label>' +
                 '<label class="rsa-inline-check"><input type="checkbox" class="rsa-inline-p2-eff" checked /> P2 Eff</label>' +
+                qcToggleHtml +
             '</div>' +
             '<div class="rsa-inline-row">' +
                 '<input type="text" class="rsa-inline-comment" placeholder="Comment..." />' +
@@ -8058,11 +8267,19 @@
         if ($inlineP1.length && selectedP1Move !== 'none') {
             $inlineP1.val(selectedP1Move);
         }
-        // Sync P2 move selection
-        var $inlineP2 = $('.rsa-inline-p2-move');
-        if ($inlineP2.length && selectedP2Move !== 'none') {
-            $inlineP2.val(selectedP2Move);
-        }
+        // P2 move inline always uses the AI-rate default from renderInlineControls
+        // (selectedP2Move tracks the calc form which may reflect a non-field P1)
+    }
+
+    /** Re-render inline controls in-place without full round log rebuild.
+     *  Called whenever the P1 roster changes (add/remove/edit) so dropdowns
+     *  stay in sync with the current team state. */
+    function refreshInlineControls() {
+        var $existing = $('#rsa-round-log .rsa-inline-controls');
+        if (!$existing.length) return;
+        var html = renderInlineControls();
+        $existing.replaceWith($(html));
+        syncInlineControls();
     }
 
     /**
@@ -8376,6 +8593,61 @@
             }
         }
 
+        // 12. Quick Claw / Quick Draw proc (speed order variance)
+        // Show when either mon has QC/QD and was the slower one — the proc
+        // would flip speed order, potentially changing who attacks first.
+        var _p1HasQC = (rd.p1.item === 'Quick Claw' || rd.p1.ability === 'Quick Draw');
+        var _p2HasQC = (rd.p2.item === 'Quick Claw' || rd.p2.ability === 'Quick Draw');
+        if (_p1HasQC || _p2HasQC) {
+            // Determine the proc chance: Quick Claw = 20%, Quick Draw = 30%
+            // If both stacked on the same mon, combined chance = 1 - (1 - 0.2) * (1 - 0.3) = 44%
+            // Quick Draw only works with attacking moves
+            function _qcChance(entry, moveData) {
+                var hasQC = entry.item === 'Quick Claw';
+                var hasQD = entry.ability === 'Quick Draw';
+                // Quick Draw only procs on attacking moves
+                if (hasQD && moveData && moveData.category === 'Status') hasQD = false;
+                if (hasQC && hasQD) return Math.round((1 - 0.8 * 0.7) * 100);
+                if (hasQC) return 20;
+                if (hasQD) return 30;
+                return 0;
+            }
+
+            var p1QCPct = _p1HasQC ? _qcChance(rd.p1, p1MoveData) : 0;
+            var p2QCPct = _p2HasQC ? _qcChance(rd.p2, p2MoveData) : 0;
+
+            // Only show fork if the QC/QD holder was the SLOWER mon (proc would change order)
+            // or if the round was logged WITH a QC proc already
+            if (p1QCPct > 0 && p2Faster && !rd.quickClawProc) {
+                var p1QCSrc = rd.p1.item === 'Quick Claw' ? 'Quick Claw' : 'Quick Draw';
+                forks.push({
+                    icon: '🐾', label: 'P1 ' + p1QCSrc + ' ' + p1QCPct + '%',
+                    detail: 'P1 moves first (' + p1QCPct + '% chance)',
+                    danger: false
+                });
+            }
+            if (p2QCPct > 0 && p1Faster && !rd.quickClawProc) {
+                var p2QCSrc = rd.p2.item === 'Quick Claw' ? 'Quick Claw' : 'Quick Draw';
+                var _qcKills = rd.p2.damage && rd.p2.damage.maxDmg >= p1HP;
+                forks.push({
+                    icon: '🐾', label: 'P2 ' + p2QCSrc + ' ' + p2QCPct + '%',
+                    detail: _qcKills ? 'P2 moves first — potential KO!' : 'P2 moves first (' + p2QCPct + '% chance)',
+                    danger: _qcKills
+                });
+            }
+            // If the round WAS logged with a QC proc, show the non-proc alternative
+            if (rd.quickClawProc && rd.speed && rd.speed.qcProc) {
+                var qcSide = rd.speed.qcProc;
+                var qcOtherSide = qcSide === 'p1' ? 'P2' : 'P1';
+                var _noQCPct = qcSide === 'p1' ? (100 - p1QCPct) : (100 - p2QCPct);
+                forks.push({
+                    icon: '🐾', label: qcOtherSide + ' first (no proc) ' + _noQCPct + '%',
+                    detail: 'Without Quick Claw/Draw proc, ' + qcOtherSide + ' would move first',
+                    danger: false
+                });
+            }
+        }
+
         if (forks.length === 0) return '';
 
         var hasDanger = forks.some(function(f) { return f.danger; });
@@ -8403,12 +8675,18 @@
             var prioVal = Math.max(rd.p1Priority, rd.p2Priority);
             speedLabel += ' (Priority +' + prioVal + ')';
         }
+        if (rd.quickClawProc && rd.speed.qcProc) {
+            speedLabel += ' (🐾 QC/QD proc)';
+        }
 
         var tags = '';
         if (rd.weather !== 'None')  tags += '<span class="rsa-tag rsa-weather">' + esc(rd.weather) + '</span>';
         if (rd.terrain !== 'None')  tags += '<span class="rsa-tag rsa-terrain">' + esc(rd.terrain) + '</span>';
         if (rd.trickRoom)           tags += '<span class="rsa-tag rsa-trickroom">Trick Room</span>';
         if (rd.isSwitch)            tags += '<span class="rsa-tag rsa-switch-tag">⇄ SWITCH</span>';
+        if (rd.quickClawProc)       tags += '<span class="rsa-tag rsa-qc-tag" title="Quick Claw or Quick Draw proc — slower mon moved first">🐾 QC/QD</span>';
+        if (rd.p1SelfSwitch)        tags += '<span class="rsa-tag rsa-pivot-tag" title="P1 used a pivot move (switches out after attacking)">⇄ P1 Pivot</span>';
+        if (rd.p2SelfSwitch)        tags += '<span class="rsa-tag rsa-pivot-tag" title="P2 used a pivot move (switches out after attacking)">⇄ P2 Pivot</span>';
         if (rd.p2Crit)              tags += '<span class="rsa-tag rsa-crit-tag">P2 CRIT</span>';
         if (rd.p1Charging)          tags += '<span class="rsa-tag rsa-charge-tag" title="P1 is charging — no damage dealt this turn">P1 ⬆ Charging</span>';
         if (rd.p2Charging)          tags += '<span class="rsa-tag rsa-charge-tag" title="P2 is charging — no damage dealt this turn">P2 ⬆ Charging</span>';
@@ -8486,6 +8764,18 @@
 
         var _p2ko = (rd.p2 && rd.p2.hpAfter && rd.p2.hpAfter.current <= 0) ? ' data-p2-ko="1"' : '';
         var _p1ko = (rd.p1 && rd.p1.hpAfter && rd.p1.hpAfter.current <= 0) ? ' data-p1-ko="1"' : '';
+        // Pivot switch-in info
+        var pivotSwitchHtml = '';
+        if (rd.pivotSwitch && rd.pivotSwitch.recalcDamage) {
+            var _pvInfo = rd.pivotSwitch;
+            var _pvSide = _pvInfo.side === 'p1' ? 'P1' : 'P2';
+            var _pvDmg = _pvInfo.recalcDamage;
+            pivotSwitchHtml = '<div class="rsa-round-switchpred">' +
+                '<span class="rsa-swpred-label">\u21c4 ' + _pvSide + ' pivot \u2192 ' + esc(_pvInfo.incoming) + ' takes hit:</span> ' +
+                '<span class="rsa-dmg-range">Dmg: ' + _pvDmg.minDmg + '-' + _pvDmg.maxDmg + '</span>' +
+                (_pvInfo.switchInHpAfter ? ' <span class="rsa-hp-after">' + _pvInfo.switchInHpAfter.current + '/' + _pvInfo.switchInHpAfter.max + ' HP</span>' : '') +
+            '</div>';
+        }
         return '<div class="rsa-round-card" data-round="' + rd.roundNum + '"' + _p2ko + _p1ko + '>' +
             '<div class="rsa-round-header">' +
                 '<span class="rsa-round-num">Round ' + rd.roundNum + '</span>' +
@@ -8503,6 +8793,7 @@
             '</div>' +
             switchPredHtml +
             renderRoundForkSummary(rd) +
+            pivotSwitchHtml +
             cmnt +
         '</div>';
     }
@@ -8783,11 +9074,12 @@
             $('#rsa-switch-p1a').html(htmlA);
             $('#rsa-switch-p1b').html(htmlB);
         } else {
-            // Singles: existing logic
+            // Singles: skip the field P1 (from round log, not activeIdx)
             var $sel = $('#rsa-switch-p1');
             var html = '<option value=\"\">— Switch P1 —</option>';
+            var _fieldP1 = getFieldMonsFromLog().p1;
             for (var i = 0; i < team.roster.length; i++) {
-                if (i === team.activeIdx) continue;
+                if (_fieldP1 && team.roster[i].name === _fieldP1.name) continue;
                 if (team.roster[i].currentHP <= 0) continue;
                 html += '<option value=\"' + i + '\">' + esc(team.roster[i].name) + '</option>';
             }
@@ -9642,6 +9934,11 @@
                         loadPokemonIntoForm('p2', _p2Active);
                         setTimeout(function () { suppressP2Sync = false; }, 500);
                     }
+                    // Re-render after form is loaded so box colors, predictions,
+                    // and inline controls use the correct Pokémon species.
+                    // loadPokemonIntoForm has an internal setTimeout(0), so wait
+                    // a tick for it to finish before rendering.
+                    setTimeout(function () { renderAll(); }, 50);
                 }, 500);
             } catch (ex) {
                 console.warn('RSA: failed to restore session', ex);
@@ -10066,6 +10363,7 @@
             var idx = ~~$(this).data('idx');
             removeFromTeam(side, idx);
             renderBox(side);
+            refreshInlineControls();
         });
 
         $(document).on('click', '.rsa-team-slot', function (e) {
@@ -10231,6 +10529,8 @@
                 if (!isDoubles()) {
                     $('#rsa-p1-apply-secondary').prop('checked', false);
                 }
+                // Clear Quick Claw / Quick Draw proc toggle after round is logged
+                window._rsaQCProc = false;
             }
 
             function doCaptureSingles() {
@@ -11495,6 +11795,17 @@
 
         // Log round via inline button
         $(document).on('click', '.rsa-inline-log', function () {
+            // Sync inline P1 & P2 move selections to main controls
+            var inlineP1Val = $('.rsa-inline-p1-move').val();
+            if (inlineP1Val && inlineP1Val !== 'none') {
+                var p1Idx = parseInt(inlineP1Val);
+                $('input#resultMoveL' + (p1Idx + 1)).prop('checked', true).trigger('change');
+            }
+            var inlineP2Val = $('.rsa-inline-p2-move').val();
+            if (inlineP2Val && inlineP2Val !== 'none') {
+                var p2Idx = parseInt(inlineP2Val);
+                $('input#resultMoveR' + (p2Idx + 1)).prop('checked', true).trigger('change');
+            }
             // Sync inline options to main controls
             var inlineP2Crit = $('.rsa-inline-p2-crit').is(':checked');
             var inlineP1Eff  = $('.rsa-inline-p1-eff').is(':checked');
@@ -11504,6 +11815,8 @@
             $('#rsa-p1-apply-secondary').prop('checked', inlineP1Eff);
             $('#rsa-p2-apply-secondary').prop('checked', inlineP2Eff);
             $('#rsa-comment').val(inlineComment);
+            // Sync Quick Claw/Draw proc toggle
+            window._rsaQCProc = $('.rsa-inline-qc-proc').is(':checked');
             // Trigger the main log button
             $('#rsa-log-round').trigger('click');
         });
@@ -11522,6 +11835,172 @@
             $('#rsa-comment').val(inlineComment);
             // Trigger the main switch button
             $('#rsa-do-switch').trigger('click');
+        });
+
+        // ── Pivot switch handlers ──
+        // P1 pivot confirm: switch P1 to the selected mon after a U-turn/Volt Switch
+        $(document).on('click', '.rsa-inline-p1-pivot-confirm', function () {
+            var idx = parseInt($('.rsa-inline-p1-pivot-send').val());
+            if (isNaN(idx)) { rsaAlert('Select who P1 switches to.'); return; }
+            var line = curLine();
+            var rounds = getBranchRounds(line, line.activeBranchIdx != null ? line.activeBranchIdx : -1);
+            var lastRd = rounds.length ? rounds[rounds.length - 1] : null;
+            if (lastRd) lastRd.p1PivotDone = true;
+
+            var switchEntry = line.teams.p1.roster[idx];
+
+            // ── Pivot damage recalculation ──
+            // When P1 went first and used a pivot move, P2's attack should hit
+            // the incoming mon instead of the outgoing.  Recalculate P2 damage
+            // vs the switch-in and adjust HP accordingly.
+            if (lastRd && lastRd.speed && lastRd.speed.faster === 'p1' &&
+                lastRd.p2 && lastRd.p2.move && lastRd.p2.move !== '(No Move)' &&
+                lastRd.p2.damage && switchEntry) {
+                var outIdx = findInRoster(line.teams.p1, lastRd.p1.name);
+                var outEntry = outIdx >= 0 ? line.teams.p1.roster[outIdx] : null;
+                var p2Idx = findInRoster(line.teams.p2, lastRd.p2.name);
+                var p2Entry = p2Idx >= 0 ? line.teams.p2.roster[p2Idx] : null;
+                var newDmg = p2Entry ? calcDamageDirect(p2Entry, switchEntry, lastRd.p2.move) : null;
+
+                // Save original P2 damage and P1 hpAfter before modifying
+                if (!lastRd.pivotSwitch) {
+                    lastRd.pivotSwitch = {
+                        side: 'p1',
+                        incoming: switchEntry.name,
+                        incomingIdx: idx,
+                        originalP1HpAfter: { current: lastRd.p1.hpAfter.current, bestCase: lastRd.p1.hpAfter.bestCase },
+                        originalP2Damage: lastRd.p2.damage,
+                        recalcDamage: newDmg
+                    };
+                }
+
+                // Restore outgoing mon HP (undo P2 damage — pivot moves have no recoil)
+                if (outEntry) {
+                    outEntry.currentHP  = lastRd.p1.hpBefore.current;
+                    if (outEntry.bestCaseHP != null) outEntry.bestCaseHP = lastRd.p1.hpBefore.bestCase != null ? lastRd.p1.hpBefore.bestCase : lastRd.p1.hpBefore.current;
+                }
+                // Update round data: outgoing mon keeps hpBefore HP
+                lastRd.p1.hpAfter = { current: lastRd.p1.hpBefore.current, max: lastRd.p1.hpBefore.max, bestCase: lastRd.p1.hpBefore.bestCase != null ? lastRd.p1.hpBefore.bestCase : lastRd.p1.hpBefore.current };
+
+                // Apply recalculated P2 damage to the incoming mon
+                if (newDmg) {
+                    switchEntry.currentHP  = Math.max(0, switchEntry.currentHP  - newDmg.maxDmg);
+                    if (switchEntry.bestCaseHP != null) switchEntry.bestCaseHP = Math.max(0, switchEntry.bestCaseHP - newDmg.minDmg);
+                    // Update the round's P2 damage display to show recalculated values
+                    lastRd.p2.damage = newDmg;
+                    // Store pivot HP result on the round
+                    lastRd.pivotSwitch.switchInHpAfter = { current: switchEntry.currentHP, bestCase: switchEntry.bestCaseHP, max: switchEntry.maxHP };
+                }
+            }
+
+            // Apply entry hazard damage for the incoming P1 pokemon
+            var hazResult = switchEntry ? calcEntryHazardDamage(switchEntry, getFieldHazards('p1')) : { damage: 0, status: '' };
+            if (hazResult.damage > 0 && switchEntry) {
+                switchEntry.currentHP = Math.max(0, switchEntry.currentHP - hazResult.damage);
+                if (switchEntry.bestCaseHP != null) switchEntry.bestCaseHP = Math.max(0, switchEntry.bestCaseHP - hazResult.damage);
+            }
+            if (hazResult.status && switchEntry && !switchEntry.status) {
+                switchEntry.status = hazResult.status;
+            }
+
+            switchActive('p1', idx);
+            setTimeout(function () {
+                curLine().teams.p1.activeIdx = idx;
+                rebuildLineTeams(curLine());
+                renderAll(curLine());
+                autoSave();
+            }, 400);
+        });
+
+        // P2 pivot confirm: switch P2 to the selected mon after a U-turn/Volt Switch
+        $(document).on('click', '.rsa-inline-p2-pivot-confirm', function () {
+            var idx = parseInt($('.rsa-inline-p2-pivot-send').val());
+            if (isNaN(idx)) { rsaAlert('Select who P2 switches to.'); return; }
+            var line = curLine();
+            var rounds = getBranchRounds(line, line.activeBranchIdx != null ? line.activeBranchIdx : -1);
+            var lastRd = rounds.length ? rounds[rounds.length - 1] : null;
+            if (lastRd) lastRd.p2PivotDone = true;
+
+            var switchEntry = line.teams.p2.roster[idx];
+
+            // ── Pivot damage recalculation (P2 side) ──
+            // When P2 went first and used a pivot move, P1's attack should hit
+            // the incoming mon instead of the outgoing.
+            if (lastRd && lastRd.speed && lastRd.speed.faster === 'p2' &&
+                lastRd.p1 && lastRd.p1.move && lastRd.p1.move !== '(No Move)' &&
+                lastRd.p1.damage && switchEntry) {
+                var outIdx = findInRoster(line.teams.p2, lastRd.p2.name);
+                var outEntry = outIdx >= 0 ? line.teams.p2.roster[outIdx] : null;
+                var p1Idx = findInRoster(line.teams.p1, lastRd.p1.name);
+                var p1Entry = p1Idx >= 0 ? line.teams.p1.roster[p1Idx] : null;
+                var newDmg = p1Entry ? calcDamageDirect(p1Entry, switchEntry, lastRd.p1.move) : null;
+
+                if (!lastRd.pivotSwitch) {
+                    lastRd.pivotSwitch = {
+                        side: 'p2',
+                        incoming: switchEntry.name,
+                        incomingIdx: idx,
+                        originalP2HpAfter: { current: lastRd.p2.hpAfter.current, bestCase: lastRd.p2.hpAfter.bestCase },
+                        originalP1Damage: lastRd.p1.damage,
+                        recalcDamage: newDmg
+                    };
+                }
+
+                // Restore outgoing P2 HP
+                if (outEntry) {
+                    outEntry.currentHP = lastRd.p2.hpBefore.current;
+                    if (outEntry.bestCaseHP != null) outEntry.bestCaseHP = lastRd.p2.hpBefore.bestCase != null ? lastRd.p2.hpBefore.bestCase : lastRd.p2.hpBefore.current;
+                }
+                lastRd.p2.hpAfter = { current: lastRd.p2.hpBefore.current, max: lastRd.p2.hpBefore.max, bestCase: lastRd.p2.hpBefore.bestCase != null ? lastRd.p2.hpBefore.bestCase : lastRd.p2.hpBefore.current };
+
+                if (newDmg) {
+                    switchEntry.currentHP  = Math.max(0, switchEntry.currentHP  - newDmg.maxDmg);
+                    if (switchEntry.bestCaseHP != null) switchEntry.bestCaseHP = Math.max(0, switchEntry.bestCaseHP - newDmg.minDmg);
+                    lastRd.p1.damage = newDmg;
+                    lastRd.pivotSwitch.switchInHpAfter = { current: switchEntry.currentHP, bestCase: switchEntry.bestCaseHP, max: switchEntry.maxHP };
+                }
+            }
+
+            // Apply entry hazard damage for the incoming P2 pokemon
+            var hazResult = switchEntry ? calcEntryHazardDamage(switchEntry, getFieldHazards('p2')) : { damage: 0, status: '' };
+            if (hazResult.damage > 0 && switchEntry) {
+                switchEntry.currentHP = Math.max(0, switchEntry.currentHP - hazResult.damage);
+                if (switchEntry.bestCaseHP != null) switchEntry.bestCaseHP = Math.max(0, switchEntry.bestCaseHP - hazResult.damage);
+            }
+            if (hazResult.status && switchEntry && !switchEntry.status) {
+                switchEntry.status = hazResult.status;
+            }
+
+            switchActive('p2', idx);
+            setTimeout(function () {
+                curLine().teams.p2.activeIdx = idx;
+                rebuildLineTeams(curLine());
+                renderAll(curLine());
+                autoSave();
+            }, 400);
+        });
+
+        // Pivot skip: mark pivot as done without switching
+        $(document).on('click', '.rsa-inline-pivot-skip', function () {
+            var line = curLine();
+            var rounds = getBranchRounds(line, line.activeBranchIdx != null ? line.activeBranchIdx : -1);
+            var lastRd = rounds.length ? rounds[rounds.length - 1] : null;
+            if (lastRd) {
+                lastRd.p1PivotDone = true;
+                lastRd.p2PivotDone = true;
+            }
+            var $existing = $('#rsa-round-log .rsa-inline-controls');
+            if ($existing.length) {
+                var html = renderInlineControls();
+                $existing.replaceWith($(html));
+                syncInlineControls();
+            }
+        });
+
+        // ── Quick Claw / Quick Draw toggle ──
+        // Set the global flag so captureRound picks it up
+        $(document).on('change', '.rsa-inline-qc-proc', function () {
+            window._rsaQCProc = $(this).is(':checked');
         });
 
         // ── Drag & Drop from box to team ──
@@ -11600,6 +12079,7 @@
                 loadPokemonIntoForm('p1', entry);
                 renderTeamPanel(side);
                 renderBox(side);
+                refreshInlineControls();
                 if (isDoubles()) refreshDoublesUI();
             } catch (ex) { /* ignore bad data */ }
         });
@@ -11683,6 +12163,7 @@
             loadPokemonIntoForm('p1', entry);
             renderTeamPanel('p1');
             renderBox('p1');
+            refreshInlineControls();
             if (isDoubles()) refreshDoublesUI();
         });
 
@@ -11846,6 +12327,7 @@
             }
             // Re-render card so speed badge updates immediately
             renderTeamPanel(side);
+            refreshInlineControls();
         });
 
         // ── Inline HP edit on P1 card ──
@@ -11864,12 +12346,27 @@
             // Remember this as the user-set pre-damage baseline so it can be
             // restored after round deletion (cleared when a round is logged).
             if (side === 'p1') entry.preDamageHP = val;
+            // If this mon has logged rounds, rebuild to propagate pre-damage
+            var _hasRounds = side === 'p1' && line.rounds.some(function (rd) {
+                if (rd.isDoubles && rd.fighters) {
+                    for (var _s in rd.fighters) {
+                        if (rd.fighters[_s] && rd.fighters[_s].name === entry.name) return true;
+                    }
+                    return false;
+                }
+                return rd.p1 && rd.p1.name === entry.name;
+            });
+            if (_hasRounds) {
+                rebuildLineTeams(line);
+                renderAll(line);
+            }
             // Sync to calc form so damage calculations use the updated HP
             if (idx === line.teams[side].activeIdx) {
                 $('#' + side + ' .current-hp').val(val);
                 try { performCalculations(); } catch (e) {}
             }
             renderTeamPanel(side);
+            refreshInlineControls();
             autoSave();
         });
 
@@ -11882,11 +12379,29 @@
             var entry = line.teams[side] && line.teams[side].roster[idx];
             if (!entry) return;
             entry.status = val;
+            // Persist user-set status so it survives round deletion / rebuild
+            // (mirrors preDamageHP pattern)
+            entry.preStatus = val;
+            // If this mon has logged rounds, rebuild to propagate pre-status
+            var _hasRounds = side === 'p1' && line.rounds.some(function (rd) {
+                if (rd.isDoubles && rd.fighters) {
+                    for (var _s in rd.fighters) {
+                        if (rd.fighters[_s] && rd.fighters[_s].name === entry.name) return true;
+                    }
+                    return false;
+                }
+                return rd.p1 && rd.p1.name === entry.name;
+            });
+            if (_hasRounds) {
+                rebuildLineTeams(line);
+                renderAll(line);
+            }
             // Sync to calc form if this is the active mon
             if (idx === line.teams[side].activeIdx) {
                 syncStatusToForm(side, entry);
             }
             renderTeamPanel(side);
+            refreshInlineControls();
             autoSave();
         });
 
@@ -12422,6 +12937,7 @@
     //   • Secondary effects (status/volatile/boosts proc vs no-proc)
     //   • AI move selection (different moves → different outcomes)
     //   • Flinch (blocks second mover's attack)
+    //   • Quick Claw / Quick Draw proc (speed order reversal)
     //  For material forks, auto-replays subsequent rounds with modified state
     //  to warn about divergent outcomes, death risks, or bait changes.
     //  Read-only post-hoc layer — never modifies any existing function.
