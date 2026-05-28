@@ -5041,6 +5041,7 @@
         if (!entry || !entry.setId) return;
         // Reset mega sim state when loading a new pokemon into the form
         _megaSimState[side] = null;
+        _megaSimBaseAbility[side] = null;
         // Suppress cascading recalculations during form population
         _loadingForm = true;
         // Use val() + change() on the underlying input element only (not the Select2 DIV wrapper).
@@ -9560,6 +9561,7 @@
     // null = auto-detect (default mega when stone owned/equipped), true/false = user override.
     var _megaSimState = { p1: null, p2: null };
     var _megaSimApplying = false; // guard against re-entrant calls
+    var _megaSimBaseAbility = { p1: null, p2: null }; // saved ability before mega sim
 
     /** Determine if a side currently has a mega form available for simulation.
      *  For P1: check stone ownership. For P2: check if the equipped item is a mega stone.
@@ -9603,15 +9605,29 @@
         if (!$forme.length) { _megaSimApplying = false; return; }
 
         if (apply && megaInfo) {
+            // Save pre-mega ability for revert
+            if (!_megaSimBaseAbility[side]) {
+                _megaSimBaseAbility[side] = getAbility(sideId);
+            }
             // Check if option exists
             if ($forme.find('option[value="' + megaInfo.megaName + '"]').length) {
                 $forme.val(megaInfo.megaName).trigger('change');
+                // .forme handler can't read mega ability from raw calc data (uses .ab
+                // but data has abilities:{0:...}), so set it explicitly
+                if (megaInfo.ability) {
+                    $('#' + sideId + ' .ability').val(megaInfo.ability);
+                }
             }
         } else {
             // Revert to base form
             var baseName = side === 'p1' ? getP1Name() : getP2Name();
             if ($forme.find('option[value="' + baseName + '"]').length) {
                 $forme.val(baseName).trigger('change');
+                // Restore the pre-mega ability
+                if (_megaSimBaseAbility[side]) {
+                    $('#' + sideId + ' .ability').val(_megaSimBaseAbility[side]);
+                    _megaSimBaseAbility[side] = null;
+                }
             }
         }
         _megaSimApplying = false;
@@ -9637,8 +9653,9 @@
 
         var sideId = isP1 ? 'p1' : 'p2';
         // Use .forme value for display — captures mega form when sim is active
+        // Only use .forme if it belongs to the same base species (guards stale values on refresh)
         var currentForme = $('#' + sideId + ' .forme').val() || '';
-        var displayName = currentForme || baseName;
+        var displayName = (currentForme && currentForme.indexOf(baseName) === 0) ? currentForme : baseName;
         var spriteUrl = getSprite(displayName);
         var ability = getAbility(sideId);
         var item = getItem(sideId);
