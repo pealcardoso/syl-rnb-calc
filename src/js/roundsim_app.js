@@ -4374,7 +4374,7 @@
 
     /** Calculate damage for a specific attacker entry → defender entry using a named move.
      *  Uses the calc engine directly (no form needed). Returns { minDmg, maxDmg, move } or null. */
-    function calcDamageDirect(atkEntry, defEntry, moveName) {
+    function calcDamageDirect(atkEntry, defEntry, moveName, megaOverride) {
         if (!atkEntry || !defEntry || !moveName || moveName === '(No Move)') return null;
         try {
             var atk = createPokemon(atkEntry.setId);
@@ -4388,6 +4388,24 @@
             if (defEntry.item !== undefined) def.item = defEntry.item;
             if (atkEntry.ability) atk.ability = atkEntry.ability;
             if (defEntry.ability) def.ability = defEntry.ability;
+
+            // Mega override: recalculate attacker with mega species base stats
+            if (megaOverride && megaOverride.megaName) {
+                try {
+                    var megaPoke = new calc.Pokemon(gen || 9, megaOverride.megaName, {
+                        level: atk.level,
+                        ability: megaOverride.ability || atk.ability,
+                        abilityOn: true,
+                        item: atk.item,
+                        nature: atk.nature,
+                        ivs: atk.ivs,
+                        evs: atk.evs,
+                        moves: atk.moves
+                    });
+                    megaPoke.originalCurHP = atk.originalCurHP;
+                    atk = megaPoke;
+                } catch (eM) {}
+            }
 
             var field = _getField();
 
@@ -5591,7 +5609,8 @@
 
         // Save item/ability (might have changed)
         entry.item = getItem(side);
-        entry.ability = getAbility(side);
+        // If mega sim is active, save the base ability (not the simulated mega one)
+        entry.ability = _megaSimBaseAbility[side] || getAbility(side);
     }
 
     // ════════════════════════════════════════════════════════════
@@ -8578,13 +8597,22 @@
         var p2Sprite = p2.sprite ? '<img class="rsa-inline-sprite" src="' + esc(p2.sprite) + '" alt="">' : '';
 
         // Build P1 move options — use roster entry moves (independent of calc form)
+        // When mega is pending, show mega-boosted damage in labels
+        var _p1MegaPending = isMegaPending('p1');
+        var _p1MegaOvr = null;
+        if (_p1MegaPending) {
+            try {
+                var _mgI = getMegaEligibility('p1');
+                if (_mgI) _p1MegaOvr = { megaName: _mgI.megaName, ability: _mgI.ability };
+            } catch (e) {}
+        }
         var p1MoveOpts = '';
         for (var m = 0; m < 4; m++) {
             var label = (p1.moves && p1.moves[m]) ? p1.moves[m] : null;
             if (label && label !== '—' && label !== '(No Move)') {
                 var sel = (selectedP1Move === m) ? ' selected' : '';
                 var dmgLabel = '';
-                var dmg = calcDamageDirect(p1, p2, label);
+                var dmg = calcDamageDirect(p1, p2, label, _p1MegaOvr);
                 if (dmg && p2.maxHP > 0) {
                     var pct = Math.round(dmg.minDmg / p2.maxHP * 100);
                     dmgLabel = ' ' + pct + '% dmg';
@@ -8692,11 +8720,11 @@
             '<div class="rsa-inline-row">' +
                 p1Sprite +
                 '<span class="rsa-inline-name">' + esc(p1.name) + '</span>' +
-                megaBtnHtml +
                 '<select class="rsa-inline-p1-move" title="P1 Move">' +
                     '<option value="none">— P1 Move —</option>' +
                     p1MoveOpts +
                 '</select>' +
+                megaBtnHtml +
             '</div>' +
             '<div class="rsa-inline-row">' +
                 p2Sprite +
@@ -9684,31 +9712,36 @@
             }
         }
 
-        var html = '<div class="rsa-move-info-strip">';
-        // Sprite row: P1 checkbox LEFT of sprite, P2 checkbox RIGHT of sprite
-        html += '<div class="rsa-move-info-sprite-row">';
-        if (isP1 && megaCbHtml) html += megaCbHtml;
-        html += '<img class="rsa-move-info-sprite" src="' + esc(spriteUrl) + '" alt="' + esc(displayName) + '" onerror="this.style.display=\'none\'">';
-        if (!isP1 && megaCbHtml) html += megaCbHtml;
+        // Build card-style info strip (similar to team panel cards)
+        var sideClass = isP1 ? 'rsa-card-p1' : 'rsa-card-p2';
+        var html = '<div class="rsa-move-card ' + sideClass + '">';
+        // Left: sprite + mega toggle
+        html += '<div class="rsa-move-card-sprite-col">';
+        html += '<img class="rsa-move-card-sprite" src="' + esc(spriteUrl) + '" alt="' + esc(displayName) + '" onerror="this.style.display=\'none\'">';
+        if (megaCbHtml) html += megaCbHtml;
         html += '</div>';
-        html += '<span class="rsa-move-info-name">' + esc(displayName) + '</span>';
+        // Right: info column
+        html += '<div class="rsa-move-card-info">';
+        html += '<div class="rsa-move-card-name">' + esc(displayName) + '</div>';
+        html += '<div class="rsa-move-card-types">';
         for (var t = 0; t < types.length; t++) {
             if (types[t]) {
-                html += '<img class="rsa-move-info-type" src="' + getTypeSpriteUrl(types[t]) + '" alt="' + esc(types[t]) + '" title="' + esc(types[t]) + '">';
+                html += '<img class="rsa-move-card-type" src="' + getTypeSpriteUrl(types[t]) + '" alt="' + esc(types[t]) + '" title="' + esc(types[t]) + '">';
             }
         }
-        html += '<span class="rsa-move-info-sep">|</span>';
-        html += '<span class="rsa-move-info-stat" title="Speed">⚡' + spdVal + '</span>';
-        if (ability) {
-            html += '<span class="rsa-move-info-stat" title="Ability">🛡 ' + esc(ability) + '</span>';
-        }
+        html += '</div>';
+        html += '<div class="rsa-move-card-stats">';
+        html += '<span title="Speed">⚡' + spdVal + '</span>';
+        if (ability) html += '<span title="Ability">🛡 ' + esc(ability) + '</span>';
+        html += '</div>';
         if (item) {
             var itemUrl = getItemSpriteUrl(item);
-            html += '<span class="rsa-move-info-item" title="' + esc(item) + '">';
-            if (itemUrl) html += '<img class="rsa-move-info-item-icon" src="' + esc(itemUrl) + '" alt="" onerror="this.style.display=\'none\'">';
-            html += esc(item) + '</span>';
+            html += '<div class="rsa-move-card-item" title="' + esc(item) + '">';
+            if (itemUrl) html += '<img class="rsa-move-card-item-icon" src="' + esc(itemUrl) + '" alt="" onerror="this.style.display=\'none\'">';
+            html += esc(item) + '</div>';
         }
-        html += '</div>';
+        html += '</div>'; // close rsa-move-card-info
+        html += '</div>'; // close rsa-move-card
 
         headerDiv.innerHTML = html;
     }
@@ -12384,6 +12417,8 @@
         // Queue / cancel Mega Evolution via inline button
         $(document).on('click', '.rsa-inline-mega-activate', function () {
             try { toggleMegaPending('p1'); } catch (e) {}
+            // Refresh inline controls so damage labels reflect mega stats
+            refreshInlineControls();
         });
 
         // Queue / cancel Mega Evolution via main log-row button
