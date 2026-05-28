@@ -1455,37 +1455,22 @@ fieldset {
     width: auto !important;
     position: relative;
 }
-/* Info card header: absolutely positioned in the outer whitespace */
+/* Info card header: sits above the move rows in the grid flow */
 .rsa-moves-area .result-move-header {
-    position: absolute;
-    top: 0;
-    bottom: 0;
     display: flex;
     align-items: center;
+    justify-content: center;
     pointer-events: none;
     overflow: visible;
     z-index: 2;
-}
-/* P1 info: left whitespace — card hugs the moves */
-.rsa-moves-area .move-result-subgroupL .result-move-header {
-    left: 0;
-    width: calc(50% - 130px);
-    justify-content: flex-end;
-    padding-right: 10px;
-}
-/* P2 info: right whitespace — card hugs the moves */
-.rsa-moves-area .move-result-subgroupR .result-move-header {
-    right: 0;
-    width: calc(50% - 130px);
-    justify-content: flex-start;
-    padding-left: 10px;
+    margin-bottom: 3px;
 }
 .rsa-moves-area .rsa-move-card {
     pointer-events: auto;
 }
-/* Move rows: single centered column, unaffected by header */
-.rsa-moves-area .move-result-subgroupL > div:not(.result-move-header),
-.rsa-moves-area .move-result-subgroupR > div:not(.result-move-header) {
+/* Move rows: same column as header */
+.rsa-moves-area .move-result-subgroupL > div,
+.rsa-moves-area .move-result-subgroupR > div {
     grid-column: 1;
 }
 
@@ -3240,12 +3225,11 @@ fieldset {
     margin-left: auto;
 }
 
-/* ── Section Headers — player-colored accent ───────────────── */
+/* ── Section Headers — clean reset ─────────────────────────── */
 .rsa-moves-area .move-result-subgroupL .result-move-header,
 .rsa-moves-area .move-result-subgroupR .result-move-header {
     border-left: none;
-    padding-top: 0; padding-bottom: 0;
-    margin-bottom: 0;
+    padding: 0;
 }
 
 /* ── Move Info Card (Pokemon card next to moves) ───────────── */
