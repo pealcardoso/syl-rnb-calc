@@ -3735,7 +3735,7 @@
     var selectedP2Move = 'none';
     var suppressP2Sync = false;  // Prevent syncP2Team during intentional switches
     var _loadingForm = false;      // Suppress calc-trigger handler during batch form loads
-    var _inlineMegaSimOverride = null; // null = default (mega when available), true/false = user override
+
 
     // Battle format: 'singles' | 'doubles-1t' | 'doubles-2t'
     var battleFormat = 'singles';
@@ -5023,6 +5023,8 @@
 
     function loadPokemonIntoForm(side, entry) {
         if (!entry || !entry.setId) return;
+        // Reset mega sim state when loading a new pokemon into the form
+        _megaSimState[side] = null;
         // Suppress cascading recalculations during form population
         _loadingForm = true;
         // Use val() + change() on the underlying input element only (not the Select2 DIV wrapper).
@@ -8549,29 +8551,6 @@
         var p1Sprite = p1.sprite ? '<img class="rsa-inline-sprite" src="' + esc(p1.sprite) + '" alt="">' : '';
         var p2Sprite = p2.sprite ? '<img class="rsa-inline-sprite" src="' + esc(p2.sprite) + '" alt="">' : '';
 
-        // Check if P1 has a mega form available for the damage sim toggle
-        var _inlineMega = null;
-        try { _inlineMega = pickOwnedMegaFor(p1.baseName || p1.name, p1.item); } catch (eIM) {}
-        // Default to mega form for damage sims when stone is owned AND team hasn't mega'd yet
-        var _p1AlreadyMega = p1.baseName && p1.name !== p1.baseName; // already in mega form
-        // Use override if set (user toggled), otherwise default to mega
-        var _simAsMega;
-        if (_inlineMegaSimOverride !== null) {
-            _simAsMega = _inlineMega && !_p1AlreadyMega && _inlineMegaSimOverride;
-        } else {
-            _simAsMega = _inlineMega && !_p1AlreadyMega;
-        }
-
-        // Build a mega-version of the p1 entry for damage calcs (shares setId but overrides ability/item)
-        var _p1Mega = null;
-        if (_inlineMega) {
-            _p1Mega = $.extend({}, p1);
-            _p1Mega.ability = _inlineMega.ability;
-            _p1Mega.item = _inlineMega.stone;
-            _p1Mega.name = _inlineMega.megaName;
-        }
-        var _p1ForDmg = (_simAsMega && _p1Mega) ? _p1Mega : p1;
-
         // Build P1 move options — use roster entry moves (independent of calc form)
         var p1MoveOpts = '';
         for (var m = 0; m < 4; m++) {
@@ -8579,7 +8558,7 @@
             if (label && label !== '—' && label !== '(No Move)') {
                 var sel = (selectedP1Move === m) ? ' selected' : '';
                 var dmgLabel = '';
-                var dmg = calcDamageDirect(_p1ForDmg, p2, label);
+                var dmg = calcDamageDirect(p1, p2, label);
                 if (dmg && p2.maxHP > 0) {
                     var pct = Math.round(dmg.minDmg / p2.maxHP * 100);
                     dmgLabel = ' ' + pct + '% dmg';
@@ -8614,9 +8593,9 @@
                 // the calc form which may show a different P1 than the field mon
                 var sel = (m === _bestP2Idx) ? ' selected' : '';
                 var dmgLabel = '';
-                var dmg = calcDamageDirect(p2, _p1ForDmg, label);
-                if (dmg && (_p1ForDmg.maxHP || p1.maxHP) > 0) {
-                    var pct = Math.round(dmg.maxDmg / (p1.maxHP || _p1ForDmg.maxHP) * 100);
+                var dmg = calcDamageDirect(p2, p1, label);
+                if (dmg && p1.maxHP > 0) {
+                    var pct = Math.round(dmg.maxDmg / p1.maxHP * 100);
                     dmgLabel = ' ' + pct + '% dmg';
                 }
                 var aiPct = '';
@@ -8682,14 +8661,6 @@
             }
         } catch (eMb) {}
 
-        // Mega damage sim toggle — defaults to mega when a stone is owned & not already mega'd
-        var megaSimToggleHtml = '';
-        if (_inlineMega && !_p1AlreadyMega) {
-            megaSimToggleHtml = '<label class="rsa-inline-check rsa-inline-mega-sim-label" title="Simulate move damage as ' +
-                esc(_inlineMega.megaName) + ' (Mega)">' +
-                '<input type="checkbox" class="rsa-inline-mega-sim"' + (_simAsMega ? ' checked' : '') + ' /> ✨ Mega Sim</label>';
-        }
-
         return '<div class="rsa-inline-controls">' +
             '<div class="rsa-inline-header">Next Round</div>' +
             '<div class="rsa-inline-row">' +
@@ -8716,7 +8687,6 @@
                 '<label class="rsa-inline-check"><input type="checkbox" class="rsa-inline-p1-eff" /> P1 Eff</label>' +
                 '<label class="rsa-inline-check"><input type="checkbox" class="rsa-inline-p2-eff" checked /> P2 Eff</label>' +
                 qcToggleHtml +
-                megaSimToggleHtml +
             '</div>' +
             '<div class="rsa-inline-row">' +
                 '<input type="text" class="rsa-inline-comment" placeholder="Comment..." />' +
@@ -9560,6 +9530,68 @@
     // MOVE SELECTION — integrated with calc radio buttons
     // ════════════════════════════════════════════════════════════
 
+    // ── Mega Sim toggle state for the main move display ──
+    // Tracks whether the user wants the move-info-strip to show mega form calcs.
+    // null = auto-detect (default mega when stone owned/equipped), true/false = user override.
+    var _megaSimState = { p1: null, p2: null };
+    var _megaSimApplying = false; // guard against re-entrant calls
+
+    /** Determine if a side currently has a mega form available for simulation.
+     *  For P1: check stone ownership. For P2: check if the equipped item is a mega stone.
+     *  Returns { megaInfo, isMega } — megaInfo is the mega data, isMega true when
+     *  the form is currently displaying the mega form. */
+    function _getMoveDisplayMega(side) {
+        try {
+            var formName = side === 'p1' ? getP1Name() : getP2Name();
+            if (!formName) return null;
+            var sideId = side === 'p1' ? 'p1' : 'p2';
+            var currentForme = $('#' + sideId + ' .forme').val() || '';
+            var item = getItem(sideId);
+            // If currently viewing a mega forme, look up from the base species
+            var isCurrentlyMega = currentForme && currentForme.indexOf('-Mega') >= 0;
+            var baseName = formName; // getP1Name / getP2Name already strips set suffix
+            if (!item) return null;
+            // For P1: must own the stone
+            var megaInfo = null;
+            if (side === 'p1') {
+                megaInfo = pickOwnedMegaFor(baseName, item);
+            } else {
+                // For P2: just needs a matching mega stone equipped (no ownership concept)
+                var megas = getMegasForBase(baseName);
+                for (var i = 0; i < megas.length; i++) {
+                    if (megas[i].stone === item) { megaInfo = megas[i]; break; }
+                }
+            }
+            if (!megaInfo) return null;
+            return { megaInfo: megaInfo, isMega: isCurrentlyMega };
+        } catch (e) { return null; }
+    }
+
+    /** Apply or revert mega form on the calc form for the given side.
+     *  This swaps the .forme dropdown, which triggers the shared_controls
+     *  handler to update types, base stats, ability, and then performCalculations(). */
+    function _applyMegaSimToForm(side, megaInfo, apply) {
+        if (_megaSimApplying) return;
+        _megaSimApplying = true;
+        var sideId = side === 'p1' ? 'p1' : 'p2';
+        var $forme = $('#' + sideId + ' .forme');
+        if (!$forme.length) { _megaSimApplying = false; return; }
+
+        if (apply && megaInfo) {
+            // Check if option exists
+            if ($forme.find('option[value="' + megaInfo.megaName + '"]').length) {
+                $forme.val(megaInfo.megaName).trigger('change');
+            }
+        } else {
+            // Revert to base form
+            var baseName = side === 'p1' ? getP1Name() : getP2Name();
+            if ($forme.find('option[value="' + baseName + '"]').length) {
+                $forme.val(baseName).trigger('change');
+            }
+        }
+        _megaSimApplying = false;
+    }
+
     function _injectMoveInfoStrip(side) {
         var isP1 = side === 'p1';
         var subgroupId = isP1 ? 'move-result-subgroupL' : 'move-result-subgroupR';
@@ -9606,6 +9638,20 @@
             html += '<span class="rsa-move-info-item" title="' + esc(item) + '">';
             if (itemUrl) html += '<img class="rsa-move-info-item-icon" src="' + esc(itemUrl) + '" alt="" onerror="this.style.display=\'none\'">';
             html += esc(item) + '</span>';
+        }
+        // Mega sim checkbox — show when a mega form is available for this side
+        var megaSimData = _megaSimApplying ? null : _getMoveDisplayMega(side);
+        if (megaSimData) {
+            var mg = megaSimData.megaInfo;
+            var autoDefault = true; // default to mega when available
+            var checked = (_megaSimState[side] === null) ? autoDefault : _megaSimState[side];
+            html += '<label class="rsa-move-info-mega-toggle" title="Simulate as ' + esc(mg.megaName) + ' (' + esc(mg.ability) + ')">' +
+                '<input type="checkbox" class="rsa-mega-sim-cb" data-side="' + side + '"' + (checked ? ' checked' : '') + ' /> ✨ Mega</label>';
+            // If checked and form not yet in mega, apply the swap
+            if (checked && !megaSimData.isMega) {
+                var _sd = side, _mg = mg;
+                setTimeout(function () { _applyMegaSimToForm(_sd, _mg, true); }, 0);
+            }
         }
         html += '</div>';
 
@@ -12290,11 +12336,18 @@
             try { toggleMegaPending('p1'); } catch (e) {}
         });
 
-        // Mega Sim toggle — re-render inline controls with recalculated damage %
-        $(document).on('change', '.rsa-inline-mega-sim', function () {
-            _inlineMegaSimOverride = $(this).is(':checked');
-            refreshInlineControls();
+        // Mega sim checkbox in the main move display (info strip)
+        $(document).on('change', '.rsa-mega-sim-cb', function () {
+            var side = $(this).data('side');
+            var checked = $(this).is(':checked');
+            _megaSimState[side] = checked;
+            var megaSimData = _getMoveDisplayMega(side);
+            if (megaSimData) {
+                _applyMegaSimToForm(side, megaSimData.megaInfo, checked);
+            }
         });
+
+
 
         // Log round via inline button
         $(document).on('click', '.rsa-inline-log', function () {

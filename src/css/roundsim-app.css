@@ -297,6 +297,18 @@
     box-shadow: 0 0 6px rgba(217,70,239,0.6);
 }
 
+/* Mega sim toggle in the main move display info strip */
+.rsa-move-info-mega-toggle {
+    display: inline-flex; align-items: center; gap: 3px;
+    margin-left: 8px; padding: 1px 6px;
+    font-size: var(--rsa-fs-xs); font-weight: 700;
+    color: #d946ef; cursor: pointer;
+    background: rgba(217,70,239,0.12); border: 1px solid rgba(217,70,239,0.3);
+    border-radius: 3px; line-height: 1.4; white-space: nowrap;
+}
+.rsa-move-info-mega-toggle:hover { background: rgba(217,70,239,0.25); }
+.rsa-move-info-mega-toggle input { margin: 0; cursor: pointer; }
+
 /* Inline "Mega Evolve" button */
 .rsa-inline-mega-btn {
     background: linear-gradient(135deg, #d946ef 0%, #8b5cf6 100%);
