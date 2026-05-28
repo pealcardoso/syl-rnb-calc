@@ -9722,7 +9722,7 @@
         html += '</div>';
         // Right: info column
         html += '<div class="rsa-move-card-info">';
-        html += '<div class="rsa-move-card-name">' + esc(displayName) + '</div>';
+        html += '<div class="rsa-move-card-name" title="' + esc(displayName) + '">' + esc(displayName) + '</div>';
         html += '<div class="rsa-move-card-types">';
         for (var t = 0; t < types.length; t++) {
             if (types[t]) {
@@ -9732,7 +9732,7 @@
         html += '</div>';
         html += '<div class="rsa-move-card-stats">';
         html += '<span title="Speed">⚡' + spdVal + '</span>';
-        if (ability) html += '<span title="Ability">🛡 ' + esc(ability) + '</span>';
+        if (ability) html += '<span title="' + esc(ability) + '">🛡 ' + esc(ability) + '</span>';
         html += '</div>';
         if (item) {
             var itemUrl = getItemSpriteUrl(item);
