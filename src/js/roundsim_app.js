@@ -1811,8 +1811,9 @@
         return null;
     }
     /** Whether a side's active mon can mega-evolve right now:
-     *  user owns matching stone, stone is equipped, and side hasn't mega'd yet
-     *  in this line. Returns the mega info or null. */
+     *  For P1: user owns matching stone, stone is equipped, and side hasn't mega'd yet.
+     *  For P2 (AI): just needs matching stone equipped (no ownership check).
+     *  Returns the mega info or null. */
     function getMegaEligibility(side) {
         try {
             var line = curLine();
@@ -1822,7 +1823,16 @@
             if (!entry || !entry.item) return null;
             // Already a mega forme? (shouldn't happen if megaActivated is true, but guard)
             if (entry.baseName && entry.name !== entry.baseName) return null;
-            var mg = pickOwnedMegaFor(entry.name, entry.item);
+            var mg;
+            if (side === 'p2') {
+                // AI doesn't need stone ownership — just check equipped item matches a mega stone
+                var megas = getMegasForBase(entry.name);
+                for (var i = 0; i < megas.length; i++) {
+                    if (megas[i].stone === entry.item) { mg = megas[i]; break; }
+                }
+            } else {
+                mg = pickOwnedMegaFor(entry.name, entry.item);
+            }
             if (!mg) return null;
             // Stone must actually be the equipped item (mega evolves only with required stone)
             if (mg.stone !== entry.item) return null;
@@ -3867,8 +3877,14 @@
                 if (_bre2 < 0) _bre2 = line.teams.p2.activeIdx;
                 var _bre2E = line.teams.p2.roster[_bre2];
                 if (_bre2E) {
-                    var _bre2M = pickOwnedMegaFor(_bre2E.baseName || _bre2E.name, _bre2E.item) ||
-                                 (rd.p2MegaName ? { megaName: rd.p2MegaName, ability: rd.p2.ability, stone: _bre2E.item } : null);
+                    var _bre2Megas = getMegasForBase(_bre2E.baseName || _bre2E.name);
+                    var _bre2M = null;
+                    for (var _bm2 = 0; _bm2 < _bre2Megas.length; _bm2++) {
+                        if (_bre2Megas[_bm2].stone === _bre2E.item) { _bre2M = _bre2Megas[_bm2]; break; }
+                    }
+                    if (!_bre2M && rd.p2MegaName) {
+                        _bre2M = { megaName: rd.p2MegaName, ability: rd.p2.ability, stone: _bre2E.item };
+                    }
                     if (_bre2M) {
                         applyMegaToEntry(_bre2E, _bre2M);
                         line.teams.p2.megaActivated = true;
@@ -5648,6 +5664,11 @@
         // Only one Pokémon per side can mega evolve per battle.
         // We record `rdMegaActivated{P1,P2}` on the round for stable replay,
         // and persist mutation on the entry (entry.baseName etc. preserved).
+        // AI (P2) auto mega-evolves 100% when it has a mega stone on the first
+        // round on the field — no button needed.
+        if (!isMegaPending('p2') && getMegaEligibility('p2')) {
+            setMegaPending('p2', true);
+        }
         var _p1MegaActivatedThisRound = false, _p1MegaName = null;
         var _p2MegaActivatedThisRound = false, _p2MegaName = null;
         try {
@@ -7728,7 +7749,11 @@
                 if (_re2 < 0) _re2 = line.teams.p2.activeIdx;
                 var _re2Entry = line.teams.p2.roster[_re2];
                 if (_re2Entry) {
-                    var _re2Mg = pickOwnedMegaFor(_re2Entry.baseName || _re2Entry.name, _re2Entry.item);
+                    var _re2Megas = getMegasForBase(_re2Entry.baseName || _re2Entry.name);
+                    var _re2Mg = null;
+                    for (var _rm2 = 0; _rm2 < _re2Megas.length; _rm2++) {
+                        if (_re2Megas[_rm2].stone === _re2Entry.item) { _re2Mg = _re2Megas[_rm2]; break; }
+                    }
                     if (!_re2Mg && rd.p2MegaName) {
                         _re2Mg = { megaName: rd.p2MegaName, ability: rd.p2.ability, stone: _re2Entry.item };
                     }
@@ -9590,6 +9615,9 @@
             }
         }
         _megaSimApplying = false;
+        // Re-render strips now that the form reflects the new forme
+        _injectMoveInfoStrip('p1');
+        _injectMoveInfoStrip('p2');
     }
 
     function _injectMoveInfoStrip(side) {
@@ -9601,14 +9629,17 @@
         if (!headerDiv) return;
 
         // Read from the calc form — this reflects whatever mon the user is previewing
-        var formName = isP1 ? getP1Name() : getP2Name();
-        if (!formName) {
+        var baseName = isP1 ? getP1Name() : getP2Name();
+        if (!baseName) {
             headerDiv.textContent = isP1 ? 'Select a P1 move' : 'Select a P2 move';
             return;
         }
 
         var sideId = isP1 ? 'p1' : 'p2';
-        var spriteUrl = getSprite(formName);
+        // Use .forme value for display — captures mega form when sim is active
+        var currentForme = $('#' + sideId + ' .forme').val() || '';
+        var displayName = currentForme || baseName;
+        var spriteUrl = getSprite(displayName);
         var ability = getAbility(sideId);
         var item = getItem(sideId);
         // Read types from the form
@@ -9620,9 +9651,30 @@
         var spd = getSpeedInfo();
         var spdVal = isP1 ? spd.p1 : spd.p2;
 
+        // Mega sim checkbox — always check availability (guard auto-apply separately)
+        var megaSimData = _getMoveDisplayMega(side);
+        var megaCbHtml = '';
+        if (megaSimData) {
+            var mg = megaSimData.megaInfo;
+            var autoDefault = true; // default to mega when available
+            var checked = (_megaSimState[side] === null) ? autoDefault : _megaSimState[side];
+            megaCbHtml = '<label class="rsa-move-info-mega-toggle" title="Simulate as ' + esc(mg.megaName) + ' (' + esc(mg.ability) + ')">' +
+                '<input type="checkbox" class="rsa-mega-sim-cb" data-side="' + side + '"' + (checked ? ' checked' : '') + ' /> ✨ Mega</label>';
+            // If checked and form not yet in mega, apply the swap (but not during re-entrant call)
+            if (!_megaSimApplying && checked && !megaSimData.isMega) {
+                var _sd = side, _mg = mg;
+                setTimeout(function () { _applyMegaSimToForm(_sd, _mg, true); }, 0);
+            }
+        }
+
         var html = '<div class="rsa-move-info-strip">';
-        html += '<img class="rsa-move-info-sprite" src="' + esc(spriteUrl) + '" alt="' + esc(formName) + '" onerror="this.style.display=\'none\'">';
-        html += '<span class="rsa-move-info-name">' + esc(formName) + '</span>';
+        // Sprite row: P1 checkbox LEFT of sprite, P2 checkbox RIGHT of sprite
+        html += '<div class="rsa-move-info-sprite-row">';
+        if (isP1 && megaCbHtml) html += megaCbHtml;
+        html += '<img class="rsa-move-info-sprite" src="' + esc(spriteUrl) + '" alt="' + esc(displayName) + '" onerror="this.style.display=\'none\'">';
+        if (!isP1 && megaCbHtml) html += megaCbHtml;
+        html += '</div>';
+        html += '<span class="rsa-move-info-name">' + esc(displayName) + '</span>';
         for (var t = 0; t < types.length; t++) {
             if (types[t]) {
                 html += '<img class="rsa-move-info-type" src="' + getTypeSpriteUrl(types[t]) + '" alt="' + esc(types[t]) + '" title="' + esc(types[t]) + '">';
@@ -9638,20 +9690,6 @@
             html += '<span class="rsa-move-info-item" title="' + esc(item) + '">';
             if (itemUrl) html += '<img class="rsa-move-info-item-icon" src="' + esc(itemUrl) + '" alt="" onerror="this.style.display=\'none\'">';
             html += esc(item) + '</span>';
-        }
-        // Mega sim checkbox — show when a mega form is available for this side
-        var megaSimData = _megaSimApplying ? null : _getMoveDisplayMega(side);
-        if (megaSimData) {
-            var mg = megaSimData.megaInfo;
-            var autoDefault = true; // default to mega when available
-            var checked = (_megaSimState[side] === null) ? autoDefault : _megaSimState[side];
-            html += '<label class="rsa-move-info-mega-toggle" title="Simulate as ' + esc(mg.megaName) + ' (' + esc(mg.ability) + ')">' +
-                '<input type="checkbox" class="rsa-mega-sim-cb" data-side="' + side + '"' + (checked ? ' checked' : '') + ' /> ✨ Mega</label>';
-            // If checked and form not yet in mega, apply the swap
-            if (checked && !megaSimData.isMega) {
-                var _sd = side, _mg = mg;
-                setTimeout(function () { _applyMegaSimToForm(_sd, _mg, true); }, 0);
-            }
         }
         html += '</div>';
 
