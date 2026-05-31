@@ -8,15 +8,34 @@ argument-hint: "What mechanic to test or verify (e.g. 'test Grassy Terrain heali
 
 ## Context
 
-- **Primary source**: `src/js/roundsim_app.js` (~6900 lines, jQuery-based IIFE)
-- **All functions are inside an IIFE** — NOT directly on `window`. To test via `page.evaluate`, you must call exposed global functions or read DOM state.
+- **Primary source**: `src/js/roundsim_app.js` (~17,900 lines, jQuery-based IIFE)
+- **All functions are inside an IIFE** — NOT directly on `window`. To test via `page.evaluate`, call exposed globals, read DOM state, **or use the `window.__rsaTest` test harness (preferred — see below)**.
 - The round sim sits on top of the calc engine (`window.calc.*`) and reads `window.damageResults[]` for damage values.
 - Data lookups: `window.BattleMovedex`, `window.BattleAbilities`, `window.BattleItems`, `window.BattlePokedex`
 - Type chart: `calc.TYPE_CHART[gen]` — gen defaults to 9
+- **Line numbers in this doc are approximate** and drift as the file grows. Always `grep_search` for the function name to find the current location; don't trust the `Lxxxx` markers literally.
+
+### `window.__rsaTest` — internal test harness (USE THIS)
+
+A curated subset of closure-scoped internals is exposed on `window.__rsaTest` for Playwright tests (search the source for `window.__rsaTest.` to see the full, current list). Key entries:
+
+| Helper | Purpose |
+|---|---|
+| `captureRound(p1MoveIdx, p2MoveIdx, p2Crit, p1PreDmg, p1PreStatus, comment, p1ApplySecondary, p2ApplySecondary, p2Hits, p2CritHits)` | Log a round from current form state |
+| `calcDamageDirect(atkEntry, defEntry, moveName, megaOverride, hitsOverride)` | Headless damage calc from two roster entries (returns `{minDmg,maxDmg,range,move,desc}`; **per-hit × `move.hits`** for multi-hit) |
+| `getDamageInfo(sideIdx, moveIdx)` | Damage from the live form/`damageResults` |
+| `curLine()` / `getActiveRounds()` / `getActiveEntry(team)` | Read current battle line/rounds/active mon |
+| `rebuildLineTeams(line)` / `rebuildBranchTeams` | Replay frozen round deltas to reconstruct team HP state |
+| `resimulateBerryForEntry(line, side, name)` | Retroactively re-apply Sitrus/Oran healing to logged rounds (see §16) |
+| `renderRoundCard(rd, branchIdx)` / `renderPivotIncomingCard(pv, side)` | Render a round-log card; pivot rounds stack a second "incoming mon" card on the pivoting side (see §19) |
+| `findInRoster(team, name)` / `switchActive` / `loadPokemonIntoForm` | Roster/form helpers |
+| `analyzeFight(line)` | Read-only fork/segment/recommendation analysis |
+
+**Build/verify loop**: edit `src/js/...` → `node build view` (copies `src`→`dist`, adds md5 cachebusters) → tests/verification run against `dist` served on **port 8080** (`node tests/serve-dist.js`, isolated localStorage). **Never** touch port 3000 (the user's live `node server.js`). `calcDamageDirect.length === 5` confirms the current build is loaded.
 
 ---
 
-## 1. Architecture — 13 Custom Mechanics Areas
+## 1. Architecture — Custom Mechanics Areas
 
 | # | Area | Key Functions (line approx.) | Testability |
 |---|---|---|---|
@@ -323,6 +342,9 @@ function ignoresAbility(attackerAbility) { ... }
 function applySurvivalChecks(defEntry, hpAfter, hpBefore, maxHP, atkAbility) { ... }
 ```
 
+### Multi-hit interaction (IMPORTANT)
+`applySurvivalChecks` only fires Focus Sash / Sturdy when `hpBefore >= maxHP` (full HP). For **multi-hit moves** the defender is no longer at full HP after the first hit, so Sash/Sturdy can only ever trigger on the **first** hit — exactly matching the games. This is handled by the per-hit simulation described in **§16**, not by lump-sum damage. See §16 for the full inter-hit model.
+
 ---
 
 ## 8. Extra Damage Sources (Post-Calc)
@@ -582,4 +604,101 @@ expect(damage).toBe(Math.floor(maxHP / 8));   // 1/8 residual
 
 // Speed
 expect(speed).toBe(Math.floor(baseSpe * 1.5));  // Choice Scarf
+```
+
+### Multi-hit + inter-hit item proc (via `__rsaTest`)
+```javascript
+// Defender with Sitrus survives a multi-hit move that lump-sum would KO,
+// because the berry heals BETWEEN hits (see §16).
+const res = await page.evaluate(() => {
+    // ...set up P1 defender (Sitrus, low HP) vs P2 attacker (e.g. Bullet Seed)...
+    window.__rsaTest.captureRound('none', p2BulletSeedIdx, false, 0, '', '', false, false, 5, 0);
+    const rd = window.__rsaTest.curLine().rounds.slice(-1)[0];
+    return { hpAfter: rd.p1.hpAfter.current, consumed: rd.p1.itemConsumed };
+});
+expect(res.hpAfter).toBeGreaterThan(0);          // survived via inter-hit heal
+expect(res.consumed).toBe('Sitrus Berry');
+```
+
+---
+
+## 16. Multi-Hit Inter-Hit Item Procs
+
+**Rule (games)**: HP-dependent items/abilities can trigger BETWEEN the hits of a multi-hit move — both variable-count moves (Bullet Seed, Rock Blast, Icicle Spear) AND fixed-count moves (Dual Wingbeat, Double Hit, Bonemerang). The simulator models this per hit rather than applying the move's total damage as a single lump sum.
+
+### What procs per hit (defender)
+| Item / Ability | Trigger | Effect |
+|---|---|---|
+| Sitrus Berry | HP ≤ 50% after a hit | Heal `floor(maxHP / 4)`, consumed |
+| Oran Berry | HP ≤ 50% after a hit | Heal 10 HP, consumed |
+| Liechi/Ganlon/Petaya/Apicot/Salac (pinch berries) | HP ≤ 25% after a hit | +1 to Atk/Def/SpA/SpD/Spe respectively, consumed |
+| Focus Sash (item) | Lethal hit **from full HP** | Survive at 1 HP, consumed (first hit only) |
+| Sturdy (ability) | Lethal hit **from full HP** | Survive at 1 HP (first hit only) |
+
+A consumed item fires **once** — later hits don't re-trigger it. Sash/Sturdy can only save the first hit (after it, HP < max).
+
+### Why it matters
+Lump-sum application can wrongly KO a defender that the games would save: e.g. Bewear at 100/200 HP hit by 5× Bullet Seed (24/hit = 120 total). Lump-sum → 100 − 120 = KO. Per-hit → first hit drops it to 76 (≤50%) → Sitrus heals to 126 → survives the remaining hits at ~30 HP.
+
+### Implementation (`roundsim_app.js`)
+Helpers live just after `applySurvivalChecks` (grep for the names):
+- `PINCH_BERRY_BOOSTS` — id→stat-boost map for the 5 pinch berries.
+- `defenderNeedsPerHitSim(defEntry)` — true if the defender holds Sitrus/Oran/Focus Sash/a pinch berry, or has Sturdy.
+- `applyMultiHitDefense(defEntry, hpStart, totalDmg, hits, atkAbility)` — **pure**; splits `totalDmg` evenly across `hits` (cumulative rounding so per-hit chunks sum exactly to the total), applies survival checks + berry procs hit-by-hit, returns `{ hp, sashed, sturdied, itemConsumed, heal, boost }`.
+- `applyAttackToDefenderHP(defEntry, hpBefore, dmg, atkHits, atkAbility)` — routes through the per-hit sim **only** when `atkHits > 1 && defenderNeedsPerHitSim(...)`; otherwise lump-sum + a single `applySurvivalChecks` (so single-hit moves and non-qualifying defenders are byte-for-byte unchanged → zero regression).
+
+In `captureRound`, the speed-ordered damage block computes `p1AtkHits`/`p2AtkHits` from `pXDmg.move.hits` (the authoritative count baked into the total) and resolves each of the four defender "spots" through `applyAttackToDefenderHP`. The **worst-case and best-case HP trackers must both be computed BEFORE the defender's item is cleared**, because `applyMultiHitDefense` reads `defEntry.item`. On consumption the worst tracker sets the `pXItemConsumed` flag, clears `entry.item` + the `#side .item` field, and applies any pinch-berry boost via `applyBoosts`. Clearing the item also prevents the end-of-turn berry pass (`applyPostEOTBerries`) from double-healing.
+
+### Per-hit damage division
+`calcDamageDirect` / `getDamageInfo` return a **total** = per-hit `range()` × `move.hits`. To split back into per-hit damage, divide by `move.hits` (authoritative) — never by the UI hit selector, which may differ. Note `calc.Move`'s `hits` option only affects moves flagged `multihit`; single-hit moves ignore it (verified: Liquidation stays 1 hit even with `hits: 5`).
+
+---
+
+## 17. Retroactive Berry Re-Simulation on Item Change
+
+**Problem**: Logged rounds store *frozen* `hpBefore`/`hpAfter`. `rebuildLineTeams` replays those frozen deltas (and restores each round's recorded item), so changing a roster mon's item AFTER rounds were logged did **not** update the already-logged rounds (e.g. adding a Sitrus Berry didn't heal the rounds the mon was on field).
+
+**Fix**: `resimulateBerryForEntry(line, side, name)` (just before `rebuildLineTeams`) re-applies a HP-restoring berry (Sitrus/Oran) across every singles round where `name` was on field for `side`:
+1. For each such round, recover the **pure damage delta** by stripping any previously-recorded berry heal from the round's `eot` list (`oldHeal`), so the pass is idempotent and supports add/remove/swap.
+2. Re-apply that pure damage to a running HP that carries forward across the mon's rounds.
+3. Heal once, the first round HP drops to ≤50% (`floor(maxHP/4)` for Sitrus, 10 for Oran), capped at `maxHP`; mark `itemConsumed`, push a `{ source, damage: -heal }` eot entry, and update the round's item badge (held → `''` after consumption).
+4. The accumulated heal carries forward, so all later rounds' HP shift up correctly.
+
+The `.rsa-item-select` change handler calls `resimulateBerryForEntry` → `rebuildLineTeams` → `renderAll` when the mon has logged rounds (mirroring the inline HP-edit handler).
+
+**Limitations** (document when relevant):
+- Re-applies **post-round** healing only. It cannot retroactively turn a KO into a survival (a Focus Sash / Sturdy / inter-hit berry proc added *after* the round was logged) — those need the round re-logged.
+- Only Sitrus/Oran are re-simulated (damage-affecting items like resist berries / Assault Vest / Choice items are not recomputed retroactively). Doubles rounds are skipped.
+
+### Test (verified via `__rsaTest.resimulateBerryForEntry`)
+Adding Sitrus to a 200-HP mon that took 60/round over 3 rounds (200→140→80→30) yields `hpAfter = [140, 130, 80]`: it heals +50 the round HP first hits ≤100, and the +50 carries forward. Re-running is idempotent; removing the berry reverts to `[140, 80, 30]`.
+
+---
+
+## 18. Known Mechanics NOT Modeled (Scope Notes)
+
+- **Inter-hit healing for damage-changing items** is not retroactively recomputed (§17) — only Sitrus/Oran HP restore.
+- **Doubles** rounds are excluded from the retroactive berry re-sim (§17).
+- Multi-hit per-hit damage is split **evenly** (cumulative rounding); the engine does not model per-hit damage-roll variance or per-hit crits within a single multi-hit move beyond the aggregate crit-blend already applied to the total.
+
+## 19. Pivot Switch Dual-Box Rendering
+
+When a singles round uses a P1/P2 pivot move (U-turn / Volt Switch) and the opponent's hit lands on the **incoming** mon, the round-log card renders **two stacked actor cards on the pivoting side**:
+
+1. The pivoting mon's normal card (deals damage, then switches out — its `hpAfter` is restored to `hpBefore` since pivots take no recoil).
+2. A compact **incoming-mon card** (`renderPivotIncomingCard(pv, side)`) framed as *receiving* the opponent's hit: header (sprite/item/ability/status + HP-before bar), a `⇄ switched in` badge, a `KO'd` tag when it faints, the opponent's move (type/category sprites + `Dmg: min-max`), a hazard chip, and the HP-after sim bar.
+
+**Data**: captured as a frozen snapshot `rd.pivotSwitch.incomingCard` in the `.rsa-inline-p1-pivot-confirm` / `.rsa-inline-p2-pivot-confirm` handlers — `{name,sprite,item,ability,status,maxHP,hpBefore,move,moveData,damage,hazardDamage}`. `hpBefore` is captured **before** the recalc hit / hazards mutate the switch-in's HP; `pv.switchInHpAfter` is finalized **after** recalc + entry-hazard damage. Layout uses `.rsa-actor-stack` (flex column) wrapping the side; the non-pivoting side stays a single `.rsa-actor`. When `incomingCard` is present the legacy one-line `rsa-round-switchpred` pivot summary is suppressed (kept only as a fallback for old saved rounds).
+
+**Non-damage effects redirect onto the switch-in**: the opponent's move was aimed at the outgoing mon, so its **guaranteed** status / confusion / on-target stat drops land on the incoming mon (e.g. Hypnosis → Sleep, Toxic → Badly Poisoned). `applyPivotIncomingEffects(switchEntry, oppMoveName)` (module-scoped, called in both confirm handlers after recalc + hazards) resolves `resolveSecondaryEffects(md, _, guaranteedOnly=true)` and applies it, honoring ability (`isSleepImmune`/`isFreezeImmune`-equivalent), type (Fire/Burn, Poison·Steel/Poison, Ice/Freeze, Electric/Paralysis gen6+), and item-cure (Lum/Chesto/Aspear) immunities; KO'd switch-ins get nothing. **Limitation (matches `captureRound`)**: full type-effectiveness immunity is NOT checked, so e.g. Thunder Wave still "paralyzes" a Ground type — only the status-immunity rules above apply.
+
+**Outgoing mon never receives the effect (redirect at capture, not revert)**: `captureRound` defers the opponent's TARGET effects the same way it already defers the opponent's DAMAGE. When the first mover used a pivot move and went first (`p?SelfSwitchFirst` → `firstMoverPivots`), the second mover's `status` / `confusion` / on-target `boosts` are **skipped entirely** for the outgoing mon (so its berry is never consumed, no status/confusion/stat-drop is applied); only the second mover's `selfBoosts` still apply to itself. The redirected effect lands on the switch-in later via `applyPivotIncomingEffects` at confirm time. This means the outgoing pivoting mon keeps its real pre-existing state and there is **no apply-then-revert** — if the user clicks "Skip pivot" the effect simply never lands, consistent with the deferred damage. (Symmetric note: redirect only happens when the pivoting mon goes FIRST; a pivot mon moving second takes the opponent's hit/effects before switching, so no redirect.)
+
+**Verify** (headless, no UI flow needed):
+```js
+const T = window.__rsaTest;
+const html = T.renderRoundCard(rdWithPivotSwitch, -1);
+// → '.rsa-actor-stack.rsa-p1-stack' contains 2 '.rsa-actor'; '.rsa-actor-incoming' shows the switch-in + KO tag
+// Status redirect: T.applyPivotIncomingEffects(mon, 'Hypnosis') → 'Sleep'; mon.status === 'Sleep'
+// Outgoing mon: captured with no status/berry-loss (deferred); T.revertPivotOutgoingEffects no longer exists.
 ```

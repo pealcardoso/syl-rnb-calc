@@ -1219,6 +1219,24 @@
 }
 .rsa-actor.rsa-p1 { border-left: 3px solid var(--rsa-blue); }
 .rsa-actor.rsa-p2 { border-left: 3px solid var(--rsa-red); }
+/* Stacked side: pivoting mon's card + the incoming mon's card vertically */
+.rsa-actor-stack { flex: 1; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.rsa-actor-stack .rsa-actor { flex: 0 0 auto; }
+/* Incoming (switched-in) mon card */
+.rsa-actor-incoming { position: relative; border-style: dashed; }
+.rsa-actor-incoming.rsa-actor-incoming-ko { opacity: 0.92; border-color: var(--rsa-red); }
+.rsa-switched-in-tag {
+    background: var(--rsa-blue); color: #fff; font-weight: 700;
+    font-size: var(--rsa-fs-xs); padding: 1px 5px; border-radius: 4px;
+}
+.rsa-ko-tag {
+    background: var(--rsa-red); color: #fff; font-weight: 800;
+    font-size: var(--rsa-fs-xs); padding: 1px 5px; border-radius: 4px;
+}
+.rsa-incoming-receive {
+    font-size: var(--rsa-fs-xs); color: var(--rsa-text-muted);
+    text-transform: uppercase; letter-spacing: 0.04em; margin: 4px 0 2px;
+}
 .rsa-actor-header { display: flex; gap: 8px; align-items: center; margin-bottom: 6px; }
 .rsa-sprite { width: 48px; height: 48px; image-rendering: pixelated; }
 .rsa-actor-info { flex: 1; min-width: 0; }
