@@ -12871,6 +12871,19 @@
         }
 
         // ── Export Line (JSON) ──
+        // Deep clone and strip sprite URLs — sprites are external (not bundled) and bloat the export
+        function stripSprites(obj) {
+            if (!obj || typeof obj !== 'object') return obj;
+            if (Array.isArray(obj)) return obj.map(stripSprites);
+            var out = {};
+            for (var k in obj) {
+                if (obj.hasOwnProperty(k)) {
+                    if (k === 'sprite' || k === 'baitSprite' || k === 'baseSprite') continue;
+                    out[k] = stripSprites(obj[k]);
+                }
+            }
+            return out;
+        }
         $('#rsa-export-line').on('click', function () {
             var $btn = $(this);
             try {
@@ -12900,7 +12913,7 @@
                     trainerName: trName,
                     customSets: {},
                     boxExcluded: [],
-                    line: line
+                    line: stripSprites(line)
                 };
                 // Include custom sets (imported P1 mons)
                 try { payload.customSets = JSON.parse(localStorage.getItem('customsets') || '{}'); } catch (e) {}
