@@ -840,6 +840,7 @@
 .rsa-cc-result-move { font-weight: 600; min-width: 120px; }
 .rsa-cc-result-dmg { color: var(--rsa-red); font-weight: 600; }
 .rsa-cc-result-pct { color: var(--rsa-text-secondary); }
+.rsa-cc-ai-rate { color: var(--rsa-yellow, #f6c90e); font-weight: 600; font-size: var(--rsa-fs-xs); }
 .rsa-cc-result-desc {
     font-size: var(--rsa-fs-2xs); color: var(--rsa-text-secondary);
     margin-top: 2px;

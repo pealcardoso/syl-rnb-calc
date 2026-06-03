@@ -1206,6 +1206,34 @@
         var field = _getField();
         var field2 = field.clone().swap();
 
+        // Pre-compute all results so we can pass them to generateMoveDist for AI rates
+        var _p1Results = [], _p2Results = [];
+        for (var i = 0; i < 4; i++) {
+            var _mv1 = p1.moves[i] || new calc.Move(gen || 9, '(No Move)');
+            try { _p1Results.push(calc.calculate(gen || 9, p1, p2, _mv1, field)); }
+            catch (e) { _p1Results.push(null); }
+            var _mv2 = p2.moves[i] || new calc.Move(gen || 9, '(No Move)');
+            try { _p2Results.push(calc.calculate(gen || 9, p2, p1, _mv2, field2)); }
+            catch (e) { _p2Results.push(null); }
+        }
+
+        // Compute AI move rates for P2 using custom-calc speeds
+        // Build entry-like objects from the calc Pokemon for calcEffectiveSpeed
+        var _p1EntryLike = { item: p1.item||'', ability: p1.ability||'', status: p1.status||'',
+            boosts: { sp: (p1.boosts && p1.boosts.spe) || 0 } };
+        var _p2EntryLike = { item: p2.item||'', ability: p2.ability||'', status: p2.status||'',
+            boosts: { sp: (p2.boosts && p2.boosts.spe) || 0 } };
+        var _p1CCSpe = calcEffectiveSpeed(_p1EntryLike, p1.stats.spe);
+        var _p2CCSpe = calcEffectiveSpeed(_p2EntryLike, p2.stats.spe);
+        var _trRoomCC = $('#trickroom').is(':checked');
+        var _ccFastestSide = _trRoomCC ? (_p1CCSpe <= _p2CCSpe ? '0' : '1') : (_p1CCSpe >= _p2CCSpe ? '0' : '1');
+        var _ccAiRates = [];
+        try {
+            var _ccAiOpts = typeof createAiOptionsDict === 'function' ? createAiOptionsDict() : {};
+            _ccAiOpts.firstTurnOutAiOpt = isP2FirstTurnOut(p2Entry.name);
+            _ccAiRates = calc.generateMoveDist([_p1Results, _p2Results], _ccFastestSide, _ccAiOpts) || [];
+        } catch (e) { _ccAiRates = []; }
+
         var html = '';
 
         // P1 → P2
@@ -1213,8 +1241,12 @@
         for (var i = 0; i < 4; i++) {
             var mv = p1.moves[i];
             if (!mv || mv.name === '(No Move)') continue;
+            var res = _p1Results[i];
+            if (!res) {
+                html += '<div class="rsa-cc-result-row"><span class="rsa-cc-result-move">' + esc(mv.name) + '</span> <em>error</em></div>';
+                continue;
+            }
             try {
-                var res = calc.calculate(gen || 9, p1, p2, mv, field);
                 var rng = res.range();
                 var p2MaxHP = p2.rawStats.hp;
                 var minPct = p2MaxHP > 0 ? (rng[0] / p2MaxHP * 100).toFixed(1) : 0;
@@ -1233,21 +1265,30 @@
             }
         }
 
-        // P2 → P1
+        // P2 → P1 (with AI percentages)
         html += '<div class="rsa-cc-result-title" style="margin-top:10px">' + esc(p2Entry.name) + ' → ' + esc(p1Entry.name) + '</div>';
         for (var i = 0; i < 4; i++) {
             var mv = p2.moves[i];
             if (!mv || mv.name === '(No Move)') continue;
+            var res = _p2Results[i];
+            if (!res) {
+                html += '<div class="rsa-cc-result-row"><span class="rsa-cc-result-move">' + esc(mv.name) + '</span> <em>error</em></div>';
+                continue;
+            }
             try {
-                var res = calc.calculate(gen || 9, p2, p1, mv, field2);
                 var rng = res.range();
                 var p1MaxHP = p1.rawStats.hp;
                 var minPct = p1MaxHP > 0 ? (rng[0] / p1MaxHP * 100).toFixed(1) : 0;
                 var maxPct = p1MaxHP > 0 ? (rng[1] / p1MaxHP * 100).toFixed(1) : 0;
+                var aiRate = _ccAiRates[i] != null ? _ccAiRates[i] : null;
+                var aiPctHtml = aiRate != null
+                    ? ' <span class="rsa-cc-ai-rate">[AI ' + Math.round(aiRate * 100) + '%]</span>'
+                    : '';
                 html += '<div class="rsa-cc-result-row">' +
                     '<span class="rsa-cc-result-move">' + esc(mv.name) + '</span>' +
                     '<span class="rsa-cc-result-dmg">' + rng[0] + '–' + rng[1] + '</span>' +
                     '<span class="rsa-cc-result-pct">(' + minPct + '% – ' + maxPct + '%)</span>' +
+                    aiPctHtml +
                     '</div>';
                 try {
                     var desc = res.moveDesc(notation);
@@ -3860,6 +3901,7 @@
     var suppressP2Sync = false;  // Prevent syncP2Team during intentional switches
     var _switchInProgress = false; // Prevent re-entrant switch clicks & skip P2 form save during switch
     var _loadingForm = false;      // Suppress calc-trigger handler during batch form loads
+    var _loadFormTimer = {};        // Per-side pending setTimeout id for loadPokemonIntoForm
 
 
     // Battle format: 'singles' | 'doubles-1t' | 'doubles-2t'
@@ -3955,6 +3997,9 @@
                 entry.toxicCounter = 0;
                 entry.boosts = { at: 0, df: 0, sa: 0, sd: 0, sp: 0 };
                 if (entry.initialItem !== undefined) entry.item = entry.initialItem;
+                // Reset ability from set definition to prevent contaminated values persisting
+                var _brtSet = lookupSet(entry.setId);
+                if (_brtSet && _brtSet.ability && !entry.baseName) entry.ability = _brtSet.ability;
             }
         }
         // Apply user-set pre-damage HP and pre-status for P1 before round
@@ -4051,6 +4096,7 @@
                     if (rd.p1.status) line.teams.p1.roster[p1i].status = rd.p1.status;
                     if (rd.p1.boosts) line.teams.p1.roster[p1i].boosts = $.extend({}, rd.p1.boosts);
                     if (rd.p1.item !== undefined) line.teams.p1.roster[p1i].item = rd.p1.item;
+                    if (line.teams.p1.roster[p1i].ability) rd.p1.ability = line.teams.p1.roster[p1i].ability;
                     line.teams.p1.activeIdx = p1i;
 
                     // EOT status damage for P1 (branch rebuild)
@@ -4075,6 +4121,7 @@
                     if (rd.p2.status) line.teams.p2.roster[p2i].status = rd.p2.status;
                     if (rd.p2.boosts) line.teams.p2.roster[p2i].boosts = $.extend({}, rd.p2.boosts);
                     if (rd.p2.item !== undefined) line.teams.p2.roster[p2i].item = rd.p2.item;
+                    if (line.teams.p2.roster[p2i].ability) rd.p2.ability = line.teams.p2.roster[p2i].ability;
                     line.teams.p2.activeIdx = p2i;
                 }
                 // Pivot switch: apply recalculated damage to the incoming mon
@@ -4610,6 +4657,17 @@
             if (p2Entry.ability) p2Poke.ability = p2Entry.ability;
             if (p1Entry.ability) p1Poke.ability = p1Entry.ability;
 
+            // Apply stat boosts from roster entry (at→atk, df→def, sa→spa, sd→spd, sp→spe)
+            // so damage calculations account for current attack/defense/etc. modifiers.
+            if (p2Entry.boosts) {
+                var _b2 = p2Entry.boosts;
+                p2Poke.boosts = { atk: _b2.at||0, def: _b2.df||0, spa: _b2.sa||0, spd: _b2.sd||0, spe: _b2.sp||0 };
+            }
+            if (p1Entry.boosts) {
+                var _b1 = p1Entry.boosts;
+                p1Poke.boosts = { atk: _b1.at||0, def: _b1.df||0, spa: _b1.sa||0, spd: _b1.sd||0, spe: _b1.sp||0 };
+            }
+
             var field = _getField();
             var field2 = field.clone().swap();
 
@@ -4625,7 +4683,11 @@
             }
 
             var damageResults = [p1Results, p2Results];
-            var fastestSide = p1Poke.stats.spe >= p2Poke.stats.spe ? '0' : '1';
+            // Compute effective speed (respects boosts, item, ability, status, weather, terrain, trick room)
+            var _p1EffSpe = calcEffectiveSpeed(p1Entry, p1Poke.stats.spe);
+            var _p2EffSpe = calcEffectiveSpeed(p2Entry, p2Poke.stats.spe);
+            var _trRoom = $('#trickroom').is(':checked');
+            var fastestSide = _trRoom ? (_p1EffSpe <= _p2EffSpe ? '0' : '1') : (_p1EffSpe >= _p2EffSpe ? '0' : '1');
             var aiOptions = typeof createAiOptionsDict === 'function' ? createAiOptionsDict() : {};
 
             // Auto-detect first-turn-out for moves like Fake Out / First Impression
@@ -4954,7 +5016,9 @@
         }
 
         // --- Contact damage (Iron Barbs, Rough Skin, Rocky Helmet) — blocked by Magic Guard ---
+        // Each hit of a multi-hit move triggers contact effects independently in-game.
         var isContact = !!(move.makesContact || move.flags && move.flags.contact);
+        var contactHits = (move.hits > 1) ? move.hits : 1;
         // Protective Pads / Punching Glove: attacker bypasses contact effects
         var atkContactAvoid = !!(atkItemEff && atkItemEff.contactAvoidance);
         if (isContact && !atkContactAvoid && moveInfo.minDmg > 0 && !atkMagicGuard) {
@@ -4964,7 +5028,7 @@
                 ? defAbilEff.contactRecoil
                 : (CONTACT_DAMAGE_ABILITIES[defender.ability] || 0);
             if (defContactFrac > 0) {
-                var contactDmg = Math.max(1, Math.floor(atkMaxHP * defContactFrac));
+                var contactDmg = Math.max(1, Math.floor(atkMaxHP * defContactFrac)) * contactHits;
                 extras.push({
                     target: 'attacker',
                     source: defender.ability,
@@ -4978,7 +5042,7 @@
                 ? defItemEff.contactRecoilToAttacker
                 : (CONTACT_DAMAGE_ITEMS[defender.item] || 0);
             if (defItemContactFrac > 0) {
-                var contactDmg2 = Math.max(1, Math.floor(atkMaxHP * defItemContactFrac));
+                var contactDmg2 = Math.max(1, Math.floor(atkMaxHP * defItemContactFrac)) * contactHits;
                 extras.push({
                     target: 'attacker',
                     source: defender.item,
@@ -5180,6 +5244,14 @@
 
     function loadPokemonIntoForm(side, entry) {
         if (!entry || !entry.setId) return;
+        // Cancel any pending deferred apply for this side — prevents a stale
+        // setTimeout (from a previous loadPokemonIntoForm call) from overwriting
+        // ability/item/status after this newer load has already set the form.
+        if (_loadFormTimer[side]) {
+            clearTimeout(_loadFormTimer[side]);
+            _loadFormTimer[side] = null;
+            _loadingForm = false; // previous load's lock must be cleared too
+        }
         // Reset mega sim state when loading a new pokemon into the form
         _megaSimState[side] = null;
         _megaSimBaseAbility[side] = null;
@@ -5223,7 +5295,11 @@
         // with NO_CALC + _loadingForm to prevent cascading recalculations.
         // 0ms timeout: yield to the browser so Select2's internal handlers can
         // settle, then immediately apply HP/status/ability/item/boosts and recalc.
-        setTimeout(function () {
+        // Store the timer ID so a subsequent loadPokemonIntoForm for the same side
+        // can cancel this before it fires (prevents stale data overwrites).
+        var _loadSide = side;
+        _loadFormTimer[side] = setTimeout(function () {
+            _loadFormTimer[_loadSide] = null;
             window.NO_CALC = true;
 
             if (entry.currentHP !== undefined) {
@@ -5349,7 +5425,9 @@
         if (_savedFormItem !== null) {
             window.NO_CALC = true;
             $('#p2 .item').val(_savedFormItem);
-            if (_savedFormAbility) $('#p2 .ability').val(_savedFormAbility);
+            // NOTE: Do NOT restore _savedFormAbility to the DOM — it can be a stale/wrong
+            // ability from another pokemon (e.g. Analytic from Starmie written back when
+            // Scolipede is active). The correct ability is pushed later by syncActiveStateToForm.
             window.NO_CALC = false;
         }
         if (_savedP1ActiveIdx !== null && line.activeBranchIdx >= 0) {
@@ -5425,7 +5503,9 @@
                     newRoster.push(oldEntries[pokeName]);
                 }
             } else if (pokeName === p2Name) {
-                // Use live calc form data for the currently loaded pokemon
+                // Use set data as the ground truth for ability and item — the form's
+                // ability/item fields can be stale during async transitions (e.g. when
+                // the set-selector just changed and ability hasn't updated yet).
                 var hp = getCurrentHP('p2');
                 var maxHP = hp.max || 100;
                 var formMoves2 = getMoves('p2');
@@ -5435,11 +5515,12 @@
                     var setFallback = lookupSet(setId);
                     if (setFallback && setFallback.moves) formMoves2 = setFallback.moves;
                 }
+                var _setForActive = lookupSet(setId);
                 var entry = createRosterEntry(
                     pokeName, setId,
                     getSprite(pokeName),
-                    getItem('p2'),
-                    getAbility('p2'),
+                    (_setForActive && _setForActive.item !== undefined) ? (_setForActive.item || '') : getItem('p2'),
+                    (_setForActive && _setForActive.ability) ? _setForActive.ability : getAbility('p2'),
                     formMoves2,
                     maxHP,
                     getTypes('p2')
@@ -5481,7 +5562,10 @@
             });
             if (!seenInRound) {
                 var freshSet = lookupSet(ne.setId);
-                if (freshSet && freshSet.item !== undefined) ne.item = freshSet.item || '';
+                if (freshSet) {
+                    if (freshSet.item !== undefined) ne.item = freshSet.item || '';
+                    if (freshSet.ability) ne.ability = freshSet.ability;
+                }
             }
         }
 
@@ -6175,10 +6259,15 @@
                 applyBoosts(firstEntry, firstEff.selfBoosts);
             }
             if (firstEff.volatile === 'flinch') {
-                if (firstMover === 'p1') { firstEff.flinchTarget = true; p1SecondaryApplied = firstEff; }
-                else { firstEff.flinchTarget = true; p2SecondaryApplied = firstEff; }
-                secondMoverBlocked = true;
-                secondMoverBlockReason = 'flinch';
+                // Check defender's ability for flinch immunity (Inner Focus) or secondary immunity (Shield Dust)
+                var _flinchDefAe = getAbilityEffects(secondEntry.ability || '');
+                var _flinchBlocked = _flinchDefAe && (_flinchDefAe.flinchImmunity || _flinchDefAe.secondaryImmunity);
+                if (!_flinchBlocked) {
+                    if (firstMover === 'p1') { firstEff.flinchTarget = true; p1SecondaryApplied = firstEff; }
+                    else { firstEff.flinchTarget = true; p2SecondaryApplied = firstEff; }
+                    secondMoverBlocked = true;
+                    secondMoverBlockReason = 'flinch';
+                }
             }
         }
 
@@ -6203,13 +6292,17 @@
             if (ae && ae.reactiveSpeedDrop) return ae.reactiveSpeedDrop;
             return defAbility === 'Cotton Down' ? 1 : 0;
         }
+        // Each hit of a multi-hit move triggers Cotton Down (and similar reactive
+        // speed-drop abilities) separately, so multiply the drop by the hit count.
         var p2Reactive = reactiveDrop(p2Entry.ability);
         if (p1Dmg && p1Dmg.maxDmg > 0 && !p1Flinched && p2Reactive) {
-            applyBoosts(p1Entry, { spe: -p2Reactive });
+            var _p1AtkHits = (p1Dmg.move && p1Dmg.move.hits > 1) ? p1Dmg.move.hits : 1;
+            applyBoosts(p1Entry, { spe: -(p2Reactive * _p1AtkHits) });
         }
         var p1Reactive = reactiveDrop(p1Entry.ability);
         if (p2Dmg && p2Dmg.maxDmg > 0 && !p2Flinched && p1Reactive) {
-            applyBoosts(p2Entry, { spe: -p1Reactive });
+            var _p2AtkHits = (p2Dmg.move && p2Dmg.move.hits > 1) ? p2Dmg.move.hits : 1;
+            applyBoosts(p2Entry, { spe: -(p1Reactive * _p2AtkHits) });
         }
 
         // Increment toxic counter before EOT so the correct turn count is used
@@ -6629,6 +6722,17 @@
                 fldS.trickRoomTurns = 5;
                 $('#trickroom').prop('checked', true).trigger('change');
             }
+        }
+
+        // ── End-of-turn Speed Boost (ability: Speed Boost) ──
+        // Applies +1 Speed stage at end of the turn (only if the pokemon survived).
+        var _p1SpeedBoostAe = getAbilityEffects(p1Entry.ability || '');
+        if (_p1SpeedBoostAe && _p1SpeedBoostAe.eotSpeedBoost && p1HPAfter > 0) {
+            applyBoosts(p1Entry, { spe: _p1SpeedBoostAe.eotSpeedBoost });
+        }
+        var _p2SpeedBoostAe = getAbilityEffects(p2Entry.ability || '');
+        if (_p2SpeedBoostAe && _p2SpeedBoostAe.eotSpeedBoost && p2HPAfter > 0) {
+            applyBoosts(p2Entry, { spe: _p2SpeedBoostAe.eotSpeedBoost });
         }
 
         // Update roster HP
@@ -7163,6 +7267,8 @@
                     isContact = !!(moveData.makesContact || (moveData.flags && moveData.flags.contact));
                 }
                 if (isContact && act.entry.ability !== 'Magic Guard') {
+                    // Each hit of a multi-hit move triggers contact effects per hit.
+                    var dblContactHits = (moveData && moveData.hits > 1) ? moveData.hits : 1;
                     for (var di = 0; di < dmgResults.length; di++) {
                         if (dmgResults[di].blocked) continue; // no contact damage through protect/telepathy
                         var defE = fighters[dmgResults[di].target];
@@ -7171,7 +7277,7 @@
                         // Defender ability (Iron Barbs, Rough Skin)
                         if (CONTACT_DAMAGE_ABILITIES[defE.ability]) {
                             var frac = CONTACT_DAMAGE_ABILITIES[defE.ability];
-                            var cDmg = Math.max(1, Math.floor(atkMaxHP * frac));
+                            var cDmg = Math.max(1, Math.floor(atkMaxHP * frac)) * dblContactHits;
                             actionExtras.push({ target: 'attacker', source: defE.ability + ' (' + defE.name + ')', damage: cDmg, type: 'contact' });
                             act.entry.currentHP = Math.max(0, act.entry.currentHP - cDmg);
                             if (act.entry.bestCaseHP != null) act.entry.bestCaseHP = Math.max(0, act.entry.bestCaseHP - cDmg);
@@ -7179,7 +7285,7 @@
                         // Defender item (Rocky Helmet)
                         if (CONTACT_DAMAGE_ITEMS[defE.item]) {
                             var frac2 = CONTACT_DAMAGE_ITEMS[defE.item];
-                            var cDmg2 = Math.max(1, Math.floor(atkMaxHP * frac2));
+                            var cDmg2 = Math.max(1, Math.floor(atkMaxHP * frac2)) * dblContactHits;
                             actionExtras.push({ target: 'attacker', source: defE.item + ' (' + defE.name + ')', damage: cDmg2, type: 'contact' });
                             act.entry.currentHP = Math.max(0, act.entry.currentHP - cDmg2);
                             if (act.entry.bestCaseHP != null) act.entry.bestCaseHP = Math.max(0, act.entry.bestCaseHP - cDmg2);
@@ -7627,6 +7733,23 @@
         return $(sel + ' .move' + (moveIdx + 1) + ' .move-selector').val() || '—';
     }
 
+    /**
+     * Find the 0-based index of the form move radio for a given side whose
+     * move-selector value matches moveName.  Returns -1 if not found.
+     * Use this to map a roster move name to the correct form radio index,
+     * since the calc form may populate moves in a different order than the roster.
+     */
+    function findFormMoveIndex(side, moveName) {
+        if (!moveName) return -1;
+        for (var i = 1; i <= 4; i++) {
+            // Use 'select.move-selector' to skip the Select2 container <div>
+            // which also carries the .move-selector class but has no .val()
+            var val = $('#' + side + ' .move' + i + ' select.move-selector').val();
+            if (val && val === moveName) return i - 1;
+        }
+        return -1;
+    }
+
     function syncStatusToForm(side, entry) {
         if (!entry) return;
         var calcStatus = RS_TO_CALC[entry.status] || 'Healthy';
@@ -8067,6 +8190,11 @@
                 if (entry.initialItem !== undefined) {
                     entry.item = entry.initialItem;
                 }
+                // Reset ability from set definition — this is the ground truth and prevents
+                // stale / contaminated ability values from persisting across rebuilds.
+                // (Mega ability is re-applied during round replay via applyMegaToEntry.)
+                var _rltSet = lookupSet(entry.setId);
+                if (_rltSet && _rltSet.ability && !entry.baseName) entry.ability = _rltSet.ability;
             }
         }
         // Apply user-set pre-damage HP and pre-status for P1 before round
@@ -8170,6 +8298,9 @@
                     if (rd.p1.status) line.teams.p1.roster[p1i].status = rd.p1.status;
                     if (rd.p1.boosts) line.teams.p1.roster[p1i].boosts = $.extend({}, rd.p1.boosts);
                     if (rd.p1.item !== undefined) line.teams.p1.roster[p1i].item = rd.p1.item;
+                    // Patch round data to match the (set-derived) roster ability — repairs
+                    // any pre-existing contaminated ability values in logged rounds.
+                    if (line.teams.p1.roster[p1i].ability) rd.p1.ability = line.teams.p1.roster[p1i].ability;
                     line.teams.p1.activeIdx = p1i;
 
                     // EOT status damage for P1: if the entry has a status (e.g. from
@@ -8195,6 +8326,9 @@
                     if (rd.p2.status) line.teams.p2.roster[p2i].status = rd.p2.status;
                     if (rd.p2.boosts) line.teams.p2.roster[p2i].boosts = $.extend({}, rd.p2.boosts);
                     if (rd.p2.item !== undefined) line.teams.p2.roster[p2i].item = rd.p2.item;
+                    // Patch round data to match the (set-derived) roster ability — repairs
+                    // any pre-existing contaminated ability values in logged rounds.
+                    if (line.teams.p2.roster[p2i].ability) rd.p2.ability = line.teams.p2.roster[p2i].ability;
                     line.teams.p2.activeIdx = p2i;
                 }
                 // Pivot switch: apply recalculated damage to the incoming mon
@@ -12249,11 +12383,18 @@
             }
             if (!engRounds.length) return;
 
-            // ── Set preDamageHP on the P1 roster entry so it survives round deletion ──
+            // ── Set preDamageHP (and optionally equip berry) on the P1 roster entry ──
             var p1Roster = line.teams.p1.roster;
             for (var ri = 0; ri < p1Roster.length; ri++) {
                 if (p1Roster[ri].name === p1Name) {
                     p1Roster[ri].preDamageHP = targetHP;
+                    // Auto-equip the recommended berry so the team card, form, and
+                    // subsequent calc all reflect the correct item. initialItem must
+                    // also be set so the rebuild reset doesn't clear it.
+                    if (item) {
+                        p1Roster[ri].item = item;
+                        p1Roster[ri].initialItem = item;
+                    }
                     break;
                 }
             }
@@ -12262,8 +12403,6 @@
             var origP1Item = engRounds[0].p1.item || '';
 
             // ── Walk engagement rounds: recompute P1 HP trajectory ──
-            // NOTE: Only HP values are mutated. Items, EOT, and other round data
-            // are NOT changed — mutating items would corrupt rebuild/calc state.
             var curHP = targetHP;
             var bestHP = targetHP;
 
@@ -12336,6 +12475,13 @@
                 bestHP = Math.max(0, bestHP - bestDelta2);
                 rd.p1.hpAfter.current = curHP;
                 rd.p1.hpAfter.bestCase = bestHP;
+            }
+
+            // ── If a berry was selected, propagate the item change into logged rounds
+            //    and re-simulate its healing effect on the HP trajectory ──
+            if (item) {
+                propagateRosterItemToRounds(line, 'p1', p1Name, origP1Item, item);
+                resimulateBerryForEntry(line, 'p1', p1Name);
             }
 
             // ── Rebuild and render ──
@@ -12845,7 +12991,12 @@
         $(document).on('change', '.rsa-inline-p1-move-ko', function () {
             var val = $(this).val();
             if (val === 'none') return;
-            $('input#resultMoveL' + (parseInt(val) + 1)).prop('checked', true).trigger('change');
+            var rosterIdx = parseInt(val);
+            var field = getFieldMonsFromLog();
+            var moveName = field && field.p1 && field.p1.moves ? field.p1.moves[rosterIdx] : null;
+            var formIdx = moveName ? findFormMoveIndex('p1', moveName) : -1;
+            if (formIdx < 0) formIdx = rosterIdx;
+            $('input#resultMoveL' + (formIdx + 1)).prop('checked', true).trigger('change');
         });
 
         // P2 KO switch button → switch P2 active mon, then log a switch round
@@ -12858,7 +13009,12 @@
             // Sync P1 move from the KO panel's move selector
             var koP1Move = $('.rsa-inline-p1-move-ko').val();
             if (koP1Move && koP1Move !== 'none') {
-                $('input#resultMoveL' + (parseInt(koP1Move) + 1)).prop('checked', true).trigger('change');
+                var _koRosterIdx = parseInt(koP1Move);
+                var _koField = getFieldMonsFromLog();
+                var _koMoveName = _koField && _koField.p1 && _koField.p1.moves ? _koField.p1.moves[_koRosterIdx] : null;
+                var _koFormIdx = _koMoveName ? findFormMoveIndex('p1', _koMoveName) : -1;
+                if (_koFormIdx < 0) _koFormIdx = _koRosterIdx;
+                $('input#resultMoveL' + (_koFormIdx + 1)).prop('checked', true).trigger('change');
             }
             var inlineComment = $('.rsa-inline-comment-ko').val() || ('P2 sends ' + incomingName);
 
@@ -12927,17 +13083,24 @@
         $(document).on('change', '.rsa-inline-p1-move', function () {
             var val = $(this).val();
             if (val === 'none') return;
-            var idx = parseInt(val);
-            $('input#resultMoveL' + (idx + 1)).prop('checked', true).trigger('change');
+            var rosterIdx = parseInt(val);
+            var field = getFieldMonsFromLog();
+            var moveName = field && field.p1 && field.p1.moves ? field.p1.moves[rosterIdx] : null;
+            var formIdx = moveName ? findFormMoveIndex('p1', moveName) : -1;
+            if (formIdx < 0) formIdx = rosterIdx;
+            $('input#resultMoveL' + (formIdx + 1)).prop('checked', true).trigger('change');
         });
 
         // P2 move change → sync to main move selector
         $(document).on('change', '.rsa-inline-p2-move', function () {
             var val = $(this).val();
             if (val === 'none') return;
-            var idx = parseInt(val);
-            // Click the main move radio to trigger the move selection
-            $('input#resultMoveR' + (idx + 1)).prop('checked', true).trigger('change');
+            var rosterIdx = parseInt(val);
+            var field = getFieldMonsFromLog();
+            var moveName = field && field.p2 && field.p2.moves ? field.p2.moves[rosterIdx] : null;
+            var formIdx = moveName ? findFormMoveIndex('p2', moveName) : -1;
+            if (formIdx < 0) formIdx = rosterIdx;
+            $('input#resultMoveR' + (formIdx + 1)).prop('checked', true).trigger('change');
         });
 
         // Queue / cancel Mega Evolution via inline button
@@ -12968,15 +13131,22 @@
         // Log round via inline button
         $(document).on('click', '.rsa-inline-log', function () {
             // Sync inline P1 & P2 move selections to main controls
+            var _logField = getFieldMonsFromLog();
             var inlineP1Val = $('.rsa-inline-p1-move').val();
             if (inlineP1Val && inlineP1Val !== 'none') {
-                var p1Idx = parseInt(inlineP1Val);
-                $('input#resultMoveL' + (p1Idx + 1)).prop('checked', true).trigger('change');
+                var p1RosterIdx = parseInt(inlineP1Val);
+                var p1MoveName = _logField && _logField.p1 && _logField.p1.moves ? _logField.p1.moves[p1RosterIdx] : null;
+                var p1FormIdx = p1MoveName ? findFormMoveIndex('p1', p1MoveName) : -1;
+                if (p1FormIdx < 0) p1FormIdx = p1RosterIdx;
+                $('input#resultMoveL' + (p1FormIdx + 1)).prop('checked', true).trigger('change');
             }
             var inlineP2Val = $('.rsa-inline-p2-move').val();
             if (inlineP2Val && inlineP2Val !== 'none') {
-                var p2Idx = parseInt(inlineP2Val);
-                $('input#resultMoveR' + (p2Idx + 1)).prop('checked', true).trigger('change');
+                var p2RosterIdx = parseInt(inlineP2Val);
+                var p2MoveName = _logField && _logField.p2 && _logField.p2.moves ? _logField.p2.moves[p2RosterIdx] : null;
+                var p2FormIdx = p2MoveName ? findFormMoveIndex('p2', p2MoveName) : -1;
+                if (p2FormIdx < 0) p2FormIdx = p2RosterIdx;
+                $('input#resultMoveR' + (p2FormIdx + 1)).prop('checked', true).trigger('change');
             }
             // Sync inline options to main controls
             var inlineP2Crit = $('.rsa-inline-p2-crit').is(':checked');
@@ -13009,8 +13179,12 @@
             // Sync inline P2 move to main radio (form may have stale selection)
             var inlineP2Val = $('.rsa-inline-p2-move').val();
             if (inlineP2Val && inlineP2Val !== 'none') {
-                var p2Idx = parseInt(inlineP2Val);
-                $('input#resultMoveR' + (p2Idx + 1)).prop('checked', true).trigger('change');
+                var _swField = getFieldMonsFromLog();
+                var p2RosterIdx = parseInt(inlineP2Val);
+                var p2MoveName = _swField && _swField.p2 && _swField.p2.moves ? _swField.p2.moves[p2RosterIdx] : null;
+                var p2FormIdx = p2MoveName ? findFormMoveIndex('p2', p2MoveName) : -1;
+                if (p2FormIdx < 0) p2FormIdx = p2RosterIdx;
+                $('input#resultMoveR' + (p2FormIdx + 1)).prop('checked', true).trigger('change');
             }
             // Sync crit/eff from inline
             var inlineP2Crit = $('.rsa-inline-p2-crit').is(':checked');
@@ -17712,6 +17886,7 @@
                         line.teams.p1.roster[p1i].bestCaseHP = rd.p1.hpAfter.bestCase != null ? rd.p1.hpAfter.bestCase : rd.p1.hpAfter.current;
                         if (rd.p1.status !== undefined) line.teams.p1.roster[p1i].status = rd.p1.status || '';
                         if (rd.p1.item !== undefined) line.teams.p1.roster[p1i].item = rd.p1.item;
+                        if (rd.p1.ability) line.teams.p1.roster[p1i].ability = rd.p1.ability;
                         if (rd.p1.boosts) line.teams.p1.roster[p1i].boosts = $.extend({}, rd.p1.boosts);
                         line.teams.p1.activeIdx = p1i;
                     }
@@ -17721,6 +17896,7 @@
                         line.teams.p2.roster[p2i].bestCaseHP = rd.p2.hpAfter.bestCase != null ? rd.p2.hpAfter.bestCase : rd.p2.hpAfter.current;
                         if (rd.p2.status !== undefined) line.teams.p2.roster[p2i].status = rd.p2.status || '';
                         if (rd.p2.item !== undefined) line.teams.p2.roster[p2i].item = rd.p2.item;
+                        if (rd.p2.ability) line.teams.p2.roster[p2i].ability = rd.p2.ability;
                         if (rd.p2.boosts) line.teams.p2.roster[p2i].boosts = $.extend({}, rd.p2.boosts);
                         line.teams.p2.activeIdx = p2i;
                     }
