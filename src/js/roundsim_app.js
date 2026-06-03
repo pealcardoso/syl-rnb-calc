@@ -66,6 +66,25 @@
         'phantom':     'Shadow realm'
     };
 
+    // True if P2's attack on a given round cannot connect because P1 is mid-charge
+    // semi-invulnerable (e.g. Dragonite using Fly) and P2's move does not bypass
+    // that invulnerability bucket. Mirrors captureRound's semi-invuln handling so
+    // the post-hoc analysis layer doesn't predict impossible P2 damage/forks.
+    function _p2BlockedByP1Invuln(rd) {
+        if (!rd || !rd.p2SemiInvuln || !rd.p2InvulnType) return false;
+        var byp = INVULN_BYPASSES[rd.p2InvulnType] || [];
+        var mk = (rd.p2 && rd.p2.move ? rd.p2.move : '').toLowerCase().replace(/[\s\-\']+/g, '');
+        return byp.indexOf(mk) === -1;
+    }
+
+    // True if the given roster entry's ability prevents flinching
+    // (Inner Focus → flinchImmunity, Shield Dust → secondaryImmunity).
+    function _isFlinchImmuneEntry(entry) {
+        if (!entry) return false;
+        var ae = getAbilityEffects(entry.ability || '');
+        return !!(ae && (ae.flinchImmunity || ae.secondaryImmunity));
+    }
+
     // ════════════════════════════════════════════════════════════
     // PERFORMANCE — Analysis caches
     // ════════════════════════════════════════════════════════════
@@ -3219,6 +3238,12 @@
     var CALC_TO_RS = {};
     for (var k in RS_TO_CALC) CALC_TO_RS[RS_TO_CALC[k]] = k;
 
+    // Map RS status names → calc Pokemon.status codes (for engine/AI calculations)
+    var RS_STATUS_TO_CALC_CODE = {
+        'Burn': 'brn', 'Paralysis': 'par', 'Poison': 'psn',
+        'Badly Poisoned': 'tox', 'Sleep': 'slp', 'Freeze': 'frz'
+    };
+
     // Contact-damage abilities
     var CONTACT_DAMAGE_ABILITIES = {
         'Iron Barbs': 1/8, 'Rough Skin': 1/8
@@ -4656,6 +4681,12 @@
             if (p1Entry.item !== undefined) p1Poke.item = p1Entry.item;
             if (p2Entry.ability) p2Poke.ability = p2Entry.ability;
             if (p1Entry.ability) p1Poke.ability = p1Entry.ability;
+
+            // Apply current status condition so the AI accounts for it (e.g. won't
+            // pick a status move on an already-statused target) and so burn halves
+            // physical damage in the threat assessment.
+            if (p2Entry.status && RS_STATUS_TO_CALC_CODE[p2Entry.status]) p2Poke.status = RS_STATUS_TO_CALC_CODE[p2Entry.status];
+            if (p1Entry.status && RS_STATUS_TO_CALC_CODE[p1Entry.status]) p1Poke.status = RS_STATUS_TO_CALC_CODE[p1Entry.status];
 
             // Apply stat boosts from roster entry (at→atk, df→def, sa→spa, sd→spd, sp→spe)
             // so damage calculations account for current attack/defense/etc. modifiers.
@@ -9304,7 +9335,8 @@
         var p1Faster = rd.speed && (rd.speed.faster === 'p1' || rd.speed.faster === 'tie');
         var p2Faster = rd.speed && rd.speed.faster === 'p2';
         var p1Attacked = rd.p1.move && rd.p1.move !== '—';
-        var p2KOdBeforeAttack = p1Faster && p1Attacked && rd.p2.hpAfter.current <= 0;
+        // P2 can't act if KO'd first OR if P1 is mid-charge semi-invulnerable (e.g. Fly)
+        var p2KOdBeforeAttack = (p1Faster && p1Attacked && rd.p2.hpAfter.current <= 0) || _p2BlockedByP1Invuln(rd);
         var p1KOdBeforeAttack = p2Faster && p2MoveData && rd.p1.hpAfter.current <= 0;
 
         // ── Compute move choice probabilities (switch rounds: recalc vs OLD P1) ──
@@ -9462,6 +9494,8 @@
         if (!p2KOdBeforeAttack && p2MoveData && p2MoveData.secondary && p2MoveData.secondary.chance && p2MoveData.secondary.chance < 100) {
             var eff = resolveSecondaryEffects(p2MoveData, 'p1', false);
             var effName = eff.status || eff.volatile || '';
+            // P1 immune to flinch (Inner Focus) → its move's flinch secondary can't apply
+            if (effName === 'flinch' && _isFlinchImmuneEntry({ ability: rd.p1.ability })) effName = '';
             if (!effName && eff.boosts) {
                 var _bp = [], _sn = {atk:'Atk',def:'Def',spa:'SpA',spd:'SpD',spe:'Spe'};
                 for (var _s in eff.boosts) { _bp.push(_sn[_s] + (eff.boosts[_s] > 0 ? '+' : '') + eff.boosts[_s]); }
@@ -9521,6 +9555,8 @@
                 if (altMvData && altMvData.secondary && altMvData.secondary.chance && altMvData.secondary.chance < 100) {
                     var altEff = resolveSecondaryEffects(altMvData, 'p1', false);
                     var altEffName = altEff.status || altEff.volatile || '';
+                    // P1 immune to flinch (Inner Focus) → flinch secondary can't apply
+                    if (altEffName === 'flinch' && _isFlinchImmuneEntry({ ability: rd.p1.ability })) altEffName = '';
                     if (!altEffName && altEff.boosts) {
                         var _abp = [], _asn = {atk:'Atk',def:'Def',spa:'SpA',spd:'SpD',spe:'Spe'};
                         for (var _as in altEff.boosts) { _abp.push(_asn[_as] + (altEff.boosts[_as] > 0 ? '+' : '') + altEff.boosts[_as]); }
@@ -15000,7 +15036,8 @@
             var p1Attacked = rd.p1.move && rd.p1.move !== '—';
             var p1Faster = rd.speed && (rd.speed.faster === 'p1' || rd.speed.faster === 'tie');
             var p2Dies = rd.p2.hpAfter.current <= 0;
-            var p2KOdBeforeAttack = p1Faster && p1Attacked && p2Dies;
+            // P2 can't act if KO'd first OR if P1 is mid-charge semi-invulnerable (e.g. Fly)
+            var p2KOdBeforeAttack = (p1Faster && p1Attacked && p2Dies) || _p2BlockedByP1Invuln(rd);
             var p2Move = rd.p2.move && rd.p2.move !== '—' ? rd.p2.move : null;
             var p2MoveData = p2Move ? lookupMoveData(p2Move) : null;
             var p1MoveData = p1Attacked ? lookupMoveData(rd.p1.move) : null;
@@ -15015,7 +15052,9 @@
                 p2MoveData.secondary.chance && p2MoveData.secondary.chance < 100) {
                 var _se = resolveSecondaryEffects(p2MoveData, 'p1', false);
                 var _seName = _se.status || _se.volatile || '';
-                if (_seName || (p2MoveData.secondary.boosts && Object.keys(p2MoveData.secondary.boosts).length)) {
+                // P1 immune to flinch (Inner Focus) → its move's flinch secondary can't apply
+                var _seFlinchImmune = _se.volatile === 'flinch' && _isFlinchImmuneEntry({ ability: rd.p1.ability });
+                if (!_seFlinchImmune && (_seName || (p2MoveData.secondary.boosts && Object.keys(p2MoveData.secondary.boosts).length))) {
                     var secEffect = _seName;
                     if (!secEffect && p2MoveData.secondary.boosts) {
                         var bk = Object.keys(p2MoveData.secondary.boosts);
@@ -15757,7 +15796,8 @@
             // Check if P1 outspeeds AND KOs P2 — P2's move never executes
             var p1Faster = rd.speed && (rd.speed.faster === 'p1' || rd.speed.faster === 'tie');
             var p2Faster = rd.speed && rd.speed.faster === 'p2';
-            var p2KOdBeforeAttack = p1Faster && p1Attacked && rd.p2.hpAfter.current <= 0;
+            // P2 can't act if KO'd first OR if P1 is mid-charge semi-invulnerable (e.g. Fly)
+            var p2KOdBeforeAttack = (p1Faster && p1Attacked && rd.p2.hpAfter.current <= 0) || _p2BlockedByP1Invuln(rd);
 
             // Check if P1 switches next round (stat drops/boosts reset)
             var p1SwitchesNext = false;
@@ -15917,6 +15957,11 @@
                 // P2 secondary info
                 var hasP2Sec = !p2KOdBeforeAttack && moveData && moveData.secondary &&
                     moveData.secondary.chance && moveData.secondary.chance < 100;
+                // P1 immune to flinch (Inner Focus) → a flinch-only secondary can't apply
+                if (hasP2Sec && moveData.secondary.volatileStatus === 'flinch' &&
+                        _isFlinchImmuneEntry({ ability: rd.p1.ability })) {
+                    hasP2Sec = false;
+                }
                 // Skip P2 secondary if it only gives stat boosts/drops on P1 and P1
                 // switches next round (stat changes reset on switch)
                 if (hasP2Sec && p1SwitchesNext && moveData.secondary) {
@@ -16893,7 +16938,8 @@
 
             var p1Attacked = rd.p1.move && rd.p1.move !== '—';
             var p1Faster = rd.speed && (rd.speed.faster === 'p1' || rd.speed.faster === 'tie');
-            var p2KOdBeforeAttack = p1Faster && p1Attacked && rd.p2.hpAfter.current <= 0;
+            // P2 can't act if KO'd first OR if P1 is mid-charge semi-invulnerable (e.g. Fly)
+            var p2KOdBeforeAttack = (p1Faster && p1Attacked && rd.p2.hpAfter.current <= 0) || _p2BlockedByP1Invuln(rd);
             var p2Move = rd.p2.move && rd.p2.move !== '—' ? rd.p2.move : null;
             var p2MoveData = p2Move ? lookupMoveData(p2Move) : null;
             var p1MoveData = p1Attacked ? lookupMoveData(rd.p1.move) : null;
@@ -16973,7 +17019,8 @@
             // Check if P2 was KO'd before attacking (P1 faster + P1 attacked + P2 died)
             var p1Faster = rd.speed && (rd.speed.faster === 'p1' || rd.speed.faster === 'tie');
             var p1Attacked = rd.p1.move && rd.p1.move !== '—';
-            var p2KOdBeforeAttack = p1Faster && p1Attacked && p2Dies;
+            // P2 can't act if KO'd first OR if P1 is mid-charge semi-invulnerable (e.g. Fly)
+            var p2KOdBeforeAttack = (p1Faster && p1Attacked && p2Dies) || _p2BlockedByP1Invuln(rd);
 
             // ── Main path damage range (only if P2 actually got to attack) ──
             if (rd.p2.move && rd.p2.move !== '—' && !p2KOdBeforeAttack) {
