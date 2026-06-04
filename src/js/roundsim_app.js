@@ -8431,6 +8431,30 @@
         window.NO_CALC = false;
         // Sync boosts to calc form
         syncBoostsToCalc();
+
+        // ── Restore missing sprites ──
+        // Exported JSON strips sprite URLs (external, not bundled). Rebuild
+        // them from the mon name so the UI still renders correctly on import.
+        for (var _rs = 0; _rs < 2; _rs++) {
+            var _rSide = _rs === 0 ? 'p1' : 'p2';
+            var _rTeam = line.teams[_rSide];
+            for (var _ri = 0; _ri < _rTeam.roster.length; _ri++) {
+                var _re = _rTeam.roster[_ri];
+                if (!_re.sprite) _re.sprite = getSprite(_re.name);
+                if (!_re.baseSprite && _re.baseName) _re.baseSprite = getSprite(_re.baseName);
+            }
+        }
+        for (var _ri2 = 0; _ri2 < line.rounds.length; _ri2++) {
+            var _rd = line.rounds[_ri2];
+            if (_rd.p1 && !_rd.p1.sprite && _rd.p1.name) _rd.p1.sprite = getSprite(_rd.p1.name);
+            if (_rd.p2 && !_rd.p2.sprite && _rd.p2.name) _rd.p2.sprite = getSprite(_rd.p2.name);
+            if (_rd.fighters) {
+                for (var _fsid in _rd.fighters) {
+                    var _f = _rd.fighters[_fsid];
+                    if (_f && !_f.sprite && _f.name) _f.sprite = getSprite(_f.name);
+                }
+            }
+        }
     }
 
     // ════════════════════════════════════════════════════════════
