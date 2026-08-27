@@ -93,6 +93,8 @@
     var _fieldSnapshot = null;
     /** Cache of _calcResult outputs keyed by composite string. */
     var _calcResultCache = {};
+    /** When true, renderRoundLog() is a no-op — suppresses mid-analysis re-renders. */
+    var _suppressRenderLog = false;
 
     /** Begin an analysis session — snapshots field and enables caches. */
     function _perfBeginAnalysis() {
@@ -1670,10 +1672,22 @@
         // Use the currently selected P2 move index (0-3), or -1 for none
         var p2MoveIdx = (selectedP2Move !== 'none') ? selectedP2Move : -1;
 
+        // Pre-compute P2 effective speed and P1 ability toggle once — same for all box mons
+        var _ccP2SpeedEff = 0;
+        try {
+            var _ccP2sMod = parseInt($('#p2 .sp .totalMod').text()) || 0;
+            var _ccP2sBase = parseInt($('#p2 .sp .total').text()) || 0;
+            _ccP2SpeedEff = _ccP2sMod || _ccP2sBase;
+            if ($('#p2 .status').val() === 'Paralyzed' && _ccP2SpeedEff === _ccP2sBase) {
+                _ccP2SpeedEff = Math.floor(_ccP2SpeedEff * 0.75);
+            }
+        } catch (e) {}
+        var _ccP1AbilToggle = $('#p1').find('.abilityToggle').is(':checked');
+
         var rankings = [];
         for (var i = 0; i < mons.length; i++) {
             var m = mons[i];
-            var offMax = 0, defDmg = null, defAllMax = null, speed = 0, isImmune = false, isImmuneAll = false;
+            var offMax = 0, defDmg = null, defAllMax = null, speed = 0, isImmune = false, isImmuneAll = false, _colorCode = null;
             try {
                 var p1 = createPokemon(m.setId);
 
@@ -1759,8 +1773,53 @@
                 }
                 if (anyDamageAll) defAllMax = allMovesMax;
                 else isImmuneAll = true; // immune to all P2 moves
+
+                // ── Color code (merged from getColorCode — reuses same calculateAllMoves results) ──
+                var _ccP1KO = 0, _ccP2KO = 0, _ccP1HD = 0, _ccP2HD = 0;
+                for (var _ci = 0; _ci < 4; _ci++) {
+                    var _cr0 = results[0][_ci];
+                    if (boxCalcSettings.ignoreSelfdestruct && p1.moves[_ci]) {
+                        var _ccMd = lookupMoveData(p1.moves[_ci].name || '');
+                        if (_ccMd && _ccMd.selfdestruct) continue;
+                    }
+                    var _clo0 = Array.isArray(_cr0.damage) ? (_cr0.damage[0] || 0) : (_cr0.damage || 0);
+                    var _chi0 = Array.isArray(_cr0.damage) ? (_cr0.damage[_cr0.damage.length - 1] || 0) : (_cr0.damage || 0);
+                    var _chits0 = p1.moves[_ci] ? (p1.moves[_ci].hits || 1) : 1;
+                    var _clPct0 = applySimItemMultiplier(_clo0 * _chits0 / p2hp * 100);
+                    var _chPct0 = applySimItemMultiplier(_chi0 * _chits0 / p2hp * 100);
+                    var _p1AeCC = getAbilityEffects(p1.ability);
+                    var _p1HasGutsCC = _p1AeCC ? !!_p1AeCC.burnAttackBoost : (p1.ability === 'Guts');
+                    if (boxCalcSettings.burnGuts && _p1HasGutsCC) {
+                        var _ccCat0 = p1.moves[_ci] ? (p1.moves[_ci].category || '') : '';
+                        if (_ccCat0 === 'Physical') { _clPct0 *= 1.5; _chPct0 *= 1.5; }
+                    }
+                    if (_chPct0 > _ccP1HD) _ccP1HD = _chPct0;
+                    if (_clPct0 >= 100) { _ccP1KO = 1; }
+                    else if (_chPct0 >= 100 && _ccP1KO === 0) { _ccP1KO = 2; }
+                    var _cr1 = results[1][_ci];
+                    var _clo1 = Array.isArray(_cr1.damage) ? (_cr1.damage[0] || 0) : (_cr1.damage || 0);
+                    var _chi1 = Array.isArray(_cr1.damage) ? (_cr1.damage[_cr1.damage.length - 1] || 0) : (_cr1.damage || 0);
+                    var _chits1 = p2.moves[_ci] ? (p2.moves[_ci].hits || 1) : 1;
+                    var _clPct1 = _clo1 * _chits1 / p1hp * 100;
+                    var _chPct1 = _chi1 * _chits1 / p1hp * 100;
+                    if (_chPct1 > _ccP2HD) _ccP2HD = _chPct1;
+                    if (_clPct1 >= 100) { _ccP2KO = 4; }
+                    else if (_chPct1 >= 100 && _ccP2KO < 3) { _ccP2KO = 3; }
+                }
+                var _ccP1s = speed;
+                var _p1AeCC2 = getAbilityEffects(p1.ability);
+                var _p1HasUnbCC = _p1AeCC2 ? !!_p1AeCC2.unburden : (p1.ability === 'Unburden');
+                if (_p1HasUnbCC && !_ccP1AbilToggle) _ccP1s = Math.floor(_ccP1s / 2);
+                var _ccFastest = _ccP1s > _ccP2SpeedEff ? 'F' : _ccP1s < _ccP2SpeedEff ? 'S' : 'T';
+                var _ccCode = '';
+                if (Math.round(_ccP2HD * 3) < 100 && _ccP1HD > _ccP2HD) {
+                    _ccCode = _ccP1HD > 100 ? 'WMO' : 'W';
+                } else {
+                    _ccCode = (_ccP1KO > 0 ? _ccP1KO.toString() : '') + (_ccP2KO > 0 ? _ccP2KO.toString() : '');
+                }
+                _colorCode = { speed: _ccFastest, code: _ccCode };
             } catch (e) { /* skip mons that fail to create */ }
-            rankings.push({ name: m.name, setId: m.setId, offMax: offMax, defDmg: defDmg, defAllMax: defAllMax, speed: speed, isImmune: isImmune, isImmuneAll: isImmuneAll });
+            rankings.push({ name: m.name, setId: m.setId, offMax: offMax, defDmg: defDmg, defAllMax: defAllMax, speed: speed, isImmune: isImmune, isImmuneAll: isImmuneAll, colorCode: _colorCode });
         }
 
         // Offensive rank: highest offMax = rank 1
@@ -1805,6 +1864,7 @@
     }
 
     var cachedRankings = [];
+    var _rankingsKey = null; // cache key for computeBoxRankings — null forces recompute on next trigger
     var boxSortMode = 'default'; // 'default', 'offense', 'defense', 'defenseAll'
 
     // Box calc settings — affect color coding and offense/defense rankings
@@ -8845,6 +8905,7 @@
 
     // ── Round Log ────────────────────────────────────────────
     function renderRoundLog() {
+        if (_suppressRenderLog) return; // suppressed during fight analysis to prevent mid-analysis DOM rebuilds
         var line = curLine();
         var $log = $('#rsa-round-log');
         var hasBranches = line.branches && line.branches.length > 0;
@@ -8855,7 +8916,20 @@
         }
 
         if (!hasBranches) {
-            // Single column (original behavior)
+            // Fast path: if exactly one new round was appended and the log is already in single-branch layout
+            var _prevCount = line._lastRenderedCount;
+            if (line._lastRenderMode === 'single' && _prevCount !== undefined && line.rounds.length === _prevCount + 1) {
+                var _newRd = line.rounds[line.rounds.length - 1];
+                $log.find('.rsa-inline-controls').remove();
+                var _newCardHtml = _newRd.isDoubles ? renderDoublesRoundCard(_newRd) : renderRoundCard(_newRd, -1);
+                if (!isDoubles()) _newCardHtml += renderInlineControls();
+                $log.append(_newCardHtml);
+                $('#rsa-round-count').text(line.rounds.length);
+                syncInlineControls();
+                line._lastRenderedCount = line.rounds.length;
+                return;
+            }
+            // Full render path
             var html = '';
             for (var i = 0; i < line.rounds.length; i++) {
                 var rd = line.rounds[i];
@@ -8865,6 +8939,8 @@
             $log.html(html);
             $('#rsa-round-count').text(line.rounds.length);
             syncInlineControls();
+            line._lastRenderedCount = line.rounds.length;
+            line._lastRenderMode = 'single';
             return;
         }
 
@@ -8889,6 +8965,7 @@
 
         html += '<div class="rsa-branch-columns" style="--branch-count:' + Math.min(cols.length, maxVisible) + '">';
 
+        var _builtBranchIdxSet = {};
         for (var ci = 0; ci < visibleCols.length; ci++) {
             var col = visibleCols[ci];
             var isActive = col.idx === line.activeBranchIdx;
@@ -8901,6 +8978,7 @@
 
             // Rebuild teams for this branch to get correct HP state
             rebuildBranchTeams(line, col.idx);
+            _builtBranchIdxSet[col.idx] = true;
 
             for (var ri = 0; ri < col.rounds.length; ri++) {
                 var rd = col.rounds[ri];
@@ -8931,7 +9009,11 @@
         html += '</div>'; // .rsa-branch-columns
 
         // Rebuild teams for the active branch so team panel shows correct state
-        rebuildBranchTeams(line, line.activeBranchIdx);
+        // Skip if already rebuilt during the column loop above (dedup)
+        if (!_builtBranchIdxSet[line.activeBranchIdx]) {
+            rebuildBranchTeams(line, line.activeBranchIdx);
+        }
+        line._lastRenderMode = 'branches';
 
         $log.html(html);
         var activeRounds = getBranchRounds(line, line.activeBranchIdx);
@@ -9728,6 +9810,17 @@
     }
 
     function renderRoundCard(rd, branchIdx) {
+        // Fingerprint cache: skip full rebuild when round data hasn't changed since last render
+        // Uses a map keyed by fingerprint so the same round cached separately per branchIdx context
+        var _fp = (rd.roundNum || 0) + '|' + (branchIdx != null ? branchIdx : -1) + '|' +
+                  (rd.p2Crit ? 1 : 0) + '|' +
+                  (rd.p1 ? rd.p1.hpAfter.current : '') + '|' +
+                  (rd.p2 ? rd.p2.hpAfter.current : '') + '|' +
+                  (rd.comment || '') + '|' +
+                  (rd._rollChangesBait ? 1 : 0) + '|' +
+                  (rd._correctedAiPcts ? 1 : 0);
+        if (!rd._cardCacheMap) rd._cardCacheMap = {};
+        if (rd._cardCacheMap[_fp]) return rd._cardCacheMap[_fp];
         var speedLabel;
         var priorityOverride = (rd.p1Priority !== undefined && rd.p2Priority !== undefined && rd.p1Priority !== rd.p2Priority);
         if (rd.speed.faster === 'tie') speedLabel = 'Speed Tie';
@@ -9852,7 +9945,7 @@
             ? '<div class="rsa-actor-stack rsa-p2-stack">' + renderActorCard(rd.p2, 'p2', rd, p2Indicator) + p2IncomingHtml + '</div>'
             : renderActorCard(rd.p2, 'p2', rd, p2Indicator);
 
-        return '<div class="rsa-round-card" data-round="' + rd.roundNum + '"' + _p2ko + _p1ko + '>' +
+        var _cardResult = '<div class="rsa-round-card" data-round="' + rd.roundNum + '"' + _p2ko + _p1ko + '>' +
             '<div class="rsa-round-header">' +
                 '<span class="rsa-round-num">Round ' + rd.roundNum + '</span>' +
                 '<span class="rsa-speed">⚡ ' + rd.speed.p1 + ' vs ' + rd.speed.p2 + ' — ' + speedLabel + '</span>' +
@@ -9872,6 +9965,8 @@
             pivotSwitchHtml +
             cmnt +
         '</div>';
+        rd._cardCacheMap[_fp] = _cardResult;
+        return _cardResult;
     }
 
     // Renders a compact second actor card for the mon that switched IN via the
@@ -11020,10 +11115,11 @@
         }
 
         // Build rank lookup for P1 box
-        var rankMap = {};
+        var rankMap = {}, rankBySetId = {};
         if (side === 'p1' && cachedRankings.length) {
             for (var r = 0; r < cachedRankings.length; r++) {
                 rankMap[cachedRankings[r].name] = cachedRankings[r];
+                rankBySetId[cachedRankings[r].setId] = cachedRankings[r];
             }
         }
 
@@ -11042,14 +11138,21 @@
         }
 
         // Build bait prediction map for each box mon (what P2 switches in at full HP)
+        // Cache keyed by P2 roster HP so predictions are reused until roster HP changes
         var boxBaitMap = null;
-        if (side === 'p1' && curLine().teams.p2.roster.length >= 2) {
-            boxBaitMap = {};
-            for (var b = 0; b < mons.length; b++) {
-                try {
-                    var pred = predictSwitchIn(mons[b].setId);
-                    if (pred) boxBaitMap[mons[b].setId] = pred;
-                } catch (e) {}
+        if (side === 'p1' && line.teams.p2.roster.length >= 2) {
+            var _baitKey = line.teams.p2.roster.map(function(e) { return e.currentHP; }).join(',');
+            if (line._baitMapCache && line._baitMapCache.key === _baitKey) {
+                boxBaitMap = line._baitMapCache.map;
+            } else {
+                boxBaitMap = {};
+                for (var b = 0; b < mons.length; b++) {
+                    try {
+                        var pred = predictSwitchIn(mons[b].setId);
+                        if (pred) boxBaitMap[mons[b].setId] = pred;
+                    } catch (e) {}
+                }
+                line._baitMapCache = { key: _baitKey, map: boxBaitMap };
             }
         }
 
@@ -11059,9 +11162,11 @@
             var inTeam = teamNames[m.name] ? ' rsa-in-team' : '';
 
             // Color coding — only for P1 box (their matchup vs current P2)
+            // Use cached colorCode from computeBoxRankings when available (avoids duplicate calculateAllMoves)
             var ccClass = '', dmgCls = '';
             if (side === 'p1' && m.setId) {
-                var cc = getColorCode(m.setId);
+                var _rk = rankBySetId[m.setId];
+                var cc = (_rk && _rk.colorCode) ? _rk.colorCode : getColorCode(m.setId);
                 if (cc.speed) ccClass += ' rsa-speed-' + cc.speed;
                 if (cc.code) dmgCls = 'rsa-dmg-' + cc.code;
             }
@@ -11407,10 +11512,12 @@
             var id = this.id;
             var idx = parseInt(id.replace('resultMoveR', '')) - 1;
             selectedP2Move = idx;
+            _rankingsKey = null; // P2 move changed — force rankings recompute
             updateMovePickDisplay();
             // Recompute defensive rankings for the newly selected P2 move
             setTimeout(function () {
                 try { cachedRankings = computeBoxRankings(); } catch (e) { cachedRankings = []; }
+                _rankingsKey = [$('#p2 .set-selector').val(), selectedP2Move, getWeather(), getTerrain()].join('|');
                 renderBox('p1');
             }, 50);
         });
@@ -11420,18 +11527,25 @@
         $(document).on('change', '.calc-trigger', function () {
             if (_loadingForm) return; // skip during batch form loading
             clearTimeout(_calcTriggerTimer);
+            var _ctSelf = this; // capture triggering element before setTimeout
             _calcTriggerTimer = setTimeout(function () {
                 if (_loadingForm) return;
                 updateMovePickDisplay();
-                // Recompute rankings so defensive ranks reflect any P2 move/stat changes
-                try { cachedRankings = computeBoxRankings(); } catch (e) { cachedRankings = []; }
-                // Render box first (uses calculationsColors which temporarily overwrites damageResults)
-                // then inject damage badges using the correct damageResults
-                renderBox('p1');
+                // Skip box re-render when only P1 fields changed — rankings/colors depend on P2 data
+                var _isP1Only = !!$(_ctSelf).closest('#p1').length;
+                if (!_isP1Only) {
+                    // Only recompute when relevant P2/field state changed
+                    var _newRkKey = [$('#p2 .set-selector').val(), selectedP2Move, getWeather(), getTerrain()].join('|');
+                    if (_rankingsKey !== _newRkKey) {
+                        try { cachedRankings = computeBoxRankings(); } catch (e) { cachedRankings = []; }
+                        _rankingsKey = _newRkKey;
+                    }
+                    renderBox('p1');
+                }
                 injectDamageBadges();
                 injectMoveLabelSprites();
                 renderSwitchPrediction();
-            }, 200);
+            }, 350);
         });
 
         // ── Auto-refresh P1 box when calc's team/box DOM changes (debounced) ──
@@ -11442,7 +11556,10 @@
             if (el) {
                 new MutationObserver(function () {
                     clearTimeout(_boxMutTimer);
-                    _boxMutTimer = setTimeout(function () { renderBox('p1'); }, 100);
+                    _boxMutTimer = setTimeout(function () {
+                        _rankingsKey = null; // box contents changed — force rankings recompute
+                        renderBox('p1');
+                    }, 100);
                 }).observe(el, { childList: true, subtree: true });
             }
         }
@@ -16564,6 +16681,8 @@
 
                     replay.push(rp);
                     if (forkP1After <= 0) break;
+                    // Early termination: if P2 is already KO'd on both paths, no further divergence possible
+                    if (forkRd.p2.hpAfter.current <= 0 && mainRd.p2.hpAfter.current <= 0) break;
                 }
 
                 return _forkCleanup(line, tempBI, snap, replay);
@@ -18366,6 +18485,7 @@
                 $panel.html('<div class="rsa-fa-loading">Analyzing fight — computing all variance sources…</div>').show();
                 setTimeout(function () {
                     try {
+                        _suppressRenderLog = true; // suppress mid-analysis re-renders
                         var result = analyzeFight(line);
                         renderAnalysisPanel(result);
                         // After analysis, _correctedAiPcts may have been set on switch rounds.
@@ -18374,6 +18494,7 @@
                         for (var _ri = 0; _ri < _rounds.length; _ri++) {
                             var _rd = _rounds[_ri];
                             if (!_rd._correctedAiPcts) continue;
+                            _rd._cardCacheMap = null; // invalidate cached card HTML — corrected AI pcts change fork display
                             var $card = $('.rsa-round-card[data-round="' + _rd.roundNum + '"]');
                             if (!$card.length) continue;
                             var _newBadges = renderRoundForkSummary(_rd);
@@ -18391,6 +18512,9 @@
                         $panel.html('<div class="rsa-fa-error">⚠ ' +
                             $('<span>').text(String(e)).html() + '</div>').show();
                         console.error('[FightAnalysis]', e);
+                    } finally {
+                        _suppressRenderLog = false;
+                        renderRoundLog(); // single final render after all analysis work
                     }
                 }, 30);
             } catch (e) {
